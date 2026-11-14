@@ -277,7 +277,7 @@ async function main() {
      */
     const fs = await import('node:fs')
     const { execSync } = await import('node:child_process')
-    const tela = fs.readFileSync(resolverNoCodigo('app/(dashboard)/atendimento/conversas/page.tsx'), 'utf8')
+    const tela = fs.readFileSync(resolverNoCodigo('rotas/(dashboard)/atendimento/conversas/page.tsx'), 'utf8')
     // De `chaves`, não de `avisar`: aquele importa o Prisma por `./index`, que
     // lança na carga sem DATABASE_URL — e este teste roda sem banco.
     const { CHAVES } = await import('@venn/core/lib/outbox/chaves')
@@ -336,16 +336,42 @@ async function main() {
      * de tempo real vai copiar a que existe — então o que tem de falhar é a
      * cópia da chamada direta, não a fatura do mês seguinte.
      */
-    const chamamDireto = execSync(
-        "grep -rl 'conectarTempoReal' src --include=*.ts --include=*.tsx | grep -v 'lib/realtime/cliente.ts' | grep -v 'lib/realtime/assinatura.ts' || true",
+    /**
+     * **Esta asserção estava OCA, e é a forma mais perigosa do defeito.**
+     *
+     * O grep varria `src` fixo. Depois da Fase 2 essa raiz não existe mais: o
+     * comando falhava com `grep: src: No such file or directory`, o `|| true`
+     * engolia o erro, a lista vinha vazia — e a asserção é `=== 0`, então
+     * **aprovava o vazio**. O log do build de 14/11 mostrava a linha do erro no
+     * meio de dezenas de PASS.
+     *
+     * A irmã dela, logo abaixo, foi consertada na Fase 2 porque a assertiva é
+     * `> 0` e por isso FALHOU. Esta aprovou calada e eu passei por ela sem ver.
+     * É exatamente a diferença que a lição da fase registra: a que grita custa
+     * um ciclo de build, a que se cala custa um incidente.
+     *
+     * Agora: raízes derivadas, e um **piso** — a varredura tem de encontrar o
+     * próprio multiplexador. Se achar zero, ela está quebrada, e isso falha
+     * antes de a asserção de baixo ter chance de aprovar o nada.
+     */
+    const raizesDoTempoReal = raizesDeCodigo().join(' ')
+    const todosQueChamam = execSync(
+        `grep -rl 'conectarTempoReal' ${raizesDoTempoReal} --include=*.ts --include=*.tsx || true`,
         { encoding: 'utf8' }
     )
         .split('\n')
         .filter(Boolean)
     ok(
+        'contrato: a varredura encontra o multiplexador (piso contra falso verde)',
+        todosQueChamam.length > 0,
+        `${todosQueChamam.length} arquivo(s) chamam, em ${raizesDoTempoReal}`
+    )
+    const DO_MULTIPLEXADOR = /lib\/realtime\/(cliente|assinatura)\.ts$/
+    const chamamDireto = todosQueChamam.filter((f) => !DO_MULTIPLEXADOR.test(f))
+    ok(
         'contrato: só o multiplexador abre conexão',
         chamamDireto.length === 0,
-        chamamDireto.length ? chamamDireto.join(', ') : 'assinatura.ts'
+        chamamDireto.length ? chamamDireto.join(', ') : todosQueChamam.join(', ')
     )
 
 

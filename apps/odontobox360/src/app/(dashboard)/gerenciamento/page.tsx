@@ -1,5 +1,4 @@
-import { redirect } from 'next/navigation'
-
-export default function GerenciamentoPage() {
-    redirect('/gerenciamento/conta')
-}
+/* GERADO por scripts/gerar-rotas.ts — não edite.
+ * Conteúdo: packages/core/src/rotas/(dashboard)/gerenciamento/page.tsx
+ */
+export { default } from '@venn/core/rotas-jsx/(dashboard)/gerenciamento/page'

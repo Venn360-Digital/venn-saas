@@ -182,6 +182,8 @@ const PROVAS = [
     // preview — depois de o build inteiro compilar por 3min22s (14/11). Vem
     // primeiro porque é barato e reprova o erro mais caro da lista.
     'check:marca-tardia',
+    // Nomes de recurso: a regra 3 do audit nunca validou nada sem wrangler.
+    'check:recursos',
     'check:cofre',
     'check:storage',
     'check:tempo-real',

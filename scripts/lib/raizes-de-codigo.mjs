@@ -35,7 +35,7 @@
  * variação normal de um projeto que cresce e encolhe — piso justo demais vira
  * ruído a cada PR, e ruído se aprende a ignorar.
  */
-import { readdirSync, statSync, existsSync } from 'node:fs'
+import { readdirSync, statSync, existsSync, readFileSync } from 'node:fs'
 import { join, relative } from 'node:path'
 
 const ROOT = process.cwd()
@@ -147,6 +147,31 @@ export function conferirAllowlist(nome, prefixos, arquivos) {
 }
 
 /**
+ * Se o arquivo é um wrapper de rota gerado, o caminho do conteúdo dele.
+ *
+ * Existe porque a Fase 3 criou uma armadilha nova, e ela pegou DOIS
+ * verificadores antes de eu entender o padrão. O conteúdo das rotas foi para
+ * `packages/core/src/rotas/**` e cada app ficou com uma casca de duas linhas
+ * no caminho antigo. Então um sufixo como `app/(dashboard)/…/page.tsx`
+ * continua casando — a casca — e `resolverNoCodigo` **resolve com sucesso**,
+ * devolvendo um arquivo que não tem nada dentro.
+ *
+ * `check-widget` e `check-tempo-real` caíram nisso. Os dois gritaram, porque
+ * procuram conteúdo específico dentro do arquivo; um verificador mais frouxo
+ * teria aprovado a casca em silêncio.
+ *
+ * Consertar os dois sufixos resolveria os dois casos e deixaria o terceiro
+ * para quem vier. Isto resolve a classe: a casca carrega o endereço do
+ * conteúdo no próprio cabeçalho, então o erro pode dizer para onde ir.
+ */
+function conteudoDaCasca(caminho) {
+    if (!/\.tsx?$/.test(caminho)) return null
+    const texto = readFileSync(caminho, 'utf8').slice(0, 400)
+    if (!texto.includes('GERADO por scripts/gerar-rotas.ts')) return null
+    return texto.match(/Conteúdo:\s*(\S+)/)?.[1] ?? '(o cabeçalho da casca não diz onde)'
+}
+
+/**
  * O caminho de um arquivo de código, procurado em vez de escrito.
  *
  * Existe porque os verificadores não leem só imports: vários abrem o
@@ -170,7 +195,18 @@ export function conferirAllowlist(nome, prefixos, arquivos) {
  */
 export function resolverNoCodigo(sufixo) {
     const achados = arquivosDeCodigo().filter((f) => f.endsWith(sufixo))
-    if (achados.length === 1) return achados[0]
+    if (achados.length === 1) {
+        const dono = conteudoDaCasca(achados[0])
+        if (dono) {
+            throw new Error(
+                `"${sufixo}" resolveu para uma CASCA gerada: ${achados[0]}.\n` +
+                `O conteúdo está em ${dono}.\n` +
+                'Use um sufixo que diga `rotas/` — o de `app/` casa a casca, que não\n' +
+                'tem conteúdo nenhum, e resolve com sucesso.'
+            )
+        }
+        return achados[0]
+    }
     if (achados.length === 0) {
         throw new Error(
             `não achei nenhum arquivo terminando em "${sufixo}" em ${raizesDeCodigo().join(', ')}.\n` +

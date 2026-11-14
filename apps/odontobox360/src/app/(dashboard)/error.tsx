@@ -1,27 +1,4 @@
-'use client'
-
-import { useEffect } from 'react'
-
-import { ErrorState } from '@venn/core/components/shared/ErrorState'
-
-/**
- * Keeps the shell. A failure inside one screen should not take the sidebar and
- * the topbar with it — the user stays oriented and can navigate away.
+/* GERADO por scripts/gerar-rotas.ts — não edite.
+ * Conteúdo: packages/core/src/rotas/(dashboard)/error.tsx
  */
-export default function DashboardError({
-    error,
-    reset,
-}: {
-    error: Error & { digest?: string }
-    reset: () => void
-}) {
-    useEffect(() => {
-        console.error('[DASHBOARD_ERROR]', error)
-    }, [error])
-
-    return (
-        <div className="p-4 md:p-6">
-            <ErrorState digest={error.digest} onRetry={reset} />
-        </div>
-    )
-}
+export { default } from '@venn/core/rotas-jsx/(dashboard)/error'

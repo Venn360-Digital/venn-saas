@@ -1,0 +1,3891 @@
+'use client'
+
+import { useRouter, useSearchParams } from 'next/navigation'
+
+import { apelidoDaLinha } from '@venn/core/lib/linha'
+import { formatPhone } from '@venn/core/lib/phone'
+import { prettyPhone } from '@venn/core/lib/masks'
+import { useNow } from '@venn/core/hooks/useNow'
+import { usePermissions } from '@venn/core/hooks/usePermissions'
+
+import { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from 'react'
+import { Input } from '@venn/ui/input'
+import { Button } from '@venn/ui/button'
+import {
+    ArrowLeft,
+    ArrowRightLeft,
+    AtSign,
+    Bot,
+    CalendarPlus,
+    Check,
+    CheckCheck,
+    CheckCircle2,
+    ChevronDown,
+    Copy,
+    FileText,
+    Film,
+    Hand,
+    Image as ImageIcon,
+    ListTodo,
+    Loader2,
+    Mail,
+    MessageSquare,
+    Mic,
+    Music,
+    PanelRight,
+    Paperclip,
+    Phone,
+    Plug,
+    Plus,
+    Reply,
+    RotateCcw,
+    Route,
+    Search,
+    SlidersHorizontal,
+    Smartphone,
+    Unplug,
+    Send,
+    Sparkles,
+    StickyNote,
+    Tag,
+    Trash2,
+    Users,
+    UserMinus,
+    UserX,
+    X,
+    XCircle,
+} from 'lucide-react'
+import { cn } from '@venn/ui/utils'
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuTrigger,
+} from '@venn/ui/dropdown-menu'
+import { Separator } from '@venn/ui/separator'
+import { Toggle } from '@venn/ui/toggle'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@venn/ui/tooltip'
+import { RowActionItem, RowActionsSeparator } from '@venn/core/components/shared/RowActions'
+import { toast } from 'sonner'
+import { EmojiPicker } from '@venn/core/components/shared/EmojiPicker'
+import {
+    ContextMenu,
+    ContextMenuContent,
+    ContextMenuItem,
+    ContextMenuSeparator,
+    ContextMenuTrigger,
+} from '@venn/ui/context-menu'
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+} from '@venn/ui/dialog'
+import {
+    Command,
+    CommandEmpty,
+    CommandGroup,
+    CommandInput,
+    CommandItem,
+    CommandList,
+} from '@venn/ui/command'
+import { Popover, PopoverContent, PopoverTrigger } from '@venn/ui/popover'
+import { AudioMessage } from '@venn/core/components/shared/AudioMessage'
+import { TextoDeWhatsApp } from '@venn/core/components/shared/TextoDeWhatsApp'
+import { EtapaChip } from '@venn/core/components/shared/EtapaChip'
+import { Retrato } from '@venn/core/components/shared/Retrato'
+import { useIntervaloVisivel } from '@venn/core/hooks/useIntervaloVisivel'
+import {
+    ROTULO_DA_ABA,
+    ROTULO_DO_VER,
+    opcoesDeVer,
+    type Aba,
+    type Ver,
+} from '@venn/core/lib/conversas/recortes'
+import { semMarcacao } from '@venn/core/lib/texto-whatsapp'
+import { ActivityForm } from '@venn/core/components/shared/ActivityForm'
+import { ActivityList } from '@venn/core/components/shared/ActivityList'
+import { AiSummaryPanel } from '@venn/core/components/shared/AiSummaryPanel'
+import { ConversationFilesPanel } from '@venn/core/components/shared/ConversationFilesPanel'
+import { InternalNotesPanel } from '@venn/core/components/shared/InternalNotesPanel'
+import { NewAttendanceDialog } from '@venn/core/components/shared/NewAttendanceDialog'
+import { TagPicker } from '@venn/core/components/shared/TagPicker'
+import { TagChip } from '@venn/core/components/shared/TagChip'
+import { PanelField, PanelSection, RecordPanel } from '@venn/core/components/shared/RecordPanel'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@venn/ui/select'
+import { waitedFor, type QueueCounts } from '@venn/core/components/shared/QueueMeter'
+import {
+    DealJourney,
+    type JourneyEntry,
+    type JourneyStage,
+} from '@venn/core/components/shared/DealJourney'
+import { format, isToday, isYesterday } from 'date-fns'
+import { ptBR } from 'date-fns/locale'
+import { assinarTempoReal } from '@venn/core/lib/realtime/assinatura'
+import { ConfirmDialog } from '@venn/core/components/shared/ConfirmDialog'
+import { DEFAULT_ENTITY_COLOR } from '@venn/core/lib/palette'
+
+
+/** Corpo do POST de mensagem; os dois últimos campos são condicionais. */
+interface SendMessageBody {
+    content: string
+    replyToId?: string
+    isInternal?: boolean
+}
+
+/**
+ * A aba e o `Ver` vêm do módulo de recortes, não daqui.
+ *
+ * Era `type Tab = 'waiting' | 'active' | 'closed'` escrito nesta página, com a
+ * rota tendo a sua própria cópia dos mesmos três literais. Duas cópias dos
+ * mesmos nomes divergem na primeira vez que um deles muda — e foi o que
+ * aconteceu: a tela escrevia "Em espera" para um recorte que significava "sem
+ * responsável".
+ */
+
+interface TagItem {
+    id: string
+    name: string
+    color: string
+}
+
+/** Como uma linha se chama na tela: o apelido, senão o número formatado. */
+function nomeDaLinha(line: { label: string | null; phoneNumber: string | null }): string {
+    return apelidoDaLinha(line, 'sem número')
+}
+
+/**
+ * O primeiro nome, que é como a clínica chama o paciente.
+ *
+ * O nome inteiro cabia no cabeçalho e não cabia no cartão: "Maria Aparecida
+ * Gonçalves dos Santos" ocupava a largura toda e ainda era cortado no meio do
+ * sobrenome. Quem atende chama de Maria.
+ */
+function primeiroNome(nome: string | null, telefone: string | null, canal?: string): string {
+    const limpo = nome?.trim()
+    if (limpo) return limpo.split(/\s+/)[0]
+    if (telefone) return formatPhone(telefone)
+    /**
+     * Quem chega pelo site não tem nome nem telefone, e isso é o esperado.
+     *
+     * A ficha dele fica sem nome de propósito — é o que faz o agente perguntar
+     * em vez de chamar a pessoa de "Visitante". Mas a equipe precisa de um
+     * rótulo na lista, e "Desconhecido" soa como defeito.
+     */
+    if (canal === 'web') return 'Visitante do site'
+    return 'Desconhecido'
+}
+
+/**
+ * De onde a conversa veio.
+ *
+ * No WhatsApp é **o apelido da linha e nada mais**: "Unidade Centro" já diz
+ * tudo, e o rótulo do canal ao lado ("Whats · Unidade Centro") repetia em toda
+ * conversa a informação que o ícone ao lado já dá. Instagram e site não têm
+ * linha nem apelido — ali o nome do canal é a resposta inteira.
+ */
+const CANAIS_SEM_LINHA: Record<string, string> = {
+    instagram: 'Instagram',
+    site: 'Site',
+}
+
+function origemDaConversa(conv: {
+    channel: string
+    line?: { label: string | null; phoneNumber: string | null; channel?: string } | null
+}): string | null {
+    if (conv.line) {
+        return CANAIS_SEM_LINHA[conv.line.channel ?? ''] ?? nomeDaLinha(conv.line)
+    }
+    // Sem linha gravada, o canal da conversa é o que sobra para dizer.
+    if (conv.channel === 'instagram') return 'Instagram'
+    if (conv.channel === 'web') return 'Site'
+    return null
+}
+
+interface ConversationListItem {
+    id: string
+    channel: string
+    status: string
+    assignedTo: string | null
+    assignedToName: string | null
+    /** Endereço de `/api/retratos`. Sempre existe; 404 quando não há foto. */
+    assignedToRetrato: string
+    contact: {
+        id: string
+        name: string | null
+        phone: string | null
+        avatar: string | null
+    }
+    agent: {
+        id: string
+        name: string
+        /** Endereço de `/api/retratos`. Sempre existe; 404 quando não há foto. */
+        retrato: string
+    } | null
+    /** Por qual número da clínica esta conversa entrou. */
+    line: {
+        id: string
+        label: string | null
+        phoneNumber: string | null
+        channel: string
+    } | null
+    lastMessage: {
+        id: string
+        content: string
+        direction: string
+        sentBy: string | null
+        createdAt: string
+    } | null
+    unreadCount: number
+    tags: TagItem[]
+    lastMessageAt: string | null
+    createdAt: string
+    /**
+     * Onde a pessoa está no funil — nulo quando não há negócio aberto.
+     * O predicado é de `lib/conversas/etapa-do-funil`, o mesmo do filtro.
+     */
+    funnelStage: { dealId: string; stageId: string | null; stageName: string | null; stageColor: string | null } | null
+}
+
+interface ReplyToMessage {
+    id: string
+    content: string
+    direction: string
+    contentType: string
+    sentBy: string | null
+}
+
+interface Message {
+    id: string
+    content: string
+    direction: string
+    contentType: string
+    mediaUrl: string | null
+    sentBy: string | null
+    senderName: string | null
+    status: string
+    createdAt: string
+    replyToId: string | null
+    replyTo: ReplyToMessage | null
+    isInternal: boolean
+    transcript?: string | null
+    reaction?: string | null
+}
+
+interface OpenDeal {
+    id: string
+    title: string
+    /** A etapa atual do funil — que agora é também a fase da jornada. */
+    stageId: string
+    stageName: string | null
+    stageColor: string | null
+    /** De onde veio o paciente — "Agência" no banco. */
+    originId: string | null
+    /** Por onde veio — "Mídia" no banco. */
+    mediaId: string | null
+    /** De quem é o negócio. Quem está com a conversa é outra coisa, e é do chip. */
+    ownerId: string | null
+    ownerName: string | null
+    value: number | null
+    status: 'open' | 'won' | 'lost'
+    closedAt: string | null
+    outcomeReasonName: string | null
+    outcomeNotes: string | null
+    closedStageName: string | null
+    /** As etapas que esta clínica criou, em ordem. São as fases. */
+    stages: JourneyStage[]
+    /** Uma entrada por passagem em etapa: a data e a nota de cada fase. */
+    entries: JourneyEntry[]
+}
+
+
+interface ConversationDetail {
+    conversation: {
+        id: string
+        channel: string
+        status: string
+        assignedTo: string | null
+        assignedToName: string | null
+        /** O portão: `'bot'` ou `'humano'`. Decide a aba e o "Devolver à IA". */
+        atendidaPor: string
+        /** Quem foi chamado por menção. Só aqui — o cartão não os mostra. */
+        colaboradores: { userId: string; nome: string; retrato: string }[]
+        /** Se eu colaboro — é o que faz o botão de sair existir. */
+        euColaboro: boolean
+        contact: {
+            id: string
+            name: string | null
+            phone: string | null
+            email: string | null
+            avatar: string | null
+            notes: string | null
+            source: string | null
+        }
+        agent: {
+            id: string
+            name: string
+            avatar: string | null
+            isActive: boolean
+        } | null
+        /** Por qual número esta conversa fala, e se esse número está no ar. */
+        line: {
+            id: string
+            label: string | null
+            phoneNumber: string | null
+            channel: string
+            status: string
+        } | null
+        tags: TagItem[]
+        openDeal?: OpenDeal | null
+    }
+    messages: Message[]
+    hasMore?: boolean
+    nextCursor?: string | null
+}
+
+// Delivery status checkmarks component
+function MessageStatus({ status, direction }: { status: string; direction: string }) {
+    if (direction === 'inbound') return null
+    switch (status) {
+        case 'sent':
+            return <Check className="h-3 w-3 inline-block ml-1 opacity-60" />
+        case 'delivered':
+            return <CheckCheck className="h-3 w-3 inline-block ml-1 opacity-60" />
+        case 'read':
+            return <CheckCheck className="h-3 w-3 inline-block ml-1 text-info-subtle-foreground" />
+        case 'failed':
+            return <span className="text-destructive-subtle-foreground ml-1 text-[10px]">⚠️</span>
+        default:
+            return <Check className="h-3 w-3 inline-block ml-1 opacity-40" />
+    }
+}
+
+interface QuickResponse {
+    id: string
+    command: string
+    text: string
+    isActive: boolean
+}
+
+function formatMessageTime(dateStr: string) {
+    const date = new Date(dateStr)
+    if (isToday(date)) {
+        return format(date, 'HH:mm')
+    }
+    if (isYesterday(date)) {
+        return 'Ontem'
+    }
+    return format(date, 'dd/MM', { locale: ptBR })
+}
+
+function getContactInitials(name: string | null, phone: string | null) {
+    if (name) {
+        return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()
+    }
+    if (phone) return phone.slice(-2)
+    return '?'
+}
+
+/** O aceso dos painéis — a mesma tinta de estado das telas de índice. */
+const PANEL_ON = 'bg-primary-subtle text-primary-subtle-foreground hover:bg-primary-subtle hover:text-primary-subtle-foreground'
+/**
+ * O `data-state` do Toggle não serve aqui: o `TooltipTrigger` que envolve cada
+ * um escreve o próprio estado no mesmo atributo, e `data-[state=on]` nunca
+ * casava — era por isso que o painel aberto não acendia. A classe vem da mesma
+ * condição que o `pressed`.
+ */
+
+function ContactAvatar({ avatar, name, phone, size = 'md' }: {
+    avatar: string | null
+    name: string | null
+    phone: string | null
+    size?: 'sm' | 'md'
+}) {
+    const sizeClasses = size === 'sm' ? 'w-8 h-8 text-xs' : 'w-10 h-10 text-sm'
+
+    if (avatar) {
+        return (
+            <img
+                src={avatar}
+                alt={name || 'Contact'}
+                className={cn('rounded-full object-cover flex-shrink-0', sizeClasses)}
+                onError={(e) => {
+                    // Fallback to initials on image load error
+                    const target = e.target as HTMLImageElement
+                    target.style.display = 'none'
+                    const fallback = target.nextElementSibling as HTMLElement
+                    if (fallback) fallback.style.display = 'flex'
+                }}
+            />
+        )
+    }
+
+    return (
+        <div className={cn(
+            'rounded-full bg-primary/20 flex items-center justify-center font-medium text-primary flex-shrink-0',
+            sizeClasses
+        )}>
+            {getContactInitials(name, phone)}
+        </div>
+    )
+}
+
+function MediaContent({ msg }: { msg: Message }) {
+    if (msg.contentType === 'image' && msg.mediaUrl) {
+        return (
+            <div className="mb-1.5">
+                <img
+                    src={msg.mediaUrl}
+                    alt="Imagem"
+                    className="rounded-lg max-w-[240px] max-h-[200px] object-cover cursor-pointer"
+                    onClick={() => window.open(msg.mediaUrl!, '_blank')}
+                />
+                {msg.content && msg.content !== '📷 Imagem' && (
+                    <TextoDeWhatsApp texto={msg.content} className="whitespace-pre-wrap break-words mt-1" />
+                )}
+            </div>
+        )
+    }
+
+    /**
+     * Áudio aparece mesmo sem arquivo, desde que haja o que ler.
+     *
+     * A condição era `&& msg.mediaUrl`, e com o arquivamento falhando a
+     * mensagem caía no desenho genérico — que mostra o `content`, isto é, o
+     * marcador "🎵 Áudio". A transcrição estava gravada e invisível.
+     */
+    if (msg.contentType === 'audio' && (msg.mediaUrl || msg.transcript)) {
+        return <AudioMessage src={msg.mediaUrl} transcript={msg.transcript} className="mb-1" />
+    }
+
+    if (msg.contentType === 'video' && msg.mediaUrl) {
+        return (
+            <div className="mb-1.5">
+                <video controls className="rounded-lg max-w-[240px] max-h-[200px]">
+                    <source src={msg.mediaUrl} />
+                </video>
+                {msg.content && msg.content !== '🎬 Vídeo' && (
+                    <TextoDeWhatsApp texto={msg.content} className="whitespace-pre-wrap break-words mt-1" />
+                )}
+            </div>
+        )
+    }
+
+    if (msg.contentType === 'file' && msg.mediaUrl) {
+        return (
+            <div className="mb-1">
+                <a
+                    href={msg.mediaUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 bg-foreground/10 rounded-lg px-3 py-2 hover:bg-foreground/20 transition-colors"
+                >
+                    <FileText className="h-4 w-4" />
+                    <span className="text-sm underline">{msg.content}</span>
+                </a>
+            </div>
+        )
+    }
+
+    // Default text
+    return <TextoDeWhatsApp texto={msg.content} />
+}
+
+function mediaIcon(contentType: string) {
+    switch (contentType) {
+        case 'image': return <ImageIcon className="h-3 w-3 inline mr-0.5" />
+        case 'audio': return <Music className="h-3 w-3 inline mr-0.5" />
+        case 'video': return <Film className="h-3 w-3 inline mr-0.5" />
+        case 'file': return <FileText className="h-3 w-3 inline mr-0.5" />
+        default: return null
+    }
+}
+
+export default function ConversasPage() {
+    // Só dono e administrador reconectam uma linha; o aviso de linha fora do ar
+    // muda de destinatário por isso.
+    const { canManage } = usePermissions()
+    const [activeTab, setActiveTab] = useState<Aba>('ia')
+    const [searchQuery, setSearchQuery] = useState('')
+    const [conversations, setConversations] = useState<ConversationListItem[]>([])
+    const [queue, setQueue] = useState<QueueCounts | null>(null)
+    /**
+     * Origem e canal só aceitam o que já está cadastrado.
+     *
+     * Carregadas uma vez: são listas curtas de cadastro, não dado de conversa, e
+     * o painel é aberto muitas vezes por sessão.
+     */
+    /** Quem pode ser dono do negócio — carregado uma vez, para o campo da ficha. */
+    const [dealOwners, setDealOwners] = useState<{ userId: string; name: string }[]>([])
+    const [origins, setOrigins] = useState<{ id: string; name: string }[]>([])
+    const [medias, setMedias] = useState<{ id: string; name: string }[]>([])
+    const [slashIndex, setSlashIndex] = useState(0)
+    /** `commands` lista os comandos; `replies` é a segunda página, só respostas. */
+    const [slashPage, setSlashPage] = useState<'commands' | 'replies'>('commands')
+    /**
+     * `?conv=<id>` abre direto numa conversa.
+     *
+     * Serve ao gatilho em Pacientes: lá o atendimento é criado e a pessoa é
+     * trazida para cá já na conversa certa. Lido uma vez, no inicializador — a
+     * navegação vem de outra rota, então a página monta; derivar do parâmetro a
+     * cada render impediria fechar a conversa no celular, que é o que
+     * `setSelectedConversation(null)` faz.
+     */
+    const router = useRouter()
+    const convParam = useSearchParams().get('conv')
+    const [selectedConversation, setSelectedConversation] = useState<string | null>(convParam)
+    const [conversationDetail, setConversationDetail] = useState<ConversationDetail | null>(null)
+    const [messages, setMessages] = useState<Message[]>([])
+    const [messageInput, setMessageInput] = useState('')
+    const [sending, setSending] = useState(false)
+    const [loading, setLoading] = useState(true)
+    const [canTransfer, setCanTransfer] = useState(false)
+    /** Quem sou eu: vira o dono do negócio aberto por aqui. */
+    const [meuId, setMeuId] = useState('')
+    /** O seletor `Ver`: a minha relação com a conversa. Era `onlyMine` booleano. */
+    const [ver, setVer] = useState<Ver>('todas')
+    /** O papel, que decide quais opções de `Ver` a tela oferece. */
+    const [meuPapel, setMeuPapel] = useState<string>('')
+    /**
+     * Qual linha a lista mostra — "all" para todas.
+     *
+     * Existe porque uma clínica pode atender por dois números, e as duas filas
+     * chegavam misturadas na mesma lista: quem cuida de uma unidade lia o tempo
+     * todo as conversas da outra.
+     */
+    const [lineFilter, setLineFilter] = useState('all')
+    const [agentFilter, setAgentFilter] = useState('all')
+    /** Etiqueta e etapa do funil: os dois filtros novos do Vol. III. */
+    const [tagFilter, setTagFilter] = useState('all')
+    const [stageFilter, setStageFilter] = useState('all')
+    const [filterTags, setFilterTags] = useState<{ id: string; name: string; color: string }[]>([])
+    const [stages, setStages] = useState<{ id: string; name: string; color: string | null }[]>([])
+    const [agents, setAgents] = useState<{ id: string; name: string }[]>([])
+    const [lines, setLines] = useState<{ id: string; label: string | null; phoneNumber: string | null; agentName: string }[]>([])
+
+    /**
+     * Os filtros ligados, como pastilhas — a metade que faz a opção B ser a B.
+     *
+     * O popover **escolhe**; esta faixa **mostra**. A separação existe porque
+     * o cabeçalho desta coluna já foi de cinco faixas para três, e um filtro
+     * que cobrasse altura mesmo desligado desfaria aquele ganho: a lista
+     * `filtrosLigados` é vazia no caso comum, e aí a faixa não é renderizada e
+     * a coluna tem exatamente a altura de antes.
+     *
+     * Cada pastilha diz o **próprio valor** e sai com o ×, que é a regra do
+     * `FilterPill` em DESIGN.md §5. Sem isso, uma lista curta por causa de um
+     * filtro esquecido parece uma caixa vazia — o engano que a opção A deixava
+     * acontecer.
+     */
+    const filtrosLigados = useMemo(() => {
+        const postas: { chave: string; rotulo: string; valor: string; limpar: () => void }[] = []
+
+        if (lineFilter !== 'all') {
+            const linha = lines.find((l) => l.id === lineFilter)
+            postas.push({
+                chave: 'line',
+                rotulo: 'Linha',
+                valor: lineFilter === 'none' ? 'Sem linha' : linha?.label || linha?.phoneNumber || 'Linha',
+                limpar: () => {
+                    setLineFilter('all')
+                    setLoading(true)
+                },
+            })
+        }
+        if (agentFilter !== 'all') {
+            postas.push({
+                chave: 'agent',
+                rotulo: 'Agente',
+                valor:
+                    agentFilter === 'none'
+                        ? 'Sem agente'
+                        : agents.find((a) => a.id === agentFilter)?.name || 'Agente',
+                limpar: () => {
+                    setAgentFilter('all')
+                    setLoading(true)
+                },
+            })
+        }
+        if (tagFilter !== 'all') {
+            postas.push({
+                chave: 'tag',
+                rotulo: 'Etiqueta',
+                valor: filterTags.find((t) => t.id === tagFilter)?.name || 'Etiqueta',
+                limpar: () => {
+                    setTagFilter('all')
+                    setLoading(true)
+                },
+            })
+        }
+        if (stageFilter !== 'all') {
+            postas.push({
+                chave: 'stage',
+                rotulo: 'Etapa',
+                valor:
+                    stageFilter === 'none'
+                        ? 'Sem negócio aberto'
+                        : stages.find((e) => e.id === stageFilter)?.name || 'Etapa',
+                limpar: () => {
+                    setStageFilter('all')
+                    setLoading(true)
+                },
+            })
+        }
+
+        return postas
+    }, [lineFilter, agentFilter, tagFilter, stageFilter, lines, agents, filterTags, stages])
+
+    /**
+     * O gatilho "Filtros" aparece quando há o que escolher.
+     *
+     * Linha e agente só contam a partir de dois — com um de cada, o seletor
+     * não decide nada. Etiqueta e etapa contam a partir de **um**: a clínica
+     * com uma etiqueta só ainda quer separar quem a tem de quem não a tem.
+     */
+    const temFiltro =
+        lines.length > 1 || agents.length > 1 || filterTags.length > 0 || stages.length > 0
+
+    const limparFiltros = () => {
+        setLineFilter('all')
+        setAgentFilter('all')
+        setTagFilter('all')
+        setStageFilter('all')
+        setLoading(true)
+    }
+    const messagesEndRef = useRef<HTMLDivElement>(null)
+    const messagesContainerRef = useRef<HTMLDivElement>(null)
+    // Última mensagem conhecida da conversa aberta, para a rede detectar
+    // atividade nova sem depender do evento.
+    const trackedConversationRef = useRef<string | null>(null)
+    const lastSeenMessageIdRef = useRef<string | null>(null)
+    const textareaRef = useRef<HTMLTextAreaElement>(null)
+    const prevTotalUnreadRef = useRef<number>(0)
+    const soundEnabledRef = useRef<boolean>(true)
+    const fileInputRef = useRef<HTMLInputElement>(null)
+
+    // Typing indicator state
+    const [contactTyping, setContactTyping] = useState(false)
+    const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+    const operatorTypingRef = useRef(false)
+    const operatorTypingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+    // Pagination state
+    const [hasMoreMessages, setHasMoreMessages] = useState(false)
+    const [nextCursor, setNextCursor] = useState<string | null>(null)
+    const [loadingMore, setLoadingMore] = useState(false)
+
+
+    // Attachment state
+    const [attachment, setAttachment] = useState<File | null>(null)
+    const [attachmentPreview, setAttachmentPreview] = useState<string | null>(null)
+
+    // Context menu state
+    const [forwardMsg, setForwardMsg] = useState<Message | null>(null)
+    const [creatingDeal, setCreatingDeal] = useState(false)
+    const [forwarding, setForwarding] = useState(false)
+    const [showSearch, setShowSearch] = useState(false)
+    const [conversationSearch, setConversationSearch] = useState('')
+    const [dragOver, setDragOver] = useState(false)
+
+    // Reply state
+    const [replyingTo, setReplyingTo] = useState<Message | null>(null)
+
+    // Audio recording state
+    const [isRecording, setIsRecording] = useState(false)
+    const [recordingTime, setRecordingTime] = useState(0)
+    const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+    const audioChunksRef = useRef<Blob[]>([])
+    const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null)
+
+    // Quick replies state
+    const [quickResponses, setQuickResponses] = useState<QuickResponse[]>([])
+    const [showQuickReplies, setShowQuickReplies] = useState(false)
+    const [quickSearch, setQuickSearch] = useState('')
+    const [quickRepliesLoaded, setQuickRepliesLoaded] = useState(false)
+
+    // Transfer modal state
+    const [showTransferModal, setShowTransferModal] = useState(false)
+    const [transferUsers, setTransferUsers] = useState<{ userId: string; name: string | null; lastName: string | null; avatar: string | null; role: string }[]>([])
+    const [transferLoading, setTransferLoading] = useState(false)
+    const [transferSearch, setTransferSearch] = useState('')
+    const [transferConvId, setTransferConvId] = useState<string | null>(null)
+
+    // Delete dialog state
+    const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+
+    // Contact panel state
+    /**
+     * O painel direito tem modos, e um só por vez.
+     *
+     * Antes cada ícone da faixa fazia uma coisa diferente — busca abria barra,
+     * agendar abria diálogo, jornada abria painel — e ninguém conseguia prever o
+     * que um ícone ia fazer. Agora os painéis se alternam: clicar em outro
+     * troca, clicar no mesmo fecha. Dois painéis de 300px não cabem numa janela
+     * de 1280, então alternar é mais honesto que empilhar.
+     */
+    const [intakeOpen, setIntakeOpen] = useState(false)
+    const [suggesting, setSuggesting] = useState(false)
+
+    type PanelMode = 'journey' | 'schedule' | 'activities' | 'files' | 'summary' | 'notes'
+    const [panel, setPanel] = useState<PanelMode | null>(null)
+    const togglePanel = (next: PanelMode) => setPanel((prev) => (prev === next ? null : next))
+
+    /** O título do painel aberto, que o cabeçalho e o leitor de tela usam. */
+    /**
+     * Esc fecha a ficha — o mesmo gesto das outras telas. Dentro de um campo ou
+     * de um diálogo o Esc é deles.
+     */
+    useEffect(() => {
+        if (!panel) return
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key !== 'Escape') return
+            const el = e.target as HTMLElement | null
+            if (el && el.closest('input, textarea, [contenteditable="true"], [role="dialog"], [role="listbox"], [role="menu"]')) return
+            setPanel(null)
+        }
+        window.addEventListener('keydown', onKey)
+        return () => window.removeEventListener('keydown', onKey)
+    }, [panel])
+
+    /**
+     * Há quanto tempo o negócio está na fase atual.
+     *
+     * Da última entrada de fase, como no funil — e `null` quando não há
+     * registro, que é diferente de zero dia.
+     */
+    const nowMs = useNow()
+    const openDealForDays = conversationDetail?.conversation?.openDeal ?? null
+    const stageSince = openDealForDays
+        ? openDealForDays.entries
+              .filter((e) => e.stageId === openDealForDays.stageId && e.enteredAt)
+              .map((e) => new Date(e.enteredAt as string).getTime())
+              .sort((a, b) => b - a)[0]
+        : undefined
+    const stageDays = stageSince && nowMs ? Math.max(0, Math.floor((nowMs - stageSince) / 86_400_000)) : null
+    const stageDaysLabel =
+        stageDays === null
+            ? null
+            : stageDays === 0
+              ? 'entrou nesta fase hoje'
+              : `nesta fase há ${stageDays} ${stageDays === 1 ? 'dia' : 'dias'}`
+
+    const PANEL_TITLES: Record<PanelMode, string> = {
+        summary: 'Resumo do paciente',
+        schedule: 'Agendar atividade',
+        activities: 'Atividades do paciente',
+        files: 'Arquivos da conversa',
+        journey: 'Jornada do paciente',
+        notes: 'Notas internas',
+    }
+
+    // Tags state
+    const [availableTags, setAvailableTags] = useState<TagItem[]>([])
+    const [showTagPicker, setShowTagPicker] = useState(false)
+
+    /** Sobe quando o painel marca uma atividade — a lista relê a partir dele. */
+    const [activitiesToken, setActivitiesToken] = useState(0)
+    const [conversationTags, setConversationTags] = useState<TagItem[]>([])
+
+    // Internal note mode
+
+    /**
+     * As três abas, pelo portão `atendidaPor`.
+     *
+     * Os rótulos vêm de `ROTULO_DA_ABA` para não haver uma segunda lista de
+     * nomes. "Com a IA" é verdade literal aqui: das 87 conversas da base de
+     * produção, 87 têm agente — nenhuma cairia nessa aba sem ter uma.
+     */
+    const tabs = (['ia', 'equipe', 'finalizadas'] as const).map((id) => ({
+        id,
+        label: ROTULO_DA_ABA[id],
+    }))
+
+    // Load quick responses once
+    useEffect(() => {
+        if (quickRepliesLoaded) return
+        fetch('/api/quick-responses')
+            .then(res => res.json())
+            .then(data => {
+                if (Array.isArray(data)) {
+                    setQuickResponses(data.filter((qr: QuickResponse) => qr.isActive))
+                }
+                setQuickRepliesLoaded(true)
+            })
+            .catch(() => setQuickRepliesLoaded(true))
+    }, [quickRepliesLoaded])
+
+    const audioContextRef = useRef<AudioContext | null>(null)
+
+    // Sound preference listener
+    useEffect(() => {
+        const stored = localStorage.getItem('odontobox360-sound-enabled')
+        if (stored !== null) soundEnabledRef.current = stored === 'true'
+
+        const handler = (e: Event) => {
+            soundEnabledRef.current = (e as CustomEvent).detail
+        }
+        window.addEventListener('odontobox360-sound-change', handler)
+        return () => window.removeEventListener('odontobox360-sound-change', handler)
+    }, [])
+
+    /**
+     * Aviso sonoro de mensagem nova.
+     *
+     * O contexto de áudio é reaproveitado. A versão anterior criava um
+     * `new AudioContext()` a cada toque e nunca o fechava — o Chrome limita a
+     * seis por página, então o som funcionava algumas vezes e depois passava a
+     * lançar silenciosamente dentro do `catch`. Um aviso que para de tocar sem
+     * avisar é pior que não ter aviso.
+     */
+    const playNotificationSound = useCallback(() => {
+        try {
+            const AudioCtor =
+                window.AudioContext ??
+                (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+            if (!AudioCtor) return
+
+            const ctx = audioContextRef.current ?? new AudioCtor()
+            audioContextRef.current = ctx
+            // A aba em segundo plano suspende o contexto; sem retomar, o aviso
+            // some justamente quando a atendente não está olhando a tela.
+            if (ctx.state === 'suspended') void ctx.resume()
+
+            const osc = ctx.createOscillator()
+            const gain = ctx.createGain()
+            osc.connect(gain)
+            gain.connect(ctx.destination)
+            osc.type = 'sine'
+            gain.gain.setValueAtTime(0.3, ctx.currentTime)
+
+            // Two-tone WhatsApp-like "ding ding"
+            osc.frequency.setValueAtTime(830, ctx.currentTime)
+            osc.frequency.setValueAtTime(990, ctx.currentTime + 0.12)
+            gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3)
+
+            osc.start(ctx.currentTime)
+            osc.stop(ctx.currentTime + 0.3)
+        } catch {
+            // Audio context not available
+        }
+    }, [])
+
+    // Fetch conversations list
+    useEffect(() => {
+        let cancelled = false
+        Promise.all([
+            fetch('/api/origins').then((r) => (r.ok ? r.json() : [])),
+            fetch('/api/medias').then((r) => (r.ok ? r.json() : [])),
+            fetch('/api/workspace/members').then((r) => (r.ok ? r.json() : [])),
+        ])
+            .then(([origens, midias, members]) => {
+                if (cancelled) return
+                setOrigins(Array.isArray(origens) ? origens : [])
+                setMedias(Array.isArray(midias) ? midias : [])
+                setDealOwners(
+                    Array.isArray(members)
+                        ? members.map((m: { userId: string; name: string }) => ({ userId: m.userId, name: m.name }))
+                        : []
+                )
+            })
+            .catch(() => {
+                // Sem as listas os campos aparecem vazios e não editáveis; a
+                // tela de Negócios continua sendo o lugar de cadastrar.
+            })
+        return () => { cancelled = true }
+    }, [])
+
+    const fetchConversations = useCallback(async () => {
+        try {
+            const params = new URLSearchParams({ tab: activeTab })
+            if (searchQuery) params.set('search', searchQuery)
+            if (ver !== 'todas') params.set('ver', ver)
+            if (lineFilter !== 'all') params.set('line', lineFilter)
+            if (agentFilter !== 'all') params.set('agent', agentFilter)
+            if (tagFilter !== 'all') params.set('tag', tagFilter)
+            if (stageFilter !== 'all') params.set('stage', stageFilter)
+            const res = await fetch(`/api/conversations?${params}`)
+            const data = await res.json()
+            if (data.conversations && Array.isArray(data.conversations)) {
+                // Check for new unread messages to play sound
+                const newTotalUnread = data.conversations.reduce((sum: number, c: ConversationListItem) => sum + c.unreadCount, 0)
+                if (newTotalUnread > prevTotalUnreadRef.current && prevTotalUnreadRef.current >= 0 && soundEnabledRef.current) {
+                    playNotificationSound()
+                }
+                prevTotalUnreadRef.current = newTotalUnread
+
+                setConversations(data.conversations)
+                if (Array.isArray(data.lines)) setLines(data.lines)
+                if (Array.isArray(data.agents)) setAgents(data.agents)
+                if (Array.isArray(data.tags)) setFilterTags(data.tags)
+                if (Array.isArray(data.stages)) setStages(data.stages)
+                if (data.counts) setQueue(data.counts)
+                if (data.currentUser) {
+                    setCanTransfer(data.currentUser.canTransfer)
+                    setMeuId(String(data.currentUser.id ?? ''))
+                    setMeuPapel(String(data.currentUser.role ?? ''))
+                }
+            } else if (Array.isArray(data)) {
+                setConversations(data)
+            }
+        } catch (error) {
+            console.error('Error fetching conversations:', error)
+        } finally {
+            setLoading(false)
+        }
+    }, [activeTab, searchQuery, ver, lineFilter, agentFilter, tagFilter, stageFilter, playNotificationSound])
+
+    // Fetch conversation messages (initial load, limited to 30)
+    const fetchMessages = useCallback(async (convId: string) => {
+        try {
+            const res = await fetch(`/api/conversations/${convId}?limit=30`)
+            const data = await res.json()
+            console.warn('[REALTIME] fetchMessages', convId, {
+                status: res.status,
+                total: data.messages?.length,
+                ultima: data.messages?.at(-1)?.content?.slice(0, 24),
+            })
+            if (data.conversation) {
+                setConversationDetail(data)
+                setMessages(data.messages || [])
+                setHasMoreMessages(data.hasMore || false)
+                setNextCursor(data.nextCursor || null)
+                setConversationTags(data.conversation.tags || [])
+            }
+        } catch (error) {
+            console.error('Error fetching messages:', error)
+        }
+    }, [])
+
+    // Load more messages (scroll up pagination)
+    const loadMoreMessages = useCallback(async () => {
+        if (!selectedConversation || !nextCursor || loadingMore) return
+        setLoadingMore(true)
+        try {
+            const res = await fetch(`/api/conversations/${selectedConversation}?limit=30&cursor=${encodeURIComponent(nextCursor)}`)
+            const data = await res.json()
+            if (data.messages) {
+                // Preserve scroll position
+                const container = messagesContainerRef.current
+                const prevScrollHeight = container?.scrollHeight || 0
+
+                setMessages(prev => [...(data.messages || []), ...prev])
+                setHasMoreMessages(data.hasMore || false)
+                setNextCursor(data.nextCursor || null)
+
+                // Restore scroll position after new messages are rendered
+                requestAnimationFrame(() => {
+                    if (container) {
+                        const newScrollHeight = container.scrollHeight
+                        container.scrollTop = newScrollHeight - prevScrollHeight
+                    }
+                })
+            }
+        } catch (error) {
+            console.error('Error loading more messages:', error)
+        } finally {
+            setLoadingMore(false)
+        }
+    }, [selectedConversation, nextCursor, loadingMore])
+
+    // Mark conversation as read
+    const markAsRead = useCallback(async (convId: string) => {
+        try {
+            await fetch(`/api/conversations/${convId}/read`, { method: 'POST' })
+            // Update local state immediately
+            setConversations(prev => prev.map(c => c.id === convId ? { ...c, unreadCount: 0 } : c))
+        } catch (error) {
+            console.error('Error marking as read:', error)
+        }
+    }, [])
+
+    // Send operator typing indicator (debounced)
+    const sendTypingIndicator = useCallback((convId: string) => {
+        if (operatorTypingRef.current) return
+        operatorTypingRef.current = true
+
+        fetch(`/api/conversations/${convId}/typing`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ isTyping: true }),
+        }).catch(() => { })
+
+        // Auto-reset after 3 seconds
+        if (operatorTypingTimeoutRef.current) clearTimeout(operatorTypingTimeoutRef.current)
+        operatorTypingTimeoutRef.current = setTimeout(() => {
+            operatorTypingRef.current = false
+            fetch(`/api/conversations/${convId}/typing`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ isTyping: false }),
+            }).catch(() => { })
+        }, 3000)
+    }, [])
+
+    // Load available tags
+    useEffect(() => {
+        fetch('/api/tags?limit=100')
+            .then(res => res.json())
+            .then(data => {
+                if (data.data && Array.isArray(data.data)) {
+                    setAvailableTags(data.data)
+                }
+            })
+            .catch(() => { })
+    }, [])
+
+    /**
+     * Marcar e desmarcar etiqueta — a tela só muda quando o servidor confirma.
+     *
+     * Antes o estado local mudava sem olhar a resposta: a etiqueta sumia da
+     * tela, o pedido voltava 404, e ao reabrir a conversa ela estava lá de
+     * novo. Falhou, diz que falhou.
+     */
+    const addTagToConversation = async (tag: TagItem) => {
+        if (!selectedConversation) return
+        if (conversationTags.some(t => t.id === tag.id)) return
+        try {
+            const res = await fetch(`/api/conversations/${selectedConversation}/tags`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ tagId: tag.id }),
+            })
+            if (!res.ok) throw new Error()
+            setConversationTags(prev => [...prev, tag])
+            setShowTagPicker(false)
+            // A lista da esquerda mostra as mesmas etiquetas.
+            void fetchConversations()
+        } catch {
+            toast.error('Não foi possível aplicar a etiqueta')
+        }
+    }
+
+    const removeTagFromConversation = async (tagId: string) => {
+        if (!selectedConversation) return
+        try {
+            const res = await fetch(`/api/conversations/${selectedConversation}/tags`, {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ tagId }),
+            })
+            if (!res.ok) throw new Error()
+            setConversationTags(prev => prev.filter(t => t.id !== tagId))
+            void fetchConversations()
+        } catch {
+            toast.error('Não foi possível remover a etiqueta')
+        }
+    }
+
+
+    // Stable refs for callbacks used in realtime subscription (avoids re-subscribing)
+    const fetchMessagesRef = useRef(fetchMessages)
+    const markAsReadRef = useRef(markAsRead)
+    const playNotificationSoundRef = useRef(playNotificationSound)
+    /**
+     * A lista como ela está agora, para o manipulador do Realtime consultar.
+     *
+     * Pelo mesmo motivo dos outros: a assinatura não pode depender do estado,
+     * ou cada mensagem recebida a derrubaria e reabriria. E a lista é a prova de
+     * que uma conversa é desta clínica — ela vem escopada do servidor.
+     */
+    const conversationsRef = useRef(conversations)
+    useEffect(() => { conversationsRef.current = conversations }, [conversations])
+    useEffect(() => { fetchMessagesRef.current = fetchMessages }, [fetchMessages])
+    useEffect(() => { markAsReadRef.current = markAsRead }, [markAsRead])
+    useEffect(() => { playNotificationSoundRef.current = playNotificationSound }, [playNotificationSound])
+
+    /**
+     * O tempo real, agora sobre o Durable Object da sala do workspace.
+     *
+     * **Saiu um bloco de autenticação inteiro.** O socket do tempo real anterior
+     * autenticava separado do resto do cliente: sem `setAuth` ele conectava como
+     * `anon`, a RLS de `messages` filtrava tudo, e nenhum evento chegava — a
+     * lista parecia viva pelo polling de 15 s e o chat aberto nunca se mexia.
+     * Depois o token expirava e o canal emudecia no meio do turno. Aqui a
+     * autorização é um bilhete curto emitido por rota autenticada, e a
+     * reconexão pede outro: não há token para expirar no meio do caminho.
+     *
+     * **E saiu um defeito de escopo.** `postgres_changes` não filtrava por
+     * workspace, e a RLS liberava as linhas de toda unidade de que a pessoa
+     * participa — quem atende em duas clínicas ouvia o aviso sonoro da outra,
+     * sem nada aparecer na tela. A sala é endereçada por `workspaceId`: não é
+     * filtro aplicado depois, é o endereço do objeto. O `daquiMesmo` abaixo
+     * fica como segunda tranca, não como a primeira.
+     *
+     * O polling de 15 s **continua**, e de propósito: foi ele que manteve a
+     * lista utilizável nos meses em que o Realtime esteve mudo. Rede de borda
+     * cai; aviso perdido não pode virar tela errada.
+     */
+    useEffect(() => {
+        fetchConversations()
+
+        const recarregarAberta = () => {
+            if (selectedConversationRef.current) {
+                fetchMessagesRef.current(selectedConversationRef.current)
+                markAsReadRef.current(selectedConversationRef.current)
+            }
+        }
+
+        /**
+         * Assinatura, não conexão: o cabeçalho desta mesma aba já assina o
+         * tempo real pelo `GatilhoDaEquipe`, e os dois dividem um socket. Ver
+         * `lib/realtime/assinatura.ts` — inclusive por que sair desta tela não
+         * fecha a conexão na hora.
+         */
+        const cancelar = assinarTempoReal({
+            evento(tipo, payload) {
+                if (tipo === 'conversa.alterada') {
+                    fetchConversations()
+                    recarregarAberta()
+                    return
+                }
+
+                if (tipo === 'mensagem.nova') {
+                    const conversationId = typeof payload.conversationId === 'string' ? payload.conversationId : null
+                    fetchConversations()
+
+                    /**
+                     * Só mensagem recebida avisa: o eco da que a própria
+                     * atendente acabou de enviar tocaria o aviso no ouvido de
+                     * quem a digitou.
+                     *
+                     * O gatilho antigo era o contador de não lidas subir — e ele
+                     * não sobe com a conversa aberta, porque `markAsRead` zera
+                     * na hora. Ou seja: o aviso nunca tocava exatamente no caso
+                     * mais comum, com a atendente olhando o chat.
+                     */
+                    const daquiMesmo = conversationsRef.current.some((c) => c.id === conversationId)
+                    if (payload.direction === 'inbound' && daquiMesmo && soundEnabledRef.current) {
+                        playNotificationSoundRef.current()
+                    }
+
+                    if (conversationId && selectedConversationRef.current === conversationId) {
+                        fetchMessagesRef.current(conversationId)
+                        markAsReadRef.current(conversationId)
+                    }
+                    return
+                }
+
+                /**
+                 * Digitando chega **neste** socket, e não num segundo.
+                 *
+                 * Antes era um canal por conversa, criado e destruído a cada
+                 * troca de conversa aberta — um socket extra por clique. Agora é
+                 * um evento da sala como os outros, e o filtro de "é da conversa
+                 * aberta?" acontece aqui, no handler.
+                 */
+                if (tipo === 'digitando') {
+                    const conversationId = typeof payload.conversationId === 'string' ? payload.conversationId : null
+                    if (payload.source !== 'contact') return
+                    if (!conversationId || selectedConversationRef.current !== conversationId) return
+
+                    const digitando = payload.isTyping === true
+                    setContactTyping(digitando)
+
+                    // Sem garantia de um "parou de digitar": o provedor manda o
+                    // evento de início e às vezes nada depois. Indicador preso é
+                    // pior que indicador nenhum.
+                    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current)
+                    if (digitando) {
+                        typingTimeoutRef.current = setTimeout(() => setContactTyping(false), 4000)
+                    }
+                    return
+                }
+
+                if (tipo === 'mensagem.status') {
+                    const messageId = typeof payload.messageId === 'string' ? payload.messageId : null
+                    const status = typeof payload.status === 'string' ? payload.status : null
+                    const conversationId = typeof payload.conversationId === 'string' ? payload.conversationId : null
+
+                    // Aplicado no lugar, sem buscar de novo: selo de entrega
+                    // percorre sent → delivered → read, e três recargas da
+                    // conversa inteira por mensagem enviada seria desperdício.
+                    if (messageId && status && selectedConversationRef.current === conversationId) {
+                        setMessages((prev) =>
+                            prev.map((m) => (m.id === messageId ? { ...m, status } : m))
+                        )
+                    }
+                }
+            },
+
+            /**
+             * "Busque tudo por HTTP": primeira conexão, ou lacuna maior que o
+             * histórico retido pela sala.
+             *
+             * É o caminho honesto — em vez de entregar parte dos eventos e
+             * deixar a tela num estado intermediário que ninguém sabe qual é,
+             * recarrega-se do servidor.
+             */
+            sincronizar() {
+                fetchConversations()
+                recarregarAberta()
+            },
+        })
+
+        return () => {
+            cancelar()
+        }
+    }, [fetchConversations])
+
+    /**
+     * A rede do tempo real: **60 s, e só com a aba à vista.**
+     *
+     * Era `setInterval(fetchConversations, 15000)` sem condição. Medido em
+     * 2026-11-07, foi o maior consumidor de banco do sistema: 240 consultas por
+     * hora de cada aba aberta, cada uma com ~100 idas e voltas ao Postgres, e o
+     * Neon suspende depois de 5 min de ociosidade — que nunca chegavam. 142,8 h
+     * de compute acordado em 7 dias, num sistema com um cliente, e a franquia
+     * estourada derrubou a produção.
+     *
+     * Duas mudanças, e cada uma tem razão própria:
+     *
+     * - **60 s em vez de 15 s.** O caminho do tempo real é o SSE, empurrado
+     *   pelo servidor; isto é a rede para quando a conexão cai. Quatro vezes
+     *   menos consulta, e o atraso máximo de 60 s só aparece se o SSE estiver
+     *   quebrado — caso em que a tela já está degradada de todo jeito.
+     * - **Só com a aba visível** (ver `useIntervaloVisivel`), com busca imediata
+     *   ao voltar. A aba esquecida aberta de noite deixa de manter o banco de
+     *   pé, e quem volta para a aba não vê lista velha.
+     */
+    useIntervaloVisivel(fetchConversations, 60_000)
+
+    // Ref to track the current selected conversation for realtime callbacks
+    const selectedConversationRef = useRef<string | null>(null)
+    useEffect(() => {
+        selectedConversationRef.current = selectedConversation
+    }, [selectedConversation])
+
+    // Fetch messages + mark as read when selecting a conversation
+    useEffect(() => {
+        if (!selectedConversation) return
+
+        fetchMessages(selectedConversation)
+        markAsRead(selectedConversation)
+    }, [selectedConversation, fetchMessages, markAsRead])
+
+    /**
+     * O chat aberto se atualiza por qualquer caminho que atualize a lista.
+     *
+     * A lista de conversas chegava nova por dois caminhos — evento do Realtime
+     * e polling de 15 s — e o chat, por um só: o evento. Bastava o evento
+     * falhar (token do socket expirado numa aba aberta há horas, canal em
+     * erro) para o card mostrar a mensagem nova e o chat continuar parado, até
+     * alguém recarregar a página. Era exatamente o sintoma relatado.
+     *
+     * Agora, sempre que a lista muda e a conversa aberta tem uma última
+     * mensagem diferente da que o chat conhece, as mensagens são recarregadas.
+     * Custa um GET a cada mensagem nova, e só quando há mensagem nova.
+     */
+    useEffect(() => {
+        if (!selectedConversation) {
+            trackedConversationRef.current = null
+            lastSeenMessageIdRef.current = null
+            return
+        }
+        const current = conversations.find((c) => c.id === selectedConversation)
+        const latestId = current?.lastMessage?.id ?? null
+
+        if (trackedConversationRef.current !== selectedConversation) {
+            // Conversa recém-aberta: o efeito acima já carregou as mensagens.
+            trackedConversationRef.current = selectedConversation
+            lastSeenMessageIdRef.current = latestId
+            return
+        }
+        if (latestId && latestId !== lastSeenMessageIdRef.current) {
+            lastSeenMessageIdRef.current = latestId
+            console.warn('[REALTIME] fallback: lista mudou, recarregando o chat', latestId)
+            fetchMessages(selectedConversation)
+            markAsRead(selectedConversation)
+        }
+    }, [conversations, selectedConversation, fetchMessages, markAsRead])
+
+    const visibleMessages = conversationSearch.trim()
+        ? messages.filter((m) => {
+              const q = conversationSearch.trim().toLowerCase()
+              return m.content.toLowerCase().includes(q) || (m.transcript ?? '').toLowerCase().includes(q)
+          })
+        : messages
+
+    // Scroll to bottom on new messages (only when near bottom)
+    useEffect(() => {
+        const container = messagesContainerRef.current
+        if (!container) {
+            messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+            return
+        }
+        // Only auto-scroll if user is near the bottom (within 150px)
+        const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 150
+        if (isNearBottom) {
+            messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+        }
+    }, [messages])
+
+    // Handle quick replies trigger /*
+    const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+        const value = e.target.value
+        setMessageInput(value)
+
+        // Send typing indicator to contact
+        if (selectedConversation && value.trim()) {
+            sendTypingIndicator(selectedConversation)
+        }
+
+        // The slash menu opens on a `/` that starts the message or a line, and
+        // closes as soon as the token stops looking like a command. The old
+        // trigger was `/*`, which nobody discovers and which only reached quick
+        // replies.
+        const match = /(?:^|\n)\/([^\s\n]*)$/.exec(value)
+        if (match) {
+            setQuickSearch(match[1].toLowerCase())
+            setSlashIndex(0)
+            setShowQuickReplies(true)
+            return
+        }
+        setShowQuickReplies(false)
+        setSlashPage('commands')
+    }
+
+    /** Replaces the `/token` under the caret with `text` (or removes it). */
+    const replaceSlashToken = (text: string) => {
+        const next = messageInput.replace(/(?:^|\n)\/([^\s\n]*)$/, (whole) => {
+            const keepsNewline = whole.startsWith('\n')
+            return (keepsNewline ? '\n' : '') + text
+        })
+        setMessageInput(next)
+        setShowQuickReplies(false)
+        setSlashPage('commands')
+        textareaRef.current?.focus()
+    }
+
+    const runScheduling = () => {
+        replaceSlashToken('')
+        if (!conversationDetail?.conversation?.contact?.id) {
+            toast.error('Abra uma conversa para agendar')
+            return
+        }
+        setPanel('schedule')
+    }
+
+    const selectQuickReply = (qr: QuickResponse) => {
+        replaceSlashToken(fillTemplate(qr.text))
+    }
+
+    /**
+     * The slash menu, as data.
+     *
+     * Commands first, quick replies under them, so `/` is one door to both. The
+     * second page (`replies`) exists because `/resposta` has to lead somewhere:
+     * it narrows the same popover to the clinic's saved answers.
+     */
+    const SLASH_COMMANDS: { id: string; command: string; label: string; run: () => void }[] = [
+        { id: 'resposta', command: '/resposta', label: 'Respostas rápidas da clínica', run: () => { setSlashPage('replies'); setQuickSearch(''); setSlashIndex(0) } },
+        { id: 'agendar', command: '/agendar', label: 'Agendar atividade para este paciente', run: runScheduling },
+        { id: 'assumir', command: '/assumir', label: 'Assumir esta conversa', run: () => { replaceSlashToken(''); void handleAction('assign') } },
+    ]
+
+    const filteredQuickReplies = quickResponses.filter(qr =>
+        qr.command.toLowerCase().includes(quickSearch) ||
+        qr.text.toLowerCase().includes(quickSearch)
+    )
+
+    const matchingCommands = slashPage === 'replies'
+        ? []
+        : SLASH_COMMANDS.filter(c => c.command.slice(1).startsWith(quickSearch) || c.label.toLowerCase().includes(quickSearch))
+
+    /** One flat list, because the keyboard moves through one list. */
+    const slashItems: { key: string; kind: 'command' | 'reply'; command: string; label: string; run: () => void }[] = [
+        ...matchingCommands.map(c => ({ key: `c-${c.id}`, kind: 'command' as const, command: c.command, label: c.label, run: c.run })),
+        ...filteredQuickReplies.map(qr => ({
+            key: `r-${qr.id}`,
+            kind: 'reply' as const,
+            command: qr.command,
+            label: qr.text.length > 80 ? `${qr.text.slice(0, 80)}…` : qr.text,
+            run: () => selectQuickReply(qr),
+        })),
+    ]
+    const slashOpen = showQuickReplies && slashItems.length > 0
+
+    /**
+     * A IA escreve a próxima mensagem e ela cai no compositor.
+     *
+     * O texto vai para onde ele é enviado, não para um cartão ao lado: quem
+     * pediu a sugestão quer ajustar uma palavra e mandar. Substituir o que já
+     * está escrito seria apagar trabalho, então o rascunho existente é
+     * preservado e a sugestão entra abaixo dele.
+     */
+    const suggestFollowUp = async () => {
+        if (!selectedConversation || suggesting) return
+        setSuggesting(true)
+        try {
+            const res = await fetch(`/api/conversations/${selectedConversation}/follow-up`, { method: 'POST' })
+            const data = await res.json().catch(() => ({}))
+            if (!res.ok) {
+                toast.error(data.error || 'Não foi possível gerar a sugestão')
+                return
+            }
+            setMessageInput((prev) => (prev.trim() ? `${prev.trim()}\n\n${data.message}` : data.message))
+            textareaRef.current?.focus()
+            if (data.withoutHistory) {
+                toast.info('Sem histórico nesta conversa — o texto é uma primeira retomada.')
+            }
+        } catch {
+            toast.error('Não foi possível gerar a sugestão')
+        } finally {
+            setSuggesting(false)
+        }
+    }
+
+    const handleSelectConversation = (convId: string) => {
+        setSelectedConversation(convId)
+        setMessageInput('')
+        setShowQuickReplies(false)
+        setContactTyping(false)
+    }
+
+    const handleSendMessage = async () => {
+        const hasText = messageInput.trim().length > 0
+        const hasFile = !!attachment
+        if ((!hasText && !hasFile) || !selectedConversation || sending) return
+
+        setSending(true)
+        try {
+            let res: Response
+            if (hasFile) {
+                const formData = new FormData()
+                formData.append('file', attachment!)
+                if (hasText) formData.append('caption', messageInput.trim())
+                if (replyingTo) formData.append('replyToId', replyingTo.id)
+                res = await fetch(`/api/conversations/${selectedConversation}/messages`, {
+                    method: 'POST',
+                    body: formData,
+                })
+            } else {
+                const body: SendMessageBody = { content: messageInput }
+                if (replyingTo) body.replyToId = replyingTo.id
+                res = await fetch(`/api/conversations/${selectedConversation}/messages`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body),
+                })
+            }
+            if (res.ok) {
+                const newMsg = await res.json()
+                /**
+                 * Gravada, mas não enviada.
+                 *
+                 * Acontece quando a linha por onde esta conversa fala está
+                 * desconectada, ou quando a clínica não tem nenhuma no ar. Antes
+                 * disto a mensagem aparecia na conversa como qualquer outra e
+                 * nunca saía — a atendente só descobria pela falta de resposta.
+                 */
+                if (newMsg.warning) toast.error(newMsg.warning)
+                setMessages(prev => [...prev, newMsg])
+                setMessageInput('')
+                setAttachment(null)
+                setAttachmentPreview(null)
+                setReplyingTo(null)
+                setShowQuickReplies(false)
+                fetchConversations()
+            }
+        } catch (error) {
+            console.error('Error sending message:', error)
+        } finally {
+            setSending(false)
+        }
+    }
+
+    const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]
+        if (!file) return
+        setAttachment(file)
+        if (file.type.startsWith('image/')) {
+            const reader = new FileReader()
+            reader.onload = (ev) => setAttachmentPreview(ev.target?.result as string)
+            reader.readAsDataURL(file)
+        } else {
+            setAttachmentPreview(null)
+        }
+    }
+
+    const clearAttachment = () => {
+        setAttachment(null)
+        setAttachmentPreview(null)
+        if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+
+    const handleReply = (msg: Message) => {
+        setReplyingTo(msg)
+        textareaRef.current?.focus()
+    }
+
+    const REACTIONS = ['👍', '❤️', '😂', '🙏', '✅', '😮']
+
+    /** Reage (ou remove a reação, repetindo o mesmo emoji) a uma mensagem recebida. */
+    const handleReact = async (msg: Message, emoji: string) => {
+        if (!selectedConversation) return
+        const next = msg.reaction === emoji ? '' : emoji
+        try {
+            const res = await fetch(`/api/conversations/${selectedConversation}/messages/${msg.id}/react`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ emoji: next }),
+            })
+            if (!res.ok) {
+                const data = await res.json().catch(() => ({}))
+                toast.error(data.error || 'Não foi possível reagir')
+                return
+            }
+            setMessages((prev) => prev.map((m) => (m.id === msg.id ? { ...m, reaction: next || null } : m)))
+        } catch {
+            toast.error('Não foi possível reagir')
+        }
+    }
+
+    const handleForward = (msg: Message) => {
+        setForwardMsg(msg)
+    }
+
+    const confirmForward = async (targetConversationId: string) => {
+        if (!forwardMsg) return
+        setForwarding(true)
+        try {
+            const res = await fetch(`/api/conversations/${targetConversationId}/messages`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ forwardFrom: forwardMsg.id }),
+            })
+            if (!res.ok) {
+                const data = await res.json().catch(() => ({}))
+                toast.error(data.error || 'Não foi possível encaminhar')
+                return
+            }
+            toast.success('Mensagem encaminhada')
+            setForwardMsg(null)
+            fetchConversations()
+        } catch {
+            toast.error('Não foi possível encaminhar')
+        } finally {
+            setForwarding(false)
+        }
+    }
+
+    /** Anexa um arquivo vindo do clipe, do Ctrl+V ou de arrastar e soltar. */
+    const attachFile = (file: File) => {
+        setAttachment(file)
+        setAttachmentPreview(file.type.startsWith('image/') ? URL.createObjectURL(file) : null)
+    }
+
+    const handleDrop = (e: React.DragEvent) => {
+        e.preventDefault()
+        setDragOver(false)
+        const file = e.dataTransfer?.files?.[0]
+        if (file && !attachment) attachFile(file)
+    }
+
+    /**
+     * Variáveis das respostas rápidas, resolvidas na inserção. Só o que a tela
+     * já conhece: nome e telefone do paciente, data e hora. Um nome de clínica
+     * entra aqui quando o workspace passar a carregá-lo na resposta da API.
+     */
+    const fillTemplate = (text: string) => {
+        const contact = conversationDetail?.conversation.contact
+        const nome = contact?.name?.trim() || ''
+        const now = new Date()
+        return text
+            .replace(/\{\{\s*nome\s*\}\}/gi, nome)
+            .replace(/\{\{\s*primeiro_nome\s*\}\}/gi, nome.split(' ')[0] || '')
+            .replace(/\{\{\s*telefone\s*\}\}/gi, contact?.phone || '')
+            .replace(/\{\{\s*data\s*\}\}/gi, format(now, 'dd/MM/yyyy'))
+            .replace(/\{\{\s*hora\s*\}\}/gi, format(now, 'HH:mm'))
+    }
+
+    const applyDealJourney = (next: { currentStageId: string; entries: JourneyEntry[] }) => {
+        setConversationDetail((prev) => {
+            const deal = prev?.conversation.openDeal
+            if (!prev || !deal) return prev
+            const stage = deal.stages.find((s) => s.id === next.currentStageId)
+            return {
+                ...prev,
+                conversation: {
+                    ...prev.conversation,
+                    openDeal: {
+                        ...deal,
+                        stageId: next.currentStageId,
+                        stageName: stage?.name ?? deal.stageName,
+                        stageColor: stage?.color ?? deal.stageColor,
+                        entries: next.entries,
+                    },
+                },
+            }
+        })
+        // O cartão do Kanban e o selo da lista leem da mesma fonte; a lista é
+        // recarregada para o selo acompanhar sem esperar o próximo poll.
+        void fetchConversations()
+    }
+
+    /** Abre um negócio na primeira etapa do funil para o paciente desta conversa. */
+    /** Origem e canal do negócio aberto, pela mesma rota que o funil usa. */
+    /** De quem é o negócio. O campo é do negócio, não do atendimento. */
+    const setDealOwner = async (userId: string) => {
+        const deal = conversationDetail?.conversation?.openDeal
+        if (!deal) return
+        const id = userId || null
+        try {
+            const res = await fetch(`/api/deals/${deal.id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId: id }),
+            })
+            if (!res.ok) throw new Error()
+            setConversationDetail((prev) =>
+                prev && prev.conversation.openDeal
+                    ? {
+                          ...prev,
+                          conversation: {
+                              ...prev.conversation,
+                              openDeal: {
+                                  ...prev.conversation.openDeal,
+                                  ownerId: id,
+                                  ownerName: dealOwners.find((m) => m.userId === id)?.name ?? null,
+                              },
+                          },
+                      }
+                    : prev
+            )
+        } catch {
+            toast.error('Não foi possível salvar')
+        }
+    }
+
+    const setDealLookup = async (field: 'originId' | 'mediaId', value: string) => {
+        const deal = conversationDetail?.conversation?.openDeal
+        if (!deal) return
+        const id = value || null
+        try {
+            const res = await fetch(`/api/deals/${deal.id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ [field]: id }),
+            })
+            if (!res.ok) throw new Error()
+            setConversationDetail((prev) =>
+                prev && prev.conversation.openDeal
+                    ? {
+                          ...prev,
+                          conversation: {
+                              ...prev.conversation,
+                              openDeal: {
+                                  ...prev.conversation.openDeal,
+                                  ...(field === 'originId' ? { originId: id } : { mediaId: id }),
+                              },
+                          },
+                      }
+                    : prev
+            )
+        } catch {
+            toast.error('Não foi possível salvar')
+        }
+    }
+
+    const createDealForContact = async () => {
+        const conv = conversationDetail?.conversation
+
+        if (!conv || !selectedConversation) return
+        setCreatingDeal(true)
+        try {
+            const stagesRes = await fetch('/api/pipelines')
+            const stagesData = await stagesRes.json()
+            const stages: { id: string; order?: number }[] = Array.isArray(stagesData) ? stagesData : stagesData.stages ?? []
+            const first = [...stages].sort((a, b) => (a.order ?? 0) - (b.order ?? 0))[0]
+            if (!first) {
+                toast.error('O funil ainda não tem etapas. Crie em Vendas → Negócios.')
+                return
+            }
+            const res = await fetch('/api/deals', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    title: conv.contact.name || conv.contact.phone || 'Novo paciente',
+                    stageId: first.id,
+                    contactId: conv.contact.id,
+                    // O dono é quem está na conversa: quem já é responsável por
+                    // ela, ou quem está abrindo o negócio. Negócio aberto daqui
+                    // sem dono seria cartão que ninguém persegue.
+                    userId: conv.assignedTo || meuId,
+                }),
+            })
+            if (!res.ok) throw new Error()
+            toast.success('Negócio criado')
+            await fetchMessages(selectedConversation)
+        } catch {
+            toast.error('Não foi possível criar o negócio')
+        } finally {
+            setCreatingDeal(false)
+        }
+    }
+
+    const handleCopyMessage = (msg: Message) => {
+        navigator.clipboard.writeText(msg.content)
+    }
+
+    // Audio recording
+    const startRecording = async () => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+            const mimeType = ['audio/ogg;codecs=opus', 'audio/webm;codecs=opus', 'audio/webm'].find(
+                (t) => typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(t)
+            )
+            const mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined)
+            audioChunksRef.current = []
+            mediaRecorderRef.current = mediaRecorder
+
+            mediaRecorder.ondataavailable = (e) => {
+                if (e.data.size > 0) audioChunksRef.current.push(e.data)
+            }
+
+            mediaRecorder.onstop = async () => {
+                stream.getTracks().forEach(t => t.stop())
+                const blob = new Blob(audioChunksRef.current, {
+                    type: (mediaRecorder.mimeType || 'audio/webm').split(';')[0],
+                })
+                if (blob.size > 0) {
+                    await sendRecording(blob)
+                }
+            }
+
+            mediaRecorder.start()
+            setIsRecording(true)
+            setRecordingTime(0)
+            recordingIntervalRef.current = setInterval(() => {
+                setRecordingTime(prev => prev + 1)
+            }, 1000)
+        } catch (err) {
+            console.error('Microphone access denied:', err)
+        }
+    }
+
+    /**
+     * A caixa de digitação cresce até cinco linhas, e só então rola.
+     *
+     * Antes não crescia: `rows={1}` com `height: 'auto'` fixo no style deixava
+     * a caixa na altura mínima, e a partir da terceira linha aparecia barra de
+     * rolagem num campo de 40px — escrever um parágrafo virava espiar o texto
+     * por uma fresta. É o comportamento que todo mundo conhece do WhatsApp:
+     * uma, duas, três, quatro, cinco linhas empurram a caixa para cima; da
+     * sexta em diante ela para de crescer e o texto rola por dentro.
+     *
+     * As medidas saem do estilo calculado, não de números escritos aqui: altura
+     * de linha e padding mudam com o tema e com a escala tipográfica, e um
+     * `120px` fixo passaria a valer quatro linhas e meia no dia em que o corpo
+     * do texto subisse um ponto.
+     *
+     * `useLayoutEffect` e não `useEffect` porque a medição acontece antes da
+     * pintura: com o segundo, cada tecla que muda de linha pisca a altura
+     * antiga por um quadro.
+     */
+    const LINHAS_ATE_ROLAR = 5
+    useLayoutEffect(() => {
+        const el = textareaRef.current
+        if (!el) return
+
+        // Zerar antes de medir: `scrollHeight` nunca encolhe sozinho, então sem
+        // isto a caixa cresceria e nunca mais voltaria ao apagar o texto.
+        el.style.height = 'auto'
+
+        const estilo = window.getComputedStyle(el)
+        const linha = parseFloat(estilo.lineHeight)
+        const respiro =
+            parseFloat(estilo.paddingTop) +
+            parseFloat(estilo.paddingBottom) +
+            parseFloat(estilo.borderTopWidth) +
+            parseFloat(estilo.borderBottomWidth)
+
+        // `lineHeight: normal` não é número: aí o teto vem do próprio conteúdo,
+        // e o máximo volta a ser o do CSS.
+        const teto = Number.isFinite(linha) ? linha * LINHAS_ATE_ROLAR + respiro : Infinity
+
+        el.style.height = `${Math.min(el.scrollHeight, teto)}px`
+        // Sem barra enquanto cabe: um canal de rolagem desenhado numa caixa de
+        // duas linhas é ruído, e em alguns sistemas rouba largura do texto.
+        el.style.overflowY = el.scrollHeight > teto ? 'auto' : 'hidden'
+    }, [messageInput, attachment])
+
+    /** Insere no ponto do cursor e devolve o foco, sem perder a seleção. */
+    const insertAtCursor = (text: string) => {
+        const el = textareaRef.current
+        if (!el) {
+            setMessageInput((prev) => prev + text)
+            return
+        }
+        const start = el.selectionStart ?? messageInput.length
+        const end = el.selectionEnd ?? start
+        const next = messageInput.slice(0, start) + text + messageInput.slice(end)
+        setMessageInput(next)
+        requestAnimationFrame(() => {
+            el.focus()
+            const caret = start + text.length
+            el.setSelectionRange(caret, caret)
+        })
+    }
+
+    /**
+     * Ctrl+V com uma imagem na área de transferência vira anexo — print de tela
+     * de um orçamento, foto de um exame. É o gesto que todo mundo tenta antes
+     * de procurar o clipe.
+     */
+    const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+        const file = Array.from(e.clipboardData?.files ?? []).find((f) => f.type.startsWith('image/'))
+        if (!file || attachment) return
+        e.preventDefault()
+        const named = new File([file], `colado-${Date.now()}.${file.type.split('/')[1] || 'png'}`, { type: file.type })
+        attachFile(named)
+    }
+
+    const stopRecording = () => {
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+            mediaRecorderRef.current.stop()
+        }
+        setIsRecording(false)
+        if (recordingIntervalRef.current) {
+            clearInterval(recordingIntervalRef.current)
+            recordingIntervalRef.current = null
+        }
+    }
+
+    const cancelRecording = () => {
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+            mediaRecorderRef.current.ondataavailable = null
+            mediaRecorderRef.current.onstop = () => {
+                mediaRecorderRef.current!.stream.getTracks().forEach(t => t.stop())
+            }
+            mediaRecorderRef.current.stop()
+        }
+        setIsRecording(false)
+        setRecordingTime(0)
+        audioChunksRef.current = []
+        if (recordingIntervalRef.current) {
+            clearInterval(recordingIntervalRef.current)
+            recordingIntervalRef.current = null
+        }
+    }
+
+    const sendRecording = async (blob: Blob) => {
+        if (!selectedConversation) return
+        setSending(true)
+        try {
+            const formData = new FormData()
+            // A extensão segue o formato gravado: a rota deriva o tipo dela e o
+            // Evolution usa o nome no envio. Um .webm com conteúdo OGG confunde os dois.
+            const ext = blob.type.includes('ogg') ? 'ogg' : blob.type.includes('mp4') ? 'm4a' : 'webm'
+            formData.append('file', blob, `audio_${Date.now()}.${ext}`)
+            const res = await fetch(`/api/conversations/${selectedConversation}/messages`, {
+                method: 'POST',
+                body: formData,
+            })
+            if (res.ok) {
+                const newMsg = await res.json()
+                setMessages(prev => [...prev, newMsg])
+                fetchConversations()
+            }
+        } catch (error) {
+            console.error('Error sending recording:', error)
+        } finally {
+            setSending(false)
+            setRecordingTime(0)
+        }
+    }
+
+    const formatRecordingTime = (seconds: number) => {
+        const mins = Math.floor(seconds / 60)
+        const secs = seconds % 60
+        return `${mins}:${secs.toString().padStart(2, '0')}`
+    }
+
+    // Close context menu on Escape
+    const handleAction = async (
+        action: 'assign' | 'unassign' | 'close' | 'reopen' | 'descolaborar'
+    ) => {
+        if (!selectedConversation) return
+        try {
+            const res = await fetch(`/api/conversations/${selectedConversation}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action }),
+            })
+
+            /**
+             * A recusa passa a ser dita.
+             *
+             * Este `fetch` ignorava o status: uma ação negada — transferir sem
+             * permissão, ou deixar de colaborar numa conversa em que já não se
+             * colabora — recarregava a tela igual ao caso de sucesso, e nada
+             * mudava. Quem clicou concluía que o botão não funciona.
+             */
+            if (!res.ok) {
+                const dados = (await res.json().catch(() => null)) as { error?: string } | null
+                toast.error(dados?.error || 'Não foi possível concluir')
+                return
+            }
+
+            if (action === 'descolaborar') {
+                toast.success('Você saiu desta conversa.')
+            }
+
+            fetchConversations()
+            fetchMessages(selectedConversation)
+        } catch (error) {
+            console.error('Error:', error)
+            toast.error('Não foi possível concluir')
+        }
+    }
+
+    const handleDeleteConversation = async () => {
+        if (!selectedConversation) return
+        try {
+            const res = await fetch(`/api/conversations/${selectedConversation}`, {
+                method: 'DELETE',
+            })
+            // This was the one delete in the app that said nothing either way:
+            // the row vanished on success and nothing at all happened on failure.
+            if (!res.ok) {
+                toast.error('Não foi possível excluir a conversa')
+                return
+            }
+            setSelectedConversation(null)
+            setConversationDetail(null)
+            setMessages([])
+            fetchConversations()
+            toast.success('Conversa excluída')
+        } catch (error) {
+            console.error('Error deleting conversation:', error)
+            toast.error('Não foi possível excluir a conversa')
+        }
+    }
+
+    // Transfer modal handlers
+    const openTransferModal = async (convId: string) => {
+        setTransferConvId(convId)
+        setShowTransferModal(true)
+        setTransferLoading(true)
+        setTransferSearch('')
+        try {
+            const res = await fetch('/api/conversations/users')
+            const data = await res.json()
+            if (Array.isArray(data)) {
+                setTransferUsers(data)
+            }
+        } catch (error) {
+            console.error('Error fetching transfer users:', error)
+        } finally {
+            setTransferLoading(false)
+        }
+    }
+
+    const handleTransfer = async (targetUserId: string) => {
+        if (!transferConvId) return
+        try {
+            await fetch(`/api/conversations/${transferConvId}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'transfer', targetUserId }),
+            })
+            setShowTransferModal(false)
+            setTransferConvId(null)
+            // Clear right panel so the transferred conversation disappears
+            setSelectedConversation(null)
+            setConversationDetail(null)
+            setMessages([])
+            fetchConversations()
+        } catch (error) {
+            console.error('Error transferring:', error)
+        }
+    }
+
+    const filteredTransferUsers = transferUsers.filter(u => {
+        if (!transferSearch) return true
+        const fullName = `${u.name || ''} ${u.lastName || ''}`.toLowerCase()
+        return fullName.includes(transferSearch.toLowerCase())
+    })
+
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (slashOpen) {
+            if (e.key === 'Escape') {
+                e.preventDefault()
+                setShowQuickReplies(false)
+                setSlashPage('commands')
+                return
+            }
+            if (e.key === 'ArrowDown') {
+                e.preventDefault()
+                setSlashIndex(i => (i + 1) % slashItems.length)
+                return
+            }
+            if (e.key === 'ArrowUp') {
+                e.preventDefault()
+                setSlashIndex(i => (i - 1 + slashItems.length) % slashItems.length)
+                return
+            }
+            if (e.key === 'Enter' || e.key === 'Tab') {
+                e.preventDefault()
+                slashItems[Math.min(slashIndex, slashItems.length - 1)].run()
+                return
+            }
+        }
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault()
+            handleSendMessage()
+        }
+    }
+
+    const conv = conversationDetail?.conversation
+
+    /* Quem está com a conversa, em uma linha. Era metadado cinza de 11px ao
+       lado do telefone; vira o rótulo do controle que muda esse mesmo estado. */
+    /**
+     * O chip de estado, pelo portão **e** pelo nome.
+     *
+     * Dizia "Com Rachel" sempre que havia `assignedToName`, o que incluía o
+     * lead recém-chegado que o rodízio atribuiu e que a IA está atendendo — o
+     * chip afirmava que a Rachel estava na conversa antes de ela abri-la.
+     *
+     * Agora as duas informações aparecem na ordem em que importam: quem está
+     * conduzindo, e, quando é a IA, de quem a conversa é.
+     */
+    const conversationStateLabel = !conv
+        ? ''
+        : conv.status === 'closed'
+          ? 'Finalizada'
+          : conversationDetail?.conversation?.atendidaPor === 'humano'
+            ? conv.assignedToName
+              ? `Com ${conv.assignedToName.split(' ')[0]}`
+              : 'Com a equipe'
+            : conv.assignedToName
+              ? `Na IA · de ${conv.assignedToName.split(' ')[0]}`
+              : 'Na IA'
+
+    return (
+        <>
+            <div className="flex h-full min-h-0">
+                {/* Left Sidebar — Conversation List */}
+                {/* A lista cede o lugar ao painel entre 768 e 1280.
+                    Antes o painel sobrepunha o chat nessa faixa, tampando
+                    justamente as mensagens que se precisa reler enquanto se
+                    agenda ou se escreve a nota. Três colunas não cabem em 1280;
+                    duas cabem — e a lista é a que se recupera num clique. */}
+                <div className={cn(
+                    "w-full border-r bg-card flex-col md:w-[320px] md:shrink-0",
+                    selectedConversation ? "hidden" : "flex",
+                    panel ? "md:hidden xl:flex" : "md:flex"
+                )}>
+                    {/* O CABEÇALHO DA COLUNA, em três faixas de 36px.
+                        Eram cinco faixas somando ~296px: título, medidor de
+                        fila em três linhas, busca, abas, "Ver", linha e
+                        agente. Numa tela de 900px a primeira conversa começava
+                        perto da metade da coluna — foi o que o Andre apontou.
+
+                        Nada se perdeu: as contagens da fila foram para as
+                        abas, que é onde elas já tinham nome; a espera mais
+                        antiga e as resolvidas de hoje viraram a linha de
+                        apoio à direita do filtro; linha e agente entraram num
+                        popover que só existe quando há mais de uma opção. O
+                        que saiu foi a barra do medidor — ela desenhava os
+                        mesmos três números que agora estão escritos. */}
+                    <div className="flex items-center gap-2 border-b p-3">
+                        <div className="relative flex-1">
+                            <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                            <Input
+                                placeholder="Buscar paciente ou mensagem"
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="h-8 bg-muted/50 pl-8 text-xs"
+                            />
+                        </div>
+                        {/* O rótulo virou dica: em 320px, "Novo atendimento"
+                            ao lado da busca empurrava a busca para 150px. O
+                            `aria-label` mantém o nome para quem navega por
+                            leitor de tela. */}
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Button
+                                    size="icon"
+                                    className="size-8 shrink-0"
+                                    aria-label="Novo atendimento"
+                                    onClick={() => setIntakeOpen(true)}
+                                >
+                                    <Plus className="size-4" />
+                                </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Novo atendimento</TooltipContent>
+                        </Tooltip>
+                    </div>
+
+                    {/* As abas carregam a contagem que o medidor mostrava. */}
+                    <div className="flex gap-1 border-b px-3 py-1.5">
+                        {tabs.map((tab) => {
+                            const contagem =
+                                tab.id === 'ia'
+                                    ? (queue?.waiting ?? 0)
+                                    : tab.id === 'equipe'
+                                      ? (queue?.active ?? 0)
+                                      : null
+
+                            return (
+                                <button
+                                    key={tab.id}
+                                    onClick={() => {
+                                        setActiveTab(tab.id)
+                                        setLoading(true)
+                                    }}
+                                    className={cn(
+                                        'flex flex-1 items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium transition-colors',
+                                        activeTab === tab.id
+                                            ? 'bg-primary text-primary-foreground'
+                                            : 'text-muted-foreground hover:bg-muted/50'
+                                    )}
+                                >
+                                    {tab.label}
+                                    {contagem ? (
+                                        <span
+                                            className={cn(
+                                                'num rounded-full px-1.5 text-[10px] font-bold',
+                                                activeTab === tab.id
+                                                    ? 'bg-primary-foreground/15'
+                                                    : tab.id === 'ia'
+                                                      ? 'bg-warning-subtle text-warning-subtle-foreground'
+                                                      : 'bg-muted text-muted-foreground'
+                                            )}
+                                        >
+                                            {contagem}
+                                        </span>
+                                    ) : null}
+                                </button>
+                            )
+                        })}
+                    </div>
+
+                    {/* Uma faixa de filtro, não três. */}
+                    <div className="flex items-center gap-2 border-b px-3 py-1.5">
+                        {/* O seletor `Ver` — a minha relação com a conversa.
+                            Era um segmento de dois estados (Todas | Minhas).
+                            Com quatro valores ele não caberia: a coluna tem
+                            320px e nesta faixa ainda estão Filtros e a linha
+                            de apoio da direita. O gatilho mostra o valor
+                            escolhido, que é o que o segmento dava de graça.
+
+                            Os outros dois valores NÃO podem ir para o popover
+                            de Filtros: Todas e Minhas em dois lugares é a
+                            divergência que já custou caro na tabela de preços
+                            dos modelos. Um controle, uma pergunta. */}
+                        <Popover>
+                            <PopoverTrigger asChild>
+                                <button
+                                    className={cn(
+                                        'flex shrink-0 items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-medium transition-colors',
+                                        ver === 'todas'
+                                            ? 'border-border text-foreground hover:bg-muted/50'
+                                            : 'border-primary-subtle-foreground/30 bg-primary-subtle text-primary-subtle-foreground'
+                                    )}
+                                    aria-label="Escolher quais conversas ver"
+                                >
+                                    Ver: <span className="font-semibold">{ROTULO_DO_VER[ver]}</span>
+                                    <ChevronDown className="size-3" aria-hidden="true" />
+                                </button>
+                            </PopoverTrigger>
+                            <PopoverContent align="start" className="w-52 p-1">
+                                {opcoesDeVer(meuPapel).map((opcao) => (
+                                    <button
+                                        key={opcao}
+                                        onClick={() => {
+                                            setVer(opcao)
+                                            setLoading(true)
+                                        }}
+                                        className={cn(
+                                            'flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-xs transition-colors',
+                                            ver === opcao
+                                                ? 'bg-muted font-semibold text-foreground'
+                                                : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
+                                        )}
+                                    >
+                                        {ROTULO_DO_VER[opcao]}
+                                        {ver === opcao ? (
+                                            <Check className="size-3.5" aria-hidden="true" />
+                                        ) : null}
+                                    </button>
+                                ))}
+                            </PopoverContent>
+                        </Popover>
+
+                        {/* Linha e agente só existem quando há o que escolher —
+                            com um de cada, o seletor não decide nada. O ponto
+                            no gatilho diz que há filtro ligado sem precisar
+                            abrir. */}
+                        {temFiltro ? (
+                            <Popover>
+                                <PopoverTrigger asChild>
+                                    <button
+                                        className={cn(
+                                            'flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium transition-colors',
+                                            filtrosLigados.length
+                                                ? 'bg-primary-subtle text-primary-subtle-foreground'
+                                                : 'text-muted-foreground hover:bg-muted/50'
+                                        )}
+                                        aria-label="Filtrar a lista de conversas"
+                                    >
+                                        <SlidersHorizontal className="size-3.5" />
+                                        Filtros
+                                    </button>
+                                </PopoverTrigger>
+                                <PopoverContent align="start" className="w-64 space-y-3 p-3">
+                                    {lines.length > 1 ? (
+                                        <div className="space-y-1.5">
+                                            <p className="text-[11px] font-medium text-muted-foreground">
+                                                Linha
+                                            </p>
+                                            <Select
+                                                value={lineFilter}
+                                                onValueChange={(v) => {
+                                                    setLineFilter(v)
+                                                    setLoading(true)
+                                                }}
+                                            >
+                                                <SelectTrigger
+                                                    aria-label="Filtrar por linha de WhatsApp"
+                                                    className="h-8 w-full text-xs"
+                                                >
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="all">Todas as linhas</SelectItem>
+                                                    {lines.map((l) => (
+                                                        <SelectItem key={l.id} value={l.id}>
+                                                            {nomeDaLinha(l)}
+                                                            {l.agentName ? ` · ${l.agentName}` : ''}
+                                                        </SelectItem>
+                                                    ))}
+                                                    <SelectItem value="none">Sem linha definida</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                    ) : null}
+
+                                    {agents.length > 1 ? (
+                                        <div className="space-y-1.5">
+                                            <p className="text-[11px] font-medium text-muted-foreground">
+                                                Agente
+                                            </p>
+                                            <Select
+                                                value={agentFilter}
+                                                onValueChange={(v) => {
+                                                    setAgentFilter(v)
+                                                    setLoading(true)
+                                                }}
+                                            >
+                                                <SelectTrigger
+                                                    aria-label="Filtrar por agente"
+                                                    className="h-8 w-full text-xs"
+                                                >
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="all">Todos os agentes</SelectItem>
+                                                    {agents.map((a) => (
+                                                        <SelectItem key={a.id} value={a.id}>
+                                                            {a.name}
+                                                        </SelectItem>
+                                                    ))}
+                                                    <SelectItem value="none">Sem agente</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                    ) : null}
+
+                                    {/* Etiqueta e etapa entram no popover que já
+                                        existe — opção B, aprovada em 05/11. O
+                                        popover escolhe; quem **mostra** o que
+                                        está ligado é a faixa de pastilhas
+                                        abaixo do cabeçalho. Separar as duas
+                                        coisas é o que mantém o cabeçalho com a
+                                        mesma altura de sempre quando não há
+                                        filtro nenhum. */}
+                                    {filterTags.length > 0 ? (
+                                        <div className="space-y-1.5">
+                                            <p className="text-[11px] font-medium text-muted-foreground">
+                                                Etiqueta
+                                            </p>
+                                            <Select
+                                                value={tagFilter}
+                                                onValueChange={(v) => {
+                                                    setTagFilter(v)
+                                                    setLoading(true)
+                                                }}
+                                            >
+                                                <SelectTrigger
+                                                    aria-label="Filtrar por etiqueta"
+                                                    className="h-8 w-full text-xs"
+                                                >
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="all">Todas as etiquetas</SelectItem>
+                                                    {filterTags.map((t) => (
+                                                        <SelectItem key={t.id} value={t.id}>
+                                                            {t.name}
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                    ) : null}
+
+                                    {stages.length > 0 ? (
+                                        <div className="space-y-1.5">
+                                            <p className="text-[11px] font-medium text-muted-foreground">
+                                                Etapa do funil
+                                            </p>
+                                            <Select
+                                                value={stageFilter}
+                                                onValueChange={(v) => {
+                                                    setStageFilter(v)
+                                                    setLoading(true)
+                                                }}
+                                            >
+                                                <SelectTrigger
+                                                    aria-label="Filtrar por etapa do funil"
+                                                    className="h-8 w-full text-xs"
+                                                >
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="all">Todas as etapas</SelectItem>
+                                                    {stages.map((e) => (
+                                                        <SelectItem key={e.id} value={e.id}>
+                                                            {e.name}
+                                                        </SelectItem>
+                                                    ))}
+                                                    {/* "Sem negócio" é filtro de
+                                                        verdade: é a fila de quem
+                                                        escreveu e ninguém abriu
+                                                        negócio ainda. */}
+                                                    <SelectItem value="none">Sem negócio aberto</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                    ) : null}
+                                </PopoverContent>
+                            </Popover>
+                        ) : null}
+
+                        {/* A espera mais antiga é o número que decide se a
+                            recepção está dando conta — ele não podia sair
+                            junto com o medidor. */}
+                        {queue ? (
+                            <span className="ml-auto truncate text-right text-[11px] text-muted-foreground">
+                                {queue.oldestWaitingAt ? (
+                                    <>
+                                        espera há{' '}
+                                        <span className="num font-semibold text-warning-subtle-foreground">
+                                            {waitedFor(queue.oldestWaitingAt)}
+                                        </span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <span className="num">{queue.closedToday}</span> resolvidas
+                                        hoje
+                                    </>
+                                )}
+                            </span>
+                        ) : null}
+                    </div>
+
+                    {/* A FAIXA DOS FILTROS LIGADOS — opção B.
+                        Só existe quando há filtro posto, e é isso que mantém o
+                        cabeçalho com a altura de sempre no caso comum. Cada
+                        pastilha diz o próprio valor e sai com o ×; "Limpar"
+                        aparece a partir do segundo, porque com um só ele
+                        duplicaria o × ao lado. */}
+                    {filtrosLigados.length > 0 ? (
+                        <div className="flex flex-wrap items-center gap-1.5 border-b bg-muted/30 px-3 py-1.5">
+                            {filtrosLigados.map((f) => (
+                                <span
+                                    key={f.chave}
+                                    className="inline-flex max-w-full items-center gap-1 rounded-full border border-primary/35 bg-primary-subtle py-0.5 pl-2 pr-1 text-[10px] font-semibold text-primary-subtle-foreground"
+                                >
+                                    <span className="truncate">
+                                        {f.rotulo}: {f.valor}
+                                    </span>
+                                    <button
+                                        type="button"
+                                        onClick={f.limpar}
+                                        aria-label={`Tirar o filtro de ${f.rotulo.toLowerCase()}`}
+                                        className="rounded-full p-0.5 hover:bg-primary/15"
+                                    >
+                                        <X className="size-2.5" />
+                                    </button>
+                                </span>
+                            ))}
+                            {filtrosLigados.length > 1 ? (
+                                <button
+                                    type="button"
+                                    onClick={limparFiltros}
+                                    className="px-1 text-[10px] text-muted-foreground underline decoration-border hover:text-foreground"
+                                >
+                                    Limpar
+                                </button>
+                            ) : null}
+                        </div>
+                    ) : null}
+
+                    {/* Conversations List */}
+                    <div className="flex-1 overflow-y-auto">
+                        {loading ? (
+                            <div className="flex items-center justify-center py-12">
+                                <div className="animate-pulse text-muted-foreground text-sm">Carregando...</div>
+                            </div>
+                        ) : conversations.length === 0 ? (
+                            <div className="text-center py-12 px-4">
+                                <MessageSquare className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
+                                <p className="text-muted-foreground text-sm">
+                                    Nenhuma conversa encontrada.
+                                </p>
+                            </div>
+                        ) : (
+                            <div>
+                                {conversations.map((conv) => (
+                                    <button
+                                        key={conv.id}
+                                        onClick={() => handleSelectConversation(conv.id)}
+                                        className={cn(
+                                            'w-full text-left p-3 border-b border-border/50 hover:bg-muted/50 transition-colors',
+                                            selectedConversation === conv.id && 'bg-muted'
+                                        )}
+                                    >
+                                        <div className="flex items-start gap-3">
+                                            {/* Avatar with profile photo */}
+                                            <ContactAvatar
+                                                avatar={conv.contact.avatar}
+                                                name={conv.contact.name}
+                                                phone={formatPhone(conv.contact.phone)}
+                                            />
+
+                                            <div className="flex-1 min-w-0">
+                                                {/* 1. Quem é — pelo primeiro nome, que é
+                                                    como a clínica chama o paciente. */}
+                                                <div className="flex items-center justify-between">
+                                                    <span className="font-medium text-sm truncate">
+                                                        {primeiroNome(conv.contact.name, conv.contact.phone, conv.channel)}
+                                                    </span>
+                                                    <span className="num ml-2 flex-shrink-0 text-[10px] text-muted-foreground">
+                                                        {conv.lastMessage && formatMessageTime(conv.lastMessage.createdAt)}
+                                                    </span>
+                                                </div>
+
+                                                {/* 2. O que foi dito por último. */}
+                                                <div className="mt-0.5 flex items-center justify-between gap-2">
+                                                    <p className="truncate text-xs text-muted-foreground">
+                                                        {conv.lastMessage ? semMarcacao(conv.lastMessage.content) : null}
+                                                    </p>
+                                                    {conv.unreadCount > 0 && (
+                                                        <span className="num flex h-5 min-w-[20px] flex-shrink-0 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
+                                                            {conv.unreadCount}
+                                                        </span>
+                                                    )}
+                                                </div>
+
+                                                {/* 3. À esquerda o que o sistema sabe — quem
+                                                    responde e por onde chegou. À direita quem
+                                                    assumiu. A divisão tem sentido, e aproveita a
+                                                    largura que já está ali: o nome do atendente
+                                                    numa linha própria custaria altura em todo
+                                                    cartão, inclusive nos da fila "Em espera", onde
+                                                    ninguém assumiu e a linha ficaria vazia — e
+                                                    cartões de alturas diferentes serrilham a lista.
+
+                                                    O tumulto de antes vinha das etiquetas dividindo
+                                                    esta faixa e quebrando no meio; elas agora têm a
+                                                    sua. */}
+                                                {(conv.agent || origemDaConversa(conv) || conv.assignedToName) && (
+                                                    <div className="mt-1 flex items-center justify-between gap-2 whitespace-nowrap text-[10px] text-muted-foreground">
+                                                        <span className="flex min-w-0 items-center gap-1.5">
+                                                            {conv.agent ? (
+                                                                <Retrato
+                                                                    endereco={conv.agent.retrato}
+                                                                    nome={conv.agent.name}
+                                                                    className="size-3.5"
+                                                                />
+                                                            ) : null}
+                                                            {conv.agent && origemDaConversa(conv) ? (
+                                                                <span aria-hidden="true" className="text-muted-foreground/40">|</span>
+                                                            ) : null}
+                                                            {origemDaConversa(conv) ? (
+                                                                <span className="flex shrink-0 items-center gap-1">
+                                                                    <Smartphone className="size-2.5" aria-hidden="true" />
+                                                                    {origemDaConversa(conv)}
+                                                                </span>
+                                                            ) : null}
+                                                        </span>
+                                                        {/* O atendente em cor, não só em peso: na
+                                                            mesma faixa estão o agente e a linha, e
+                                                            os três em cinza se leem como uma frase
+                                                            só. O token é o teal da marca na variante
+                                                            de texto — escuro no claro, claro no
+                                                            escuro — porque num rótulo de 10px o
+                                                            `--primary` puro não teria contraste
+                                                            sobre o cartão branco. */}
+                                                        {conv.assignedToName ? (
+                                                            <Retrato
+                                                                endereco={conv.assignedToRetrato}
+                                                                nome={primeiroNome(conv.assignedToName, null)}
+                                                                className="size-4"
+                                                                classNameTexto="shrink-0 font-semibold text-primary-subtle-foreground"
+                                                            />
+                                                        ) : null}
+                                                    </div>
+                                                )}
+
+                                                {/* 4. As etiquetas, sozinhas. Dividindo a faixa com
+                                                    o texto acima, elas empurravam o agente para
+                                                    fora e quebravam no meio. */}
+                                                {/* A etapa do funil abre a faixa, antes das
+                                                    etiquetas: ela é uma só e muda sozinha, então
+                                                    tem lugar fixo — se entrasse no meio das
+                                                    etiquetas, mudaria de posição a cada etiqueta
+                                                    posta ou tirada. Forma diferente da etiqueta de
+                                                    propósito (ver `EtapaChip`). */}
+                                                {conv.funnelStage?.stageName || (conv.tags && conv.tags.length > 0) ? (
+                                                    <div className="mt-1 flex flex-wrap items-center gap-1">
+                                                        {conv.funnelStage?.stageName ? (
+                                                            <EtapaChip
+                                                                name={conv.funnelStage.stageName}
+                                                                color={conv.funnelStage.stageColor}
+                                                            />
+                                                        ) : null}
+                                                        {conv.tags?.map(tag => (
+                                                            <TagChip key={tag.id} name={tag.name} color={tag.color} size="sm" />
+                                                        ))}
+                                                    </div>
+                                                ) : null}
+                                            </div>
+                                        </div>
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* Right Panel — Chat View */}
+                <div className={cn(
+                    "min-w-0 flex-1 flex-col bg-background md:flex",
+                    selectedConversation ? "flex" : "hidden"
+                )}>
+                    {!selectedConversation || !conv ? (
+                        /* Empty state */
+                        <div className="flex-1 flex items-center justify-center">
+                            <div className="text-center max-w-sm px-8">
+                                <div className="mb-6 flex justify-center">
+                                    <div className="relative w-48 h-48">
+                                        <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-primary/5 rounded-full" />
+                                        <div className="absolute inset-4 flex items-center justify-center">
+                                            <Bot className="w-20 h-20 text-primary/60" />
+                                        </div>
+                                    </div>
+                                </div>
+                                <h2 className="text-xl font-bold mb-3">
+                                    Moderação de atendimentos
+                                </h2>
+                                <p className="text-muted-foreground text-sm">
+                                    Monitore as respostas dos seus agentes, assuma a conversa se necessário,
+                                    ou aguarde um agente solicitar sua ajuda.
+                                </p>
+                            </div>
+                        </div>
+                    ) : (
+                        <>
+                            {/* Chat Header */}
+                            <div className="flex items-center justify-between px-4 py-3 border-b bg-card">
+                                <div className="flex min-w-0 items-center gap-3">
+                                    {/* Without this the list is unreachable on a
+                                        phone once a conversation is open. */}
+                                    <Button
+                                        variant="ghost"
+                                        size="icon-sm"
+                                        className="-ml-1 shrink-0 md:hidden"
+                                        aria-label="Voltar para a lista"
+                                        onClick={() => setSelectedConversation(null)}
+                                    >
+                                        <ArrowLeft />
+                                    </Button>
+                                    <ContactAvatar
+                                        avatar={conv.contact.avatar}
+                                        name={conv.contact.name}
+                                        phone={formatPhone(conv.contact.phone)}
+                                    />
+                                    {/* Três linhas, nesta ordem: quem é, quem
+                                        atende e por onde, e se a linha está no
+                                        ar. A versão anterior empilhava telefone,
+                                        linha, agente e estado na mesma faixa —
+                                        quatro informações disputando a largura
+                                        viram uma tira que ninguém lê. */}
+                                    <div className="min-w-0">
+                                        {/* 1. Quem é, e o número dele. */}
+                                        <h3 className="flex items-center gap-1.5 truncate text-sm font-medium">
+                                            {primeiroNome(conv.contact.name, conv.contact.phone, conv.channel)}
+                                            {conv.contact.phone ? (
+                                                <span className="flex items-center gap-1 text-xs font-normal text-muted-foreground">
+                                                    <Phone className="h-3 w-3 shrink-0" aria-hidden="true" />
+                                                    {formatPhone(conv.contact.phone)}
+                                                </span>
+                                            ) : null}
+                                        </h3>
+
+                                        {/* 2. Quem atende, e por onde ele chegou. */}
+                                        {(conv.agent || origemDaConversa(conv)) && (
+                                            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                                                {conv.agent ? (
+                                                    <span className="flex items-center gap-1 truncate">
+                                                        <Bot className="h-3 w-3 shrink-0" aria-hidden="true" />
+                                                        {conv.agent.name}
+                                                    </span>
+                                                ) : null}
+                                                {conv.agent && origemDaConversa(conv) ? (
+                                                    <span aria-hidden="true" className="text-muted-foreground/40">|</span>
+                                                ) : null}
+                                                {origemDaConversa(conv) ? (
+                                                    <span className="flex shrink-0 items-center gap-1">
+                                                        <Smartphone className="h-3 w-3 shrink-0" aria-hidden="true" />
+                                                        {origemDaConversa(conv)}
+                                                    </span>
+                                                ) : null}
+                                            </div>
+                                        )}
+
+                                        {/* 3. Se o que ele digitar vai sair. Aqui o
+                                            estado é dito nos dois sentidos, e não
+                                            só na falha: quem está prestes a
+                                            escrever precisa da confirmação, não só
+                                            do alarme. */}
+                                        {conv.line ? (
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <span
+                                                        className={cn(
+                                                            'flex items-center gap-1 text-[11px] font-semibold',
+                                                            conv.line.status === 'connected'
+                                                                ? 'text-success-subtle-foreground'
+                                                                : 'text-destructive-subtle-foreground'
+                                                        )}
+                                                    >
+                                                        {/* Tomada ligada e tomada
+                                                            puxada: o par diz
+                                                            "conectado/desconectado"
+                                                            sem depender da cor, que
+                                                            nem todo mundo distingue. */}
+                                                        {conv.line.status === 'connected' ? (
+                                                            <Plug className="size-3 shrink-0" aria-hidden="true" />
+                                                        ) : (
+                                                            <Unplug className="size-3 shrink-0" aria-hidden="true" />
+                                                        )}
+                                                        {conv.line.status === 'connected'
+                                                            ? 'Linha no ar'
+                                                            : 'Linha fora do ar'}
+                                                    </span>
+                                                </TooltipTrigger>
+                                                <TooltipContent>
+                                                    {conv.line.status === 'connected'
+                                                        ? 'O paciente recebe suas mensagens por este número.'
+                                                        : canManage
+                                                          ? 'Este número está desconectado: nada que você enviar daqui chega ao paciente, e as mensagens dele não entram. Reconecte em Agentes de IA → Integrações.'
+                                                          : 'Este número está desconectado: nada que você enviar daqui chega ao paciente, e as mensagens dele não entram. Avise um administrador para reconectá-lo.'}
+                                                </TooltipContent>
+                                            </Tooltip>
+                                        ) : null}
+
+                                        {/* 4. Quem mais está vendo isto.
+                                            Pilha de retratos, não lista de
+                                            nomes: nesta faixa já estão o
+                                            responsável e o estado da linha, e
+                                            dois nomes a mais a quebrariam. O
+                                            nome vem no `title` de cada um.
+
+                                            Só aqui, nunca no cartão da lista —
+                                            decisão do Andre, e a razão é a
+                                            mesma: espaço. */}
+                                        {conversationDetail?.conversation?.colaboradores?.length ? (
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                                                        <AtSign className="size-3 shrink-0" aria-hidden="true" />
+                                                        <span className="flex">
+                                                            {conversationDetail.conversation.colaboradores
+                                                                .slice(0, 4)
+                                                                .map((c) => (
+                                                                    <Retrato
+                                                                        key={c.userId}
+                                                                        endereco={c.retrato}
+                                                                        nome={c.nome}
+                                                                        className="-ml-1 size-4 border border-background first:ml-0"
+                                                                        classNameTexto="-ml-1 grid size-4 place-items-center rounded-full border border-background bg-muted text-[8px] font-bold first:ml-0"
+                                                                    />
+                                                                ))}
+                                                        </span>
+                                                        {conversationDetail.conversation.colaboradores.length > 4 ? (
+                                                            <span className="num">
+                                                                +{conversationDetail.conversation.colaboradores.length - 4}
+                                                            </span>
+                                                        ) : null}
+                                                    </span>
+                                                </TooltipTrigger>
+                                                <TooltipContent>
+                                                    Colabora nesta conversa:{' '}
+                                                    {conversationDetail.conversation.colaboradores
+                                                        .map((c) => c.nome)
+                                                        .join(', ')}
+                                                </TooltipContent>
+                                            </Tooltip>
+                                        ) : null}
+                                    </div>
+                                </div>
+
+                                {/* ── Comandos ──────────────────────────────
+                                    Duas famílias, separadas: o que muda a
+                                    conversa (o chip de estado e a ação óbvia
+                                    do momento) e o que muda a sua visão
+                                    (busca, agenda, etiquetas, painel). Antes
+                                    eram oito controles em fila, com o excluir
+                                    permanente encostado no finalizar. */}
+                                <div className="flex shrink-0 items-center gap-2">
+                                    {/* O chip diz quem está com a conversa e
+                                        guarda todas as transições. O estado
+                                        era texto cinza de 11px; agora é o
+                                        comando. */}
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                            <Button
+                                                variant="secondary"
+                                                size="sm"
+                                                className="h-8 gap-2 rounded-full pr-2.5 pl-3 font-semibold"
+                                                aria-label={`Estado da conversa: ${conversationStateLabel}. Abrir ações`}
+                                            >
+                                                <span
+                                                    aria-hidden="true"
+                                                    className={cn(
+                                                        'size-2 rounded-full',
+                                                        conv.status === 'closed'
+                                                            ? 'bg-muted-foreground'
+                                                            : conv.assignedTo
+                                                              ? 'bg-primary'
+                                                              : 'bg-muted-foreground'
+                                                    )}
+                                                />
+                                                <span className="max-w-[12ch] truncate">
+                                                    {conversationStateLabel}
+                                                </span>
+                                                <ChevronDown className="size-3.5 opacity-70" />
+                                            </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end" className="w-52">
+                                            {/* Assumir aparece enquanto a IA
+                                                atende — não só quando não há
+                                                responsável. É a correção do nó:
+                                                o lead que chega já ganha
+                                                responsável pelo rodízio, e com a
+                                                condição antiga o botão sumia
+                                                justamente na conversa que mais
+                                                precisa ser assumida. */}
+                                            {conv.status === 'active' &&
+                                                conversationDetail?.conversation?.atendidaPor === 'bot' && (
+                                                <RowActionItem
+                                                    icon={Hand}
+                                                    onClick={() => handleAction('assign')}
+                                                >
+                                                    Assumir
+                                                </RowActionItem>
+                                            )}
+                                            {/* Devolver é devolver o **portão**,
+                                                não só largar o responsável. A
+                                                condição é `atendidaPor`, e não
+                                                `assignedTo`: a entrega do agente
+                                                à equipe produz conversa com a
+                                                equipe e sem responsável, e ela
+                                                também precisa poder voltar. */}
+                                            {conversationDetail?.conversation?.atendidaPor === 'humano' && (
+                                                <RowActionItem
+                                                    icon={UserX}
+                                                    onClick={() => handleAction('unassign')}
+                                                >
+                                                    Devolver à IA
+                                                </RowActionItem>
+                                            )}
+                                            {conv.assignedTo && canTransfer && (
+                                                <RowActionItem
+                                                    icon={ArrowRightLeft}
+                                                    onClick={() => openTransferModal(conv.id)}
+                                                >
+                                                    Transferir
+                                                </RowActionItem>
+                                            )}
+                                            {/* Só aparece para quem **está**
+                                                colaborando. Não é permissão: é
+                                                que para os outros o item não
+                                                significaria nada, e menu com
+                                                item inerte ensina a não ler o
+                                                menu. */}
+                                            {conversationDetail?.conversation?.euColaboro && (
+                                                <RowActionItem
+                                                    icon={UserMinus}
+                                                    onClick={() => handleAction('descolaborar')}
+                                                >
+                                                    Deixar de colaborar
+                                                </RowActionItem>
+                                            )}
+                                            {conv.status === 'active' && (
+                                                <RowActionItem
+                                                    icon={XCircle}
+                                                    onClick={() => handleAction('close')}
+                                                >
+                                                    Finalizar
+                                                </RowActionItem>
+                                            )}
+                                            {conv.status === 'closed' && (
+                                                <RowActionItem
+                                                    icon={RotateCcw}
+                                                    onClick={() => handleAction('reopen')}
+                                                >
+                                                    Reabrir
+                                                </RowActionItem>
+                                            )}
+                                            {/* O separador é o ponto: apagar a
+                                                conversa leva junto mensagens,
+                                                áudios e anexos, e encostava no
+                                                finalizar, que tem Reabrir. */}
+                                            <RowActionsSeparator />
+                                            <RowActionItem
+                                                icon={Trash2}
+                                                destructive
+                                                onClick={() => setShowDeleteDialog(true)}
+                                            >
+                                                Excluir conversa
+                                            </RowActionItem>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
+
+                                    {/* A única ação óbvia daquele estado, a um
+                                        clique. Tudo o mais mora no chip. */}
+                                    {/* A ação óbvia sai do portão, não de
+                                        `assignedTo`. Com a IA atendendo, o
+                                        óbvio é assumir — mesmo que o rodízio já
+                                        tenha posto um nome na conversa. Com a
+                                        equipe, é finalizar. */}
+                                    {conv.status === 'active' &&
+                                        conversationDetail?.conversation?.atendidaPor === 'bot' && (
+                                        <Button
+                                            size="sm"
+                                            onClick={() => handleAction('assign')}
+                                            className="h-8 gap-1.5"
+                                        >
+                                            <Hand className="size-3.5" />
+                                            Assumir
+                                        </Button>
+                                    )}
+                                    {conv.status === 'active' &&
+                                        conversationDetail?.conversation?.atendidaPor === 'humano' && (
+                                        <Button
+                                            size="sm"
+                                            onClick={() => handleAction('close')}
+                                            className="h-8 gap-1.5"
+                                        >
+                                            <CheckCircle2 className="size-3.5" />
+                                            Finalizar
+                                        </Button>
+                                    )}
+                                    {conv.status === 'closed' && (
+                                        <Button
+                                            size="sm"
+                                            onClick={() => handleAction('reopen')}
+                                            className="h-8 gap-1.5"
+                                        >
+                                            <RotateCcw className="size-3.5" />
+                                            Reabrir
+                                        </Button>
+                                    )}
+
+                                    <Separator
+                                        orientation="vertical"
+                                        className="mx-0.5 !h-5"
+                                    />
+
+                                    {/* Ferramentas de visão. Buscar e o painel
+                                        são estados ligado/desligado: viram
+                                        Toggle, que anuncia `aria-pressed` —
+                                        trocar `variant` não anunciava nada. */}
+                                    <div className="flex items-center gap-0.5">
+                                        {/* A faixa, na ordem em que se usa: achar,
+                                            entender, agir, classificar, acompanhar,
+                                            registrar. Busca é barra e etiquetas é
+                                            popover; os outros quatro alternam o
+                                            painel direito. */}
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <Toggle
+                                                    size="sm"
+                                                    className={cn(showSearch && PANEL_ON)}
+                                                    pressed={showSearch}
+                                                    onPressedChange={next => {
+                                                        setShowSearch(next)
+                                                        if (!next) setConversationSearch('')
+                                                    }}
+                                                    aria-label="Buscar na conversa"
+                                                >
+                                                    <Search className="size-3.5" />
+                                                </Toggle>
+                                            </TooltipTrigger>
+                                            <TooltipContent>Buscar na conversa</TooltipContent>
+                                        </Tooltip>
+
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <Toggle
+                                                    size="sm"
+                                                    className={cn(panel === 'summary' && PANEL_ON)}
+                                                    pressed={panel === 'summary'}
+                                                    onPressedChange={() => togglePanel('summary')}
+                                                    aria-label="Resumo do paciente"
+                                                >
+                                                    <Sparkles className="size-3.5" />
+                                                </Toggle>
+                                            </TooltipTrigger>
+                                            <TooltipContent>Resumo do paciente</TooltipContent>
+                                        </Tooltip>
+
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <Toggle
+                                                    size="sm"
+                                                    className={cn(panel === 'schedule' && PANEL_ON)}
+                                                    pressed={panel === 'schedule'}
+                                                    onPressedChange={() => togglePanel('schedule')}
+                                                    aria-label="Agendar atividade"
+                                                >
+                                                    <CalendarPlus className="size-3.5" />
+                                                </Toggle>
+                                            </TooltipTrigger>
+                                            <TooltipContent>Agendar atividade</TooltipContent>
+                                        </Tooltip>
+
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <Toggle
+                                                    size="sm"
+                                                    className={cn(panel === 'activities' && PANEL_ON)}
+                                                    pressed={panel === 'activities'}
+                                                    onPressedChange={() => togglePanel('activities')}
+                                                    aria-label="Atividades do paciente"
+                                                >
+                                                    <ListTodo className="size-3.5" />
+                                                </Toggle>
+                                            </TooltipTrigger>
+                                            <TooltipContent>Atividades do paciente</TooltipContent>
+                                        </Tooltip>
+                                        {/* Etiquetas — Popover, não div com z-50:
+                                            o primitivo trata Esc, clique fora,
+                                            foco e aria-expanded. Popover e não
+                                            painel porque é escolha de um clique. */}
+                                        <Popover open={showTagPicker} onOpenChange={setShowTagPicker}>
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <PopoverTrigger asChild>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon-sm"
+                                                            className={cn('relative', showTagPicker && PANEL_ON)}
+                                                            aria-label={
+                                                                conversationTags.length > 0
+                                                                    ? `Etiquetas da conversa: ${conversationTags.map(t => t.name).join(', ')}`
+                                                                    : 'Etiquetas da conversa'
+                                                            }
+                                                        >
+                                                            <Tag className="size-3.5" />
+                                                            {/* A faixa de etiquetas abaixo do cabeçalho saiu:
+                                                                ela mudava a altura do cabeçalho conforme a
+                                                                conversa tinha ou não etiqueta, e as mensagens
+                                                                pulavam ao trocar de conversa. O que ela dizia
+                                                                de longe — "esta conversa está classificada, e
+                                                                em quantas" — vive aqui; quais são, e tirar ou
+                                                                pôr, é o clique que já existia. */}
+                                                            {conversationTags.length > 0 ? (
+                                                                <span
+                                                                    aria-hidden="true"
+                                                                    className="num absolute -right-0.5 -top-0.5 flex size-3.5 items-center justify-center rounded-full bg-primary-subtle-foreground text-[9px] font-bold text-card"
+                                                                >
+                                                                    {conversationTags.length}
+                                                                </span>
+                                                            ) : null}
+                                                        </Button>
+                                                    </PopoverTrigger>
+                                                </TooltipTrigger>
+                                                <TooltipContent>Etiquetas</TooltipContent>
+                                            </Tooltip>
+                                            <PopoverContent align="end" className="w-64 p-2">
+                                                <TagPicker
+                                                    available={availableTags}
+                                                    applied={conversationTags}
+                                                    onAdd={addTagToConversation}
+                                                    onRemove={removeTagFromConversation}
+                                                    onCreated={(tag) => {
+                                                        setAvailableTags((prev) => [...prev, tag])
+                                                        void addTagToConversation(tag)
+                                                    }}
+                                                />
+                                            </PopoverContent>
+                                        </Popover>
+
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <Toggle
+                                                    size="sm"
+                                                    className={cn(panel === 'files' && PANEL_ON)}
+                                                    pressed={panel === 'files'}
+                                                    onPressedChange={() => togglePanel('files')}
+                                                    aria-label="Arquivos da conversa"
+                                                >
+                                                    <Paperclip className="size-3.5" />
+                                                </Toggle>
+                                            </TooltipTrigger>
+                                            <TooltipContent>Arquivos da conversa</TooltipContent>
+                                        </Tooltip>
+
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <Toggle
+                                                    size="sm"
+                                                    className={cn(panel === 'journey' && PANEL_ON)}
+                                                    pressed={panel === 'journey'}
+                                                    onPressedChange={() => togglePanel('journey')}
+                                                    aria-label="Jornada do paciente"
+                                                >
+                                                    {/* `Route` e não `PanelRight`: o ícone
+                                                        dizia "abre um painel", não o que o
+                                                        painel contém. */}
+                                                    <Route className="size-3.5" />
+                                                </Toggle>
+                                            </TooltipTrigger>
+                                            <TooltipContent>Jornada do paciente</TooltipContent>
+                                        </Tooltip>
+
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <Toggle
+                                                    size="sm"
+                                                    className={cn(panel === 'notes' && PANEL_ON)}
+                                                    pressed={panel === 'notes'}
+                                                    onPressedChange={() => togglePanel('notes')}
+                                                    aria-label="Notas internas"
+                                                >
+                                                    <StickyNote className="size-3.5" />
+                                                </Toggle>
+                                            </TooltipTrigger>
+                                            <TooltipContent>Notas internas</TooltipContent>
+                                        </Tooltip>
+                                    </div>
+                                </div>
+                            </div>
+                            {/* Chat + Contact Panel layout */}
+                            {/* `relative` por causa do painel: abaixo de 1280 ele
+                                sobrepõe o chat em vez de encolhê-lo, porque uma
+                                coluna de 300px ao lado de mensagens num notebook
+                                de 1280 deixa as duas ilegíveis. */}
+                            <div className="relative flex flex-1 overflow-hidden">
+                                {/* Messages + Input column */}
+                                <div className="flex-1 flex flex-col overflow-hidden">
+                                    {/* Messages */}
+                                    {showSearch && (
+                                        <div className="border-b border-border bg-card px-4 py-2">
+                                            <div className="flex items-center gap-2">
+                                                <Search className="h-3.5 w-3.5 text-muted-foreground" />
+                                                <input
+                                                    autoFocus
+                                                    value={conversationSearch}
+                                                    onChange={(e) => setConversationSearch(e.target.value)}
+                                                    placeholder="Buscar nesta conversa…"
+                                                    className="flex-1 bg-transparent text-sm focus:outline-none"
+                                                />
+                                                <span className="text-xs text-muted-foreground num">
+                                                    {conversationSearch ? `${visibleMessages.length} de ${messages.length}` : `${messages.length}`}
+                                                    {hasMoreMessages && ' · há mais acima'}
+                                                </span>
+                                                <button onClick={() => { setShowSearch(false); setConversationSearch('') }} className="text-muted-foreground hover:text-foreground" aria-label="Fechar busca">
+                                                    <X className="h-3.5 w-3.5" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+                                    <div
+                                        ref={messagesContainerRef}
+                                        className={cn('flex-1 overflow-y-auto p-4 space-y-3', dragOver && 'ring-2 ring-inset ring-primary/60')}
+                                        onDragOver={(e) => { e.preventDefault(); if (!dragOver) setDragOver(true) }}
+                                        onDragLeave={() => setDragOver(false)}
+                                        onDrop={handleDrop}
+                                    >
+                                        {/* Load more messages button */}
+                                        {hasMoreMessages && (
+                                            <div className="flex justify-center">
+                                                <button
+                                                    onClick={loadMoreMessages}
+                                                    disabled={loadingMore}
+                                                    className="text-xs text-primary hover:text-primary/80 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary/5 hover:bg-primary/10 transition-colors"
+                                                >
+                                                    {loadingMore ? (
+                                                        <><Loader2 className="h-3 w-3 animate-spin" /> Carregando...</>
+                                                    ) : (
+                                                        <><RotateCcw className="h-3 w-3" /> Carregar mensagens anteriores</>
+                                                    )}
+                                                </button>
+                                            </div>
+                                        )}
+                                        {visibleMessages.map((msg) => {
+                                            const isInbound = msg.direction === 'inbound'
+                                            const isAgent = msg.sentBy === 'agent'
+                                            // Follow-up que o sistema mandou sozinho. Não se
+                                            // esconde: quem abrir a conversa amanhã precisa saber
+                                            // que aquela mensagem não saiu de uma pessoa.
+                                            const isAuto = msg.sentBy === 'auto'
+                                            const isHuman = msg.sentBy && msg.sentBy !== 'agent' && msg.sentBy !== 'user' && msg.sentBy !== 'auto'
+                                            const isInternal = msg.isInternal || msg.direction === 'internal'
+
+                                            if (isInternal) {
+                                                return (
+                                                    <div key={msg.id} className="flex justify-center group">
+                                                        <div className="max-w-[70%] bg-warning-subtle border border-dashed border-warning/40 rounded-xl px-4 py-2.5 text-sm text-warning-subtle-foreground">
+                                                            <div className="flex items-center gap-1.5 text-[10px] font-medium mb-1 opacity-80">
+                                                                <StickyNote className="h-3 w-3" />
+                                                                Nota interna · {msg.senderName || 'Atendente'}
+                                                            </div>
+                                                            <TextoDeWhatsApp texto={msg.content} className="text-foreground/80 whitespace-pre-wrap" />
+                                                            <div className="text-[10px] opacity-60 mt-1 text-right">
+                                                                {format(new Date(msg.createdAt), 'HH:mm', { locale: ptBR })}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )
+                                            }
+
+                                            return (
+                                                <div
+                                                    key={msg.id}
+                                                    className={cn(
+                                                        'flex group',
+                                                        isInbound ? 'justify-start' : 'justify-end'
+                                                    )}
+                                                >
+                                                  {/* O menu da mensagem é o primitivo: posição, Esc,
+                                                      clique fora e navegação por teclado faltavam na
+                                                      versão artesanal, e menu sem teclado é
+                                                      inacessível por definição. */}
+                                                  <ContextMenu>
+                                                    <ContextMenuTrigger asChild>
+                                                    <div
+                                                        className={cn(
+                                                            'max-w-[70%] rounded-2xl px-4 py-2.5 text-sm relative',
+                                                            // Incoming was bg-muted with no edge, which on the
+                                                            // page surface is all but invisible — the worst
+                                                            // light-mode defect in the app. Outgoing used
+                                                            // bg-primary/80, which lightens over white, and the
+                                                            // human variant paired a blue fill with navy type.
+                                                            // Tokens próprios do chat (globals.css): no escuro os
+                                                            // três são claros com texto navy — recebida em gelo,
+                                                            // agente em teal clareado, atendente em céu.
+                                                            isInbound
+                                                                ? 'bg-bubble-in border border-bubble-in-border text-bubble-in-foreground rounded-bl-md'
+                                                                : isAgent
+                                                                    ? 'bg-bubble-out text-bubble-out-foreground rounded-br-md'
+                                                                    : 'bg-bubble-human text-bubble-human-foreground rounded-br-md'
+                                                        )}
+                                                    >
+                                                        {/* Quem falou. O follow-up automático se
+                                                            identifica porque esconder isso é o tipo
+                                                            de economia que custa caro quando o
+                                                            paciente percebe. */}
+                                                        {!isInbound && (
+                                                            <div className="text-[10px] opacity-70 mb-1 font-medium uppercase tracking-wide">
+                                                                {isAuto
+                                                                    ? 'Enviada automaticamente'
+                                                                    : isAgent
+                                                                        ? `🤖 ${msg.senderName || 'Agente'}`
+                                                                        : isHuman
+                                                                            ? `👤 ${msg.senderName || 'Atendente'}`
+                                                                            : ''
+                                                                }
+                                                            </div>
+                                                        )}
+
+                                                        {/* Quoted message */}
+                                                        {msg.replyTo && (
+                                                            <div className={cn(
+                                                                'rounded-lg px-3 py-1.5 mb-1.5 border-l-2 cursor-pointer text-[11px]',
+                                                                // Sobreposição navy translúcida: lê sobre qualquer um
+                                                                // dos três balões, nos dois temas.
+                                                                'bg-bubble-quote border-bubble-quote-border'
+                                                            )}>
+                                                                <span className={cn(
+                                                                    'font-semibold block text-[10px]',
+                                                                    isInbound ? 'text-primary' : 'opacity-80'
+                                                                )}>
+                                                                    {msg.replyTo.direction === 'inbound' ? '👤 Paciente' : '🤖 Agente'}
+                                                                </span>
+                                                                <p className="truncate opacity-80">{semMarcacao(msg.replyTo.content)}</p>
+                                                            </div>
+                                                        )}
+
+                                                        <MediaContent msg={msg} />
+                                                        <div className={cn(
+                                                            'text-[10px] mt-1 flex items-center gap-0.5 opacity-70'
+                                                        )}>
+                                                            {format(new Date(msg.createdAt), 'HH:mm')}
+                                                            <MessageStatus status={msg.status} direction={msg.direction} />
+                                                        </div>
+                                                        {msg.reaction && (
+                                                            <span
+                                                                className="absolute -bottom-2.5 right-2 rounded-full border border-border bg-card px-1.5 text-xs shadow-sm"
+                                                                title="Sua reação"
+                                                            >
+                                                                {msg.reaction}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    </ContextMenuTrigger>
+                                                    <ContextMenuContent className="min-w-[180px]">
+                                                        <ContextMenuItem onSelect={() => handleReply(msg)}>
+                                                            <Reply className="text-muted-foreground" />
+                                                            Responder
+                                                        </ContextMenuItem>
+                                                        <ContextMenuItem onSelect={() => handleCopyMessage(msg)}>
+                                                            <Copy className="text-muted-foreground" />
+                                                            Copiar texto
+                                                        </ContextMenuItem>
+                                                        {!msg.isInternal && (
+                                                            <ContextMenuItem onSelect={() => handleForward(msg)}>
+                                                                <Reply className="-scale-x-100 text-muted-foreground" />
+                                                                Encaminhar
+                                                            </ContextMenuItem>
+                                                        )}
+                                                        {msg.direction === 'inbound' && (
+                                                            <>
+                                                                <ContextMenuSeparator />
+                                                                <div className="flex items-center gap-0.5 px-1 pb-0.5">
+                                                                    {REACTIONS.map((emoji) => (
+                                                                        <button
+                                                                            key={emoji}
+                                                                            onClick={() => handleReact(msg, emoji)}
+                                                                            className={cn(
+                                                                                'flex h-8 w-8 items-center justify-center rounded-md text-lg hover:bg-muted/60',
+                                                                                msg.reaction === emoji && 'bg-primary-subtle'
+                                                                            )}
+                                                                            aria-label={msg.reaction === emoji ? `Remover reação ${emoji}` : `Reagir com ${emoji}`}
+                                                                        >
+                                                                            {emoji}
+                                                                        </button>
+                                                                    ))}
+                                                                </div>
+                                                            </>
+                                                        )}
+                                                    </ContextMenuContent>
+                                                  </ContextMenu>
+                                                </div>
+                                            )
+                                        })}
+
+                                        {/* Typing indicator */}
+                                        {contactTyping && (
+                                            <div className="flex justify-start">
+                                                <div className="bg-card border border-border rounded-2xl rounded-bl-md px-4 py-3">
+                                                    <div className="flex items-center gap-1">
+                                                        <span className="h-2 w-2 rounded-full bg-muted-foreground/60 animate-bounce" style={{ animationDelay: '0ms' }} />
+                                                        <span className="h-2 w-2 rounded-full bg-muted-foreground/60 animate-bounce" style={{ animationDelay: '150ms' }} />
+                                                        <span className="h-2 w-2 rounded-full bg-muted-foreground/60 animate-bounce" style={{ animationDelay: '300ms' }} />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        <div ref={messagesEndRef} />
+                                    </div>
+
+                                    {/* Message Input */}
+                                    {conv.status !== 'closed' && (
+                                        <div className="border-t bg-card p-3 relative">
+                                            {/* Slash menu — commands and the
+                                                clinic's saved answers behind one
+                                                `/`. It is a roled listbox the
+                                                textarea drives: cmdk wants to own
+                                                its own input, and the typing
+                                                surface here is the composer. */}
+                                            {slashOpen && (
+                                                <div
+                                                    role="listbox"
+                                                    aria-label="Comandos do compositor"
+                                                    className="absolute bottom-full left-3 right-3 z-50 mb-1 max-h-[220px] overflow-y-auto rounded-lg border border-border bg-popover p-1 shadow-md"
+                                                >
+                                                    <div className="flex items-center justify-between px-2 py-1.5">
+                                                        <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                                                            {slashPage === 'replies' ? 'Respostas rápidas' : 'Comandos'}
+                                                        </span>
+                                                        <span className="text-[10px] text-muted-foreground">
+                                                            ↑↓ navegar · Enter escolher · Esc fechar
+                                                        </span>
+                                                    </div>
+                                                    {slashItems.map((item, i) => (
+                                                        <button
+                                                            key={item.key}
+                                                            type="button"
+                                                            role="option"
+                                                            aria-selected={i === slashIndex}
+                                                            onMouseEnter={() => setSlashIndex(i)}
+                                                            onClick={item.run}
+                                                            className={cn(
+                                                                'w-full rounded-md px-3 py-2 text-left transition-colors',
+                                                                i === slashIndex ? 'bg-accent' : 'hover:bg-muted/50'
+                                                            )}
+                                                        >
+                                                            <span className={cn(
+                                                                'text-xs font-medium',
+                                                                item.kind === 'command' ? 'text-primary-subtle-foreground' : 'font-mono text-primary-subtle-foreground'
+                                                            )}>
+                                                                {item.command}
+                                                            </span>
+                                                            <p className="mt-0.5 truncate text-xs text-muted-foreground">{item.label}</p>
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            )}
+
+                                            {/* Reply preview bar */}
+                                            {replyingTo && (
+                                                <div className="flex items-center gap-2 mb-2 px-3 py-2 bg-muted/60 rounded-lg border-l-2 border-primary">
+                                                    <Reply className="h-3.5 w-3.5 text-primary flex-shrink-0" />
+                                                    <div className="flex-1 min-w-0">
+                                                        <span className="text-[10px] text-primary font-medium">
+                                                            {replyingTo.direction === 'inbound' ? 'Responder' : replyingTo.senderName || 'Você'}
+                                                        </span>
+                                                        <p className="text-xs text-muted-foreground truncate">{replyingTo.content}</p>
+                                                    </div>
+                                                    <button onClick={() => setReplyingTo(null)} className="text-muted-foreground hover:text-foreground">
+                                                        <X className="h-3.5 w-3.5" />
+                                                    </button>
+                                                </div>
+                                            )}
+
+                                            {/* Attachment preview */}
+                                            {attachment && (
+                                                <div className="flex items-center gap-2 mb-2 px-3 py-2 bg-muted/60 rounded-lg">
+                                                    {attachmentPreview ? (
+                                                        <img src={attachmentPreview} alt="Preview" className="h-24 w-24 rounded-md border border-border object-cover" />
+                                                    ) : (
+                                                        <div className="h-12 w-12 rounded-md bg-muted flex items-center justify-center">
+                                                            {attachment.type.startsWith('audio/') ? <Music className="h-5 w-5 text-muted-foreground" /> :
+                                                                attachment.type.startsWith('video/') ? <Film className="h-5 w-5 text-muted-foreground" /> :
+                                                                    <FileText className="h-5 w-5 text-muted-foreground" />}
+                                                        </div>
+                                                    )}
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="text-xs font-medium truncate">{attachment.name}</p>
+                                                        <p className="text-[10px] text-muted-foreground">
+                                                            {(attachment.size / 1024).toFixed(0)} KB
+                                                        </p>
+                                                    </div>
+                                                    <button onClick={clearAttachment} className="text-muted-foreground hover:text-foreground">
+                                                        <X className="h-4 w-4" />
+                                                    </button>
+                                                </div>
+                                            )}
+
+                                            {isRecording ? (
+                                                <div className="flex items-center gap-3 px-2">
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="h-10 w-10 rounded-full text-destructive-subtle-foreground hover:text-destructive-subtle-foreground"
+                                                        onClick={cancelRecording}
+                                                        aria-label="Cancelar gravação"
+                                                    >
+                                                        <X className="h-5 w-5" />
+                                                    </Button>
+                                                    <div className="flex-1 flex items-center gap-3">
+                                                        <div className="h-2.5 w-2.5 rounded-full bg-destructive animate-pulse" />
+                                                        <span className="text-sm font-mono text-destructive-subtle-foreground font-medium">
+                                                            {formatRecordingTime(recordingTime)}
+                                                        </span>
+                                                        <div className="flex-1 h-1 bg-muted rounded-full overflow-hidden">
+                                                            <div className="h-full bg-destructive/60 rounded-full animate-pulse" style={{ width: '100%' }} />
+                                                        </div>
+                                                    </div>
+                                                    <Button
+                                                        size="icon"
+                                                        onClick={stopRecording}
+                                                        className="h-10 w-10 rounded-full bg-primary"
+                                                        aria-label="Enviar áudio"
+                                                    >
+                                                        <Send className="h-4 w-4" />
+                                                    </Button>
+                                                </div>
+                                            ) : (
+                                                <div className="flex items-end gap-2">
+                                                    {/* Attachment button */}
+                                                    <input
+                                                        ref={fileInputRef}
+                                                        type="file"
+                                                        className="hidden"
+                                                        accept="image/*,audio/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip"
+                                                        onChange={handleFileSelect}
+                                                    />
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                className="h-10 w-10 flex-shrink-0 rounded-lg text-muted-foreground hover:text-foreground"
+                                                                onClick={() => fileInputRef.current?.click()}
+                                                                aria-label="Enviar arquivo"
+                                                            >
+                                                                <Paperclip className="h-4 w-4" />
+                                                            </Button>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent>Enviar arquivo — imagem, PDF ou documento</TooltipContent>
+                                                    </Tooltip>
+
+                                                    {/* Sugerir a próxima mensagem. Fica no
+                                                        compositor porque é dali que ela sai —
+                                                        no funil o mesmo texto não tinha destino. */}
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                className="h-10 w-10 flex-shrink-0 rounded-lg text-muted-foreground hover:text-foreground"
+                                                                onClick={() => void suggestFollowUp()}
+                                                                disabled={suggesting || sending}
+                                                                aria-label="Sugerir mensagem com IA"
+                                                            >
+                                                                {suggesting
+                                                                    ? <Loader2 className="h-4 w-4 animate-spin" />
+                                                                    : <Sparkles className="h-4 w-4" />}
+                                                            </Button>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent>
+                                                            Sugerir mensagem — lê a conversa e consome créditos
+                                                        </TooltipContent>
+                                                    </Tooltip>
+
+                                                    {/* O campo e, dentro dele, o emoji: ele serve
+                                                        ao texto que está sendo escrito, e no lado
+                                                        de fora disputava lugar com o que age sobre
+                                                        a conversa. */}
+                                                    <div className="relative flex-1">
+                                                        <textarea
+                                                            ref={textareaRef}
+                                                            value={messageInput}
+                                                            onChange={handleInputChange}
+                                                            onKeyDown={handleKeyDown}
+                                                            onPaste={handlePaste}
+                                                            placeholder={
+                                                                attachment
+                                                                    ? 'Legenda (opcional)…'
+                                                                    : 'Digite sua mensagem… ( / para comandos )'
+                                                            }
+                                                            rows={1}
+                                                            /* A altura é do efeito acima, que mede o
+                                                               conteúdo. `max-h` fica como rede: se o
+                                                               efeito não rodar, a caixa ainda para de
+                                                               crescer em cinco linhas da escala atual
+                                                               (5 × 20px + 20px de respiro). */
+                                                            className="max-h-[120px] min-h-[40px] w-full resize-none rounded-lg bg-muted/50 py-2.5 pl-4 pr-11 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                                                        />
+                                                        <EmojiPicker
+                                                            onSelect={insertAtCursor}
+                                                            disabled={sending}
+                                                            className="absolute bottom-0.5 right-1 size-9 text-muted-foreground hover:text-foreground"
+                                                        />
+                                                    </div>
+
+                                                    {/* Mic button — visible only when no text and no attachment */}
+                                                    {!messageInput.trim() && !attachment ? (
+                                                        <Tooltip>
+                                                            <TooltipTrigger asChild>
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="icon"
+                                                                    onClick={startRecording}
+                                                                    className="h-10 w-10 flex-shrink-0 rounded-lg text-muted-foreground hover:text-primary"
+                                                                    aria-label="Gravar áudio"
+                                                                >
+                                                                    <Mic className="h-4 w-4" />
+                                                                </Button>
+                                                            </TooltipTrigger>
+                                                            <TooltipContent>Gravar e enviar um áudio</TooltipContent>
+                                                        </Tooltip>
+                                                    ) : (
+                                                        <Tooltip>
+                                                            <TooltipTrigger asChild>
+                                                                <Button
+                                                                    size="icon"
+                                                                    onClick={handleSendMessage}
+                                                                    disabled={(!messageInput.trim() && !attachment) || sending}
+                                                                    className="h-10 w-10 flex-shrink-0 rounded-lg"
+                                                                    aria-label="Enviar mensagem"
+                                                                >
+                                                                    <Send className="h-4 w-4" />
+                                                                </Button>
+                                                            </TooltipTrigger>
+                                                            <TooltipContent>Enviar — Enter envia, Shift+Enter quebra a linha</TooltipContent>
+                                                        </Tooltip>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+
+                                </div>  {/* end messages+input column */}
+
+                                {/* O painel direito, num modo por vez.
+                                    O cabeçalho com título e X existe porque, com
+                                    cinco conteúdos possíveis no mesmo lugar, o
+                                    painel tem de dizer qual deles está aberto. */}
+                                {panel && conv && (
+                                    <RecordPanel
+                                        label={PANEL_TITLES[panel]}
+                                        heading={PANEL_TITLES[panel]}
+                                        onClose={() => setPanel(null)}
+                                        onEditFull={conv.contact?.id ? () => router.push(`/vendas/clientes?open=${conv.contact.id}`) : undefined}
+                                        editLabel="Abrir a ficha do paciente"
+                                        hint="Esc fecha"
+                                        /* No celular o painel toma a tela, que é o padrão da
+                                           própria conversa ali. De 768 para cima ele é coluna,
+                                           porque a lista saiu de cena. */
+                                        className="md:static md:z-auto md:w-[380px] md:shrink-0 md:border-l md:border-border"
+                                    >
+                                            {panel === 'summary' ? <AiSummaryPanel key={conv.id} conversationId={conv.id} /> : null}
+
+                                            {panel === 'files' ? <ConversationFilesPanel key={conv.id} conversationId={conv.id} /> : null}
+
+                                            {panel === 'notes' ? (
+                                                <InternalNotesPanel
+                                                    key={conv.id}
+                                                    conversationId={conv.id}
+                                                    refreshToken={messages.filter((m) => m.isInternal).length}
+                                                    onCreated={() => void fetchMessages(conv.id)}
+                                                />
+                                            ) : null}
+
+                                            {panel === 'schedule' && conv.contact?.id ? (
+                                                <ActivityForm
+                                                    key={conv.id}
+                                                    contactId={conv.contact.id}
+                                                    contactName={conv.contact.name || conv.contact.phone || 'paciente'}
+                                                    dealId={conv.openDeal?.id ?? null}
+                                                    dealTitle={conv.openDeal?.title ?? null}
+                                                    onScheduled={({ date, time }) => {
+                                                        // O texto entra no compositor em vez de ser
+                                                        // enviado: quem confirma o horário com o
+                                                        // paciente é a pessoa, não a tela.
+                                                        const [y, m, d] = date.split('-')
+                                                        setMessageInput(
+                                                            `Agendado para ${d}/${m}/${y} às ${time}. Qualquer coisa, me avise por aqui.`
+                                                        )
+                                                        textareaRef.current?.focus()
+                                                        setActivitiesToken((n) => n + 1)
+                                                        // O que foi marcado aparece no painel ao lado,
+                                                        // que é o lugar dele — aqui só se agenda.
+                                                        setPanel('activities')
+                                                    }}
+                                                />
+                                            ) : null}
+
+                                            {/* O que já está marcado para este paciente, com o
+                                                círculo que conclui — o mesmo painel do negócio.
+                                                Quem está na conversa é quem acabou de confirmar
+                                                por escrito que o retorno aconteceu. */}
+                                            {panel === 'activities' && conv.contact?.id ? (
+                                                <ActivityList
+                                                    key={`list-${conv.id}`}
+                                                    contactId={conv.contact.id}
+                                                    refreshToken={activitiesToken}
+                                                    onChanged={() => setActivitiesToken((n) => n + 1)}
+                                                />
+                                            ) : null}
+
+                                            {panel === 'journey' ? (
+                                                <>
+                                                    {/* Quem é — nome, telefone e por onde a conversa chegou. */}
+                                                    <div className="flex items-center gap-3">
+                                                        <ContactAvatar
+                                                            avatar={conv.contact.avatar}
+                                                            name={conv.contact.name}
+                                                            phone={formatPhone(conv.contact.phone)}
+                                                        />
+                                                        <div className="min-w-0">
+                                                            <h3 className="truncate text-[15px] font-bold">{conv.contact.name || 'Desconhecido'}</h3>
+                                                            <p className="num truncate text-[11px] text-muted-foreground">
+                                                                {conv.contact.phone ? prettyPhone(conv.contact.phone) : 'Sem telefone'}
+                                                                {conv.agent ? ` · ${conv.agent.name}` : ''}
+                                                            </p>
+                                                            {conv.contact.email ? (
+                                                                <p className="truncate text-[11px] text-muted-foreground">{conv.contact.email}</p>
+                                                            ) : null}
+                                                        </div>
+                                                    </div>
+
+                                                    {conv.openDeal ? (
+                                                        <>
+                                                            <PanelSection
+                                                                title="Negócio aberto"
+                                                                aside={
+                                                                    stageDaysLabel ? (
+                                                                        <span className="text-[10px] text-muted-foreground">{stageDaysLabel}</span>
+                                                                    ) : null
+                                                                }
+                                                            >
+                                                                <div className="flex items-center justify-between gap-2">
+                                                                    <span className="truncate text-[13px] font-semibold" title={conv.openDeal.title}>
+                                                                        {conv.openDeal.title}
+                                                                    </span>
+                                                                    {conv.openDeal.status === 'won' ? (
+                                                                        <span className="shrink-0 rounded-full bg-success-subtle px-2 py-0.5 text-[10px] font-semibold text-success-subtle-foreground">Ganho</span>
+                                                                    ) : conv.openDeal.status === 'lost' ? (
+                                                                        <span className="shrink-0 rounded-full bg-destructive-subtle px-2 py-0.5 text-[10px] font-semibold text-destructive-subtle-foreground">Perdido</span>
+                                                                    ) : conv.openDeal.stageName ? (
+                                                                        <TagChip size="sm" name={conv.openDeal.stageName} color={conv.openDeal.stageColor ?? DEFAULT_ENTITY_COLOR} />
+                                                                    ) : null}
+                                                                </div>
+                                                            </PanelSection>
+
+                                                            <PanelSection title="Jornada">
+                                                                <DealJourney
+                                                                    dealId={conv.openDeal.id}
+                                                                    dealTitle={conv.openDeal.title}
+                                                                    dealValue={conv.openDeal.value}
+                                                                    stages={conv.openDeal.stages}
+                                                                    currentStageId={conv.openDeal.stageId}
+                                                                    entries={conv.openDeal.entries}
+                                                                    status={conv.openDeal.status}
+                                                                    outcomeReasonName={conv.openDeal.outcomeReasonName}
+                                                                    outcomeNotes={conv.openDeal.outcomeNotes}
+                                                                    closedAt={conv.openDeal.closedAt}
+                                                                    closedStageName={conv.openDeal.closedStageName}
+                                                                    // O tempo na fase já está ao lado de "Negócio aberto".
+                                                                    showAge={false}
+                                                                    onOutcome={() => {
+                                                                        // Relê o negócio e a lista: o desfecho muda o
+                                                                        // selo aqui e o cartão no funil.
+                                                                        void fetchMessages(conv.id)
+                                                                        void fetchConversations()
+                                                                    }}
+                                                                    onChange={applyDealJourney}
+                                                                />
+                                                            </PanelSection>
+
+                                                            {/* Os três campos do negócio que esta tela responde:
+                                                                de onde veio, por onde, e de quem é. */}
+                                                            <PanelSection
+                                                                title="Dados"
+                                                                aside={<span className="text-[10px] text-muted-foreground">grava ao escolher</span>}
+                                                            >
+                                                                <PanelField label="Origem">
+                                                                    <Select
+                                                                        value={conv.openDeal.originId ?? 'none'}
+                                                                        onValueChange={(v) => void setDealLookup('originId', v === 'none' ? '' : v)}
+                                                                    >
+                                                                        <SelectTrigger size="sm" className="w-full" aria-label="Origem"><SelectValue placeholder="—" /></SelectTrigger>
+                                                                        <SelectContent>
+                                                                            <SelectItem value="none">—</SelectItem>
+                                                                            {origins.map((o) => <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>)}
+                                                                        </SelectContent>
+                                                                    </Select>
+                                                                </PanelField>
+                                                                {/* "Mídia", não "Canal": o canal desta conversa está no
+                                                                  * cabeçalho dela, é a linha por onde o paciente escreveu,
+                                                                  * e o sistema o sabe sem perguntar. Aqui é o detalhe da
+                                                                  * origem — qual campanha, qual peça. */}
+                                                                <PanelField label="Mídia">
+                                                                    <Select
+                                                                        value={conv.openDeal.mediaId ?? 'none'}
+                                                                        onValueChange={(v) => void setDealLookup('mediaId', v === 'none' ? '' : v)}
+                                                                    >
+                                                                        <SelectTrigger size="sm" className="w-full" aria-label="Mídia"><SelectValue placeholder="—" /></SelectTrigger>
+                                                                        <SelectContent>
+                                                                            <SelectItem value="none">—</SelectItem>
+                                                                            {medias.map((m) => <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}
+                                                                        </SelectContent>
+                                                                    </Select>
+                                                                </PanelField>
+                                                                <PanelField label="Responsável">
+                                                                    <Select
+                                                                        value={conv.openDeal.ownerId ?? 'none'}
+                                                                        onValueChange={(v) => void setDealOwner(v === 'none' ? '' : v)}
+                                                                    >
+                                                                        <SelectTrigger size="sm" className="w-full" aria-label="Responsável pelo negócio"><SelectValue placeholder="—" /></SelectTrigger>
+                                                                        <SelectContent>
+                                                                            <SelectItem value="none">—</SelectItem>
+                                                                            {dealOwners.map((m) => <SelectItem key={m.userId} value={m.userId}>{m.name}</SelectItem>)}
+                                                                        </SelectContent>
+                                                                    </Select>
+                                                                </PanelField>
+                                                            </PanelSection>
+                                                        </>
+                                                    ) : (
+                                                        <div className="rounded-md border border-dashed border-border px-3 py-3 text-center">
+                                                            <p className="text-xs text-muted-foreground">Nenhum negócio aberto para este paciente.</p>
+                                                            <Button size="sm" variant="outline" className="mt-2 text-xs" onClick={createDealForContact} disabled={creatingDeal}>
+                                                                {creatingDeal ? 'Criando…' : 'Abrir negócio'}
+                                                            </Button>
+                                                        </div>
+                                                    )}
+                                                </>
+                                            ) : null}
+                                    </RecordPanel>
+                                )}
+                            </div> {/* end Chat + Contact Panel layout */}
+
+                        </>
+                    )}
+                </div>
+            </div >
+
+            {/* O atendimento que a clínica começa — ativo ou por ligação. */}
+            <NewAttendanceDialog
+                open={intakeOpen}
+                onOpenChange={setIntakeOpen}
+                onDone={(result) => {
+                    // A lista primeiro: a conversa nova precisa existir nela
+                    // antes de ser selecionada, senão a seleção não encontra o
+                    // item e o painel abre vazio.
+                    void fetchConversations()
+                    handleSelectConversation(result.conversationId)
+                    // Ligação não tem mensagem para escrever: o que falta é
+                    // marcar a fase, então a Jornada abre junto.
+                    setPanel(result.mode === 'call' ? 'journey' : null)
+                    if (result.mode === 'active') {
+                        setTimeout(() => textareaRef.current?.focus(), 80)
+                    }
+                }}
+            />
+
+            {/* Encaminhar — Dialog, não dois divs fixos: o primitivo trata foco
+                preso, Esc, rolagem da página e o rótulo do título para leitor de
+                tela. A lista é um Command, então dá para filtrar digitando. */}
+            <Dialog open={Boolean(forwardMsg)} onOpenChange={(open) => { if (!open && !forwarding) setForwardMsg(null) }}>
+                <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-[440px]">
+                    <DialogHeader className="border-b border-border px-4 py-3 text-left">
+                        <DialogTitle className="text-sm">Encaminhar para</DialogTitle>
+                        <DialogDescription className="truncate text-xs">
+                            {forwardMsg?.content || 'Mensagem'}
+                        </DialogDescription>
+                    </DialogHeader>
+                    <Command>
+                        <CommandInput placeholder="Buscar conversa…" />
+                        <CommandList className="max-h-[50vh]">
+                            <CommandEmpty>Nenhuma conversa encontrada.</CommandEmpty>
+                            <CommandGroup>
+                                {conversations
+                                    .filter((c) => c.id !== selectedConversation)
+                                    .map((c) => (
+                                        <CommandItem
+                                            key={c.id}
+                                            value={`${c.contact.name ?? ''} ${c.contact.phone ?? ''}`}
+                                            disabled={forwarding}
+                                            onSelect={() => confirmForward(c.id)}
+                                        >
+                                            <span className="flex-1 truncate">{c.contact.name || c.contact.phone || 'Sem nome'}</span>
+                                            <span className="num text-xs text-muted-foreground">{formatPhone(c.contact.phone)}</span>
+                                        </CommandItem>
+                                    ))}
+                            </CommandGroup>
+                        </CommandList>
+                    </Command>
+                </DialogContent>
+            </Dialog>
+
+            {/* Transfer Modal */}
+            {
+                showTransferModal && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+                        <div className="w-full max-w-md rounded-xl border border-border bg-card p-6 shadow-xl">
+                            {/* Header */}
+                            <div className="mb-4 flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <Users className="h-5 w-5 text-primary" />
+                                    <h3 className="text-lg font-semibold">Transferir conversa</h3>
+                                </div>
+                                <button
+                                    onClick={() => { setShowTransferModal(false); setTransferConvId(null) }}
+                                    className="rounded-lg p-1.5 hover:bg-muted transition-colors"
+                                >
+                                    <X className="h-4 w-4" />
+                                </button>
+                            </div>
+
+                            {/* Search */}
+                            <div className="mb-4">
+                                <Input
+                                    placeholder="Buscar usuário..."
+                                    value={transferSearch}
+                                    onChange={(e) => setTransferSearch(e.target.value)}
+                                    className="h-9"
+                                />
+                            </div>
+
+                            {/* Users List */}
+                            <div className="max-h-64 overflow-y-auto space-y-1">
+                                {transferLoading ? (
+                                    <p className="text-center text-sm text-muted-foreground py-8">Carregando...</p>
+                                ) : filteredTransferUsers.length === 0 ? (
+                                    <p className="text-center text-sm text-muted-foreground py-8">Nenhum usuário encontrado</p>
+                                ) : (
+                                    filteredTransferUsers.map(u => (
+                                        <button
+                                            key={u.userId}
+                                            onClick={() => handleTransfer(u.userId)}
+                                            className="w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-left hover:bg-muted transition-colors"
+                                        >
+                                            <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-xs font-medium text-primary flex-shrink-0">
+                                                {(u.name || '?')[0].toUpperCase()}
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-sm font-medium truncate">
+                                                    {u.name} {u.lastName || ''}
+                                                </p>
+                                                <p className="text-xs text-muted-foreground">
+                                                    {u.role === 'ADMIN' ? 'Administrador' : u.role === 'GESTOR' ? 'Gestor' : 'Atendente'}
+                                                </p>
+                                            </div>
+                                            <ArrowRightLeft className="h-3.5 w-3.5 text-muted-foreground" />
+                                        </button>
+                                    ))
+                                )}
+                            </div>
+
+                            {/* Footer */}
+                            <div className="mt-4 flex justify-end">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => { setShowTransferModal(false); setTransferConvId(null) }}
+                                >
+                                    Cancelar
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+                )
+            }
+
+            {/* Delete conversation confirmation dialog */}
+            <ConfirmDialog
+                open={showDeleteDialog}
+                onOpenChange={setShowDeleteDialog}
+                title="Excluir conversa"
+                description="Todas as mensagens, áudios, imagens e anexos desta conversa saem do sistema. O paciente permanece."
+                confirmLabel="Excluir"
+                destructive
+                onConfirm={handleDeleteConversation}
+            />
+        </>
+    )
+}

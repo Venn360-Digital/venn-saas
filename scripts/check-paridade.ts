@@ -47,14 +47,31 @@ const RAIZ = process.cwd()
  * responder GAP sem que nada falhasse. Por isso, quando o caminho direto não
  * existe, procura-se pelo sufixo nas raízes de código.
  */
+const naoResolvidos: string[] = []
+
 function caminhoReal(rel: string): string | null {
     const direto = join(RAIZ, rel)
     if (existsSync(direto)) return direto
-    try {
-        return join(RAIZ, resolverNoCodigo(rel.replace(/^src\//, '')))
-    } catch {
-        return null
+    /*
+     * Duas traduções, porque o código mudou de casa duas vezes.
+     *
+     * A Fase 2 tirou `lib`, `trabalhos`, `hooks` e `components` de `src/` para
+     * `packages/core` — daí o sufixo sem o `src/`. A Fase 3 levou o conteúdo
+     * das rotas de `src/app/**` para `packages/core/src/rotas/**`, e aí o
+     * sufixo `app/…` passou a casar a CASCA gerada no app: `resolverNoCodigo`
+     * recusa a casca (de propósito), o `catch` abaixo engolia a recusa, `ler()`
+     * devolvia '' e cada linha da tabela respondia GAP — o mesmo estrago
+     * silencioso que o cabeçalho desta função já descrevia, por outra porta.
+     */
+    for (const sufixo of [rel.replace(/^src\/app\//, 'rotas/'), rel.replace(/^src\//, '')]) {
+        try {
+            return join(RAIZ, resolverNoCodigo(sufixo))
+        } catch {
+            continue
+        }
     }
+    if (!naoResolvidos.includes(rel)) naoResolvidos.push(rel)
+    return null
 }
 
 /** Lê um arquivo do repo; devolve '' se não existir (o teste decide o que isso significa). */
@@ -465,6 +482,31 @@ const c = (v: Veredito) => resultados.filter((r) => r.veredito === v).length
 console.log('')
 console.log(`Paridade: ${c('pass')} PASS · ${c('partial')} PARCIAL · ${c('gap')} GAP  (de ${n} regras)`)
 console.log('Tabela e plano: docs/paridade-respond-io/PLANO.md')
+
+/*
+ * Os caminhos que não resolveram, como AVISO — e a razão de não ser falha.
+ *
+ * A primeira versão desta checagem reprovava o run, e estava errada: a tabela
+ * de paridade aponta onde uma funcionalidade DEVERIA estar, então um caminho
+ * inexistente pode ser o resultado legítimo (é o GAP) ou um endereço que
+ * quebrou num `git mv`. Medido ao escrever isto: dos quatro que não resolvem,
+ * uns são alvos de GAP e outros não dá para dizer sem ler a linha.
+ *
+ * Textualmente os dois casos são idênticos, e só a tabela sabe a diferença —
+ * ela precisaria declarar, por linha, se o caminho é ÂNCORA (tem de existir)
+ * ou ALVO (pode não existir). Enquanto não declarar, reprovar transformaria
+ * este verificador num bloqueador com base num critério que não distingue o
+ * que precisa distinguir.
+ *
+ * Então: lista, não veredito. É menos do que eu queria e é o que a informação
+ * disponível sustenta.
+ */
+if (naoResolvidos.length > 0) {
+    console.log(`\nAVISO: ${naoResolvidos.length} caminho(s) da tabela não existem em nenhuma raiz:`)
+    for (const r of naoResolvidos) console.log(`    ${r}`)
+    console.log('As linhas que os leem avaliam o VAZIO. Alvo de GAP, ou endereço quebrado?')
+    console.log('Só a tabela sabe — ver docs/paridade-respond-io/PLANO.md.')
+}
 
 if (regressoes > 0) {
     console.log(`\nFALHOU: ${regressoes} invariante(s) de paridade regrediram.`)
