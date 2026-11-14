@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { manageAgent } from '@/lib/auth/agent'
+import { manageAgent } from '@venn/core/lib/auth/agent'
 import prisma from '@venn/db/cliente'
-import { assinaturaDaUnidade } from '@/lib/account'
-import { usuarioDaSessao } from '@/lib/auth/sessao'
+import { assinaturaDaUnidade } from '@venn/core/lib/account'
+import { usuarioDaSessao } from '@venn/core/lib/auth/sessao'
 import { Prisma } from '@venn/db'
 
 // POST - Duplicar agente

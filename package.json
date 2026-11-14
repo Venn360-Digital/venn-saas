@@ -23,6 +23,7 @@
         "check:widget": "node scripts/check-widget.mjs",
         "check:tailwind": "node scripts/check-tailwind.mjs",
         "check:marca": "node scripts/check-marca.mjs",
+        "check:marca-tardia": "tsx --conditions=react-server scripts/check-marca-tardia.ts",
         "test:widget-config": "tsx scripts/test-widget-config.ts",
         "test:fuso-unidade": "tsx --conditions=react-server scripts/test-fuso-unidade.ts",
         "lint:workspace": "node scripts/lint-workspace.mjs",

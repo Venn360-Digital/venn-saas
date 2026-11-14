@@ -2,10 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 
 import prisma from '@venn/db/cliente'
-import { getWorkspaceMember } from '@/lib/auth/workspace'
-import { contaDoMaster, unidadesDaConta } from '@/lib/account'
-import { planFor } from '@/lib/plans'
-import { CODIGOS_DE_MOEDA, MOEDA_PADRAO } from '@/lib/moedas'
+import { getWorkspaceMember } from '@venn/core/lib/auth/workspace'
+import { contaDoMaster, unidadesDaConta } from '@venn/core/lib/account'
+import { planFor } from '@venn/core/lib/plans'
+import { CODIGOS_DE_MOEDA, MOEDA_PADRAO } from '@venn/core/lib/moedas'
 
 /**
  * A conta — quem assina, paga e abriga as unidades.

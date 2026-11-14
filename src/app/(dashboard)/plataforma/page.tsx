@@ -4,11 +4,11 @@ import { useCallback, useEffect, useState } from 'react'
 import { Eye, Gift, LogIn, ShieldCheck, Unlock } from 'lucide-react'
 import { toast } from 'sonner'
 
-import { PageHeader } from '@/components/shared/PageHeader'
+import { PageHeader } from '@venn/core/components/shared/PageHeader'
 import { Button } from '@venn/ui/button'
 import { Input } from '@venn/ui/input'
 import { Badge } from '@venn/ui/badge'
-import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
+import { ConfirmDialog } from '@venn/core/components/shared/ConfirmDialog'
 import { BRAND } from '@/config/brand'
 import { cn } from '@venn/ui/utils'
 

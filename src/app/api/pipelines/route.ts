@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@venn/db/cliente'
-import { currentMembership, hasEditorRole, PERMISSION_DENIED } from '@/lib/auth/workspace'
+import { currentMembership, hasEditorRole, PERMISSION_DENIED } from '@venn/core/lib/auth/workspace'
 import { Prisma } from '@venn/db'
-import { DEFAULT_ENTITY_COLOR } from '@/lib/palette'
-import { searchTerms } from '@/lib/search'
-import { isDealLane, laneWhere } from '@/lib/deal-lanes'
-import { fusoDaUnidade } from '@/lib/fuso-da-unidade'
-import { periodWhere } from '@/lib/deal-filters'
+import { DEFAULT_ENTITY_COLOR } from '@venn/core/lib/palette'
+import { searchTerms } from '@venn/core/lib/search'
+import { isDealLane, laneWhere } from '@venn/core/lib/deal-lanes'
+import { fusoDaUnidade } from '@venn/core/lib/fuso-da-unidade'
+import { periodWhere } from '@venn/core/lib/deal-filters'
 
 // GET - List pipeline stages with deals
 export async function GET(request: NextRequest) {

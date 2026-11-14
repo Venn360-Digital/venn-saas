@@ -22,8 +22,8 @@
  *
  *     DATABASE_URL='<homologação>' BETTER_AUTH_SECRET='<qualquer>' npm run check:auth
  */
-import { HOSTS_PERMITIDOS, ORIGEM_DE_RESERVA, auth } from '@/lib/auth/better-auth'
-import { codificarEstado, lerEstado } from '@/lib/instagram/oauth'
+import { HOSTS_PERMITIDOS, ORIGEM_DE_RESERVA, auth } from '@venn/core/lib/auth/better-auth'
+import { codificarEstado, lerEstado } from '@venn/core/lib/instagram/oauth'
 import prisma from '@venn/db/cliente'
 
 let falhas = 0
@@ -299,7 +299,7 @@ async function main() {
     // exatamente o que esta prova confere: criar credencial que não autentica
     // seria um defeito silencioso — o administrador veria "usuário criado" e a
     // pessoa não entraria.
-    const { auth: _auth } = await import('@/lib/auth/better-auth')
+    const { auth: _auth } = await import('@venn/core/lib/auth/better-auth')
     const ctx = await _auth.$context
     const senhaAdmin = 'criada-pelo-admin-12345'
     const hash = await ctx.password.hash(senhaAdmin)

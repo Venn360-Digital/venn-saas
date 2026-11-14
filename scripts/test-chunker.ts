@@ -15,7 +15,7 @@ import {
     secionarMarkdown,
     semComentarios,
     TAMANHO_MAX,
-} from '@/lib/rag/secoes'
+} from '@venn/core/lib/rag/secoes'
 
 let passou = 0
 let falhou = 0

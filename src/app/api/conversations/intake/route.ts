@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 import prisma from '@venn/db/cliente'
-import { requireWritable } from '@/lib/billing'
-import { MANAGER_ROLES, getWorkspaceMember } from '@/lib/auth/workspace'
-import { connectedWhatsApp, hasWhatsApp, normalizePhone, phoneVariants } from '@/lib/intake'
-import { contatoCriado } from '@/lib/funil/disparos'
+import { requireWritable } from '@venn/core/lib/billing'
+import { MANAGER_ROLES, getWorkspaceMember } from '@venn/core/lib/auth/workspace'
+import { connectedWhatsApp, hasWhatsApp, normalizePhone, phoneVariants } from '@venn/core/lib/intake'
+import { contatoCriado } from '@venn/core/lib/funil/disparos'
 
 type Mode = 'active' | 'call'
 

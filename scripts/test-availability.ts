@@ -12,7 +12,7 @@
  * Sexta-feira Santa de 2026 cai em 03/04 — esta última calculada pela Páscoa,
  * que é o caso que um cadastro de feriado "anual em data fixa" erraria.
  */
-import { calcularVagas, diaDaSemana, type Janela, type Ocupado, type Excecao } from '@/lib/availability'
+import { calcularVagas, diaDaSemana, type Janela, type Ocupado, type Excecao } from '@venn/core/lib/availability'
 
 let passou = 0
 let falhou = 0

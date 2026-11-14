@@ -1,13 +1,13 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { z } from 'zod'
 import prisma from '@venn/db/cliente'
-import { manageAgent } from '@/lib/auth/agent'
-import { acharDocumento } from '@/lib/treinamento/documentos'
+import { manageAgent } from '@venn/core/lib/auth/agent'
+import { acharDocumento } from '@venn/core/lib/treinamento/documentos'
 import {
     rascunhosDaRestauracao,
     type DocumentoComRascunho,
     type DocumentoNoInstantaneo,
-} from '@/lib/treinamento/versao'
+} from '@venn/core/lib/treinamento/versao'
 
 /**
  * O histórico de publicações, e a volta atrás.

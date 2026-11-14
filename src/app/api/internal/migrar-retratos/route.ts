@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 import { APP } from '@/config/app.config'
-import { formaDoRetrato, guardarRetrato } from '@/lib/retratos'
-import { igualEmTempoConstante } from '@/lib/comparacao'
+import { formaDoRetrato, guardarRetrato } from '@venn/core/lib/retratos'
+import { igualEmTempoConstante } from '@venn/core/lib/comparacao'
 import prisma from '@venn/db/cliente'
 
 /**

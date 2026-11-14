@@ -145,3 +145,41 @@ export function conferirAllowlist(nome, prefixos, arquivos) {
     )
     process.exit(1)
 }
+
+/**
+ * O caminho de um arquivo de código, procurado em vez de escrito.
+ *
+ * Existe porque os verificadores não leem só imports: vários abrem o
+ * FONTE de um módulo com `readFileSync` para conferir um fato sobre ele — que
+ * a fila tem processador, que o cron está no mapa de despacho, que o serviço
+ * de conversa não dispara funil. Esses caminhos eram literais (`'src/trabalhos/
+ * processadores/cron/index.ts'`), e o `git mv` da Fase 2 os deixou apontando
+ * para o nada: `check-trabalhos` morreu com ENOENT depois de 20 PASS, e
+ * `check-paridade` — que trata ausência devolvendo string vazia — passaria a
+ * avaliar o vazio, calado.
+ *
+ * Era a QUARTA forma do mesmo defeito no mesmo dia (pathspec do `git diff`,
+ * raiz fixa dos linters, `exclude` do tsconfig, e agora caminho de
+ * `readFileSync`). O padrão: **caminho literal em ferramenta não sobrevive a
+ * `git mv`, e quase nunca falha dizendo isso.**
+ *
+ * Recebe o SUFIXO estável do caminho — `trabalhos/processadores/cron/index.ts`
+ * — e procura nas raízes. Lança se não achar ou se achar mais de um: as duas
+ * situações significam que o verificador deixou de saber do que fala, e
+ * nenhuma delas pode passar como sucesso.
+ */
+export function resolverNoCodigo(sufixo) {
+    const achados = arquivosDeCodigo().filter((f) => f.endsWith(sufixo))
+    if (achados.length === 1) return achados[0]
+    if (achados.length === 0) {
+        throw new Error(
+            `não achei nenhum arquivo terminando em "${sufixo}" em ${raizesDeCodigo().join(', ')}.\n` +
+            'Se ele mudou de lugar, o sufixo é o que precisa ser atualizado — e se ele\n' +
+            'deixou de existir, a verificação que o lê precisa sair junto.'
+        )
+    }
+    throw new Error(
+        `"${sufixo}" casa com ${achados.length} arquivos: ${achados.join(', ')}.\n` +
+        'Ambíguo: use um sufixo mais longo, que diga qual deles interessa.'
+    )
+}

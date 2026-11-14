@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server'
 
 import prisma from '@venn/db/cliente'
-import { getPlatformAdmin } from '@/lib/platform-credentials'
-import { planNameFor } from '@/lib/plan-limits'
+import { getPlatformAdmin } from '@venn/core/lib/platform-credentials'
+import { planNameFor } from '@venn/core/lib/plan-limits'
 
 /**
  * As contas deste app, para o console da Venn360.

@@ -41,6 +41,7 @@
     "workers",
     "infra",
     "src/cloudflare",
+    "packages/core/src/cloudflare",
     "cloudflare.config.ts",
     "vite.config.ts",
     "poc"

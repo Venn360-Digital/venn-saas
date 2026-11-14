@@ -8,8 +8,8 @@
  *
  * `npm run check:period`
  */
-import { periodRange, matchPreset, resolvePeriodParams, isoDay } from '@/lib/period'
-import { resolveOwnerScope, canSeeEveryone, conversationScope, type WorkspaceRole } from '@/lib/auth/workspace'
+import { periodRange, matchPreset, resolvePeriodParams, isoDay } from '@venn/core/lib/period'
+import { resolveOwnerScope, canSeeEveryone, conversationScope, type WorkspaceRole } from '@venn/core/lib/auth/workspace'
 import {
     limitesEfetivos,
     tetoDeUnidades,
@@ -20,9 +20,9 @@ import {
     precoDoTreinamento,
     treinamentoIncluido,
     valorDaFatura,
-} from '@/lib/plan-limits'
-import { conferirCobranca, cobrancaCompleta, listarFaltantes } from '@/lib/billing/dados-de-cobranca'
-import { carenciaEmDias, fimDaCarencia, carenciaVencida } from '@/lib/billing/inadimplencia'
+} from '@venn/core/lib/plan-limits'
+import { conferirCobranca, cobrancaCompleta, listarFaltantes } from '@venn/core/lib/billing/dados-de-cobranca'
+import { carenciaEmDias, fimDaCarencia, carenciaVencida } from '@venn/core/lib/billing/inadimplencia'
 import {
     diferencaDeContrato,
     diferencaProporcional,
@@ -32,7 +32,7 @@ import {
     mensalidade,
     proporcionalDoAdicional,
     proximaCobranca,
-} from '@/lib/billing/troca-de-plano'
+} from '@venn/core/lib/billing/troca-de-plano'
 
 let fails = 0
 function eq(label: string, got: unknown, want: unknown) {

@@ -6,22 +6,22 @@ import { ArrowLeft, ArrowRight, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@venn/ui/button'
-import { getSession } from '@/lib/auth/cliente'
-import { TERMS_VERSION } from '@/lib/terms'
-import { WhatsAppQRModal } from '@/components/agents/creation/WhatsAppQRModal'
-import { OnboardingShell } from '@/components/onboarding/OnboardingShell'
+import { getSession } from '@venn/core/lib/auth/cliente'
+import { TERMS_VERSION } from '@venn/core/lib/terms'
+import { WhatsAppQRModal } from '@venn/core/components/agents/creation/WhatsAppQRModal'
+import { OnboardingShell } from '@venn/core/components/onboarding/OnboardingShell'
 import {
     IlustracaoAgente,
     IlustracaoPlano,
     IlustracaoTermos,
     IlustracaoWhatsApp,
     IlustracaoWorkspace,
-} from '@/components/onboarding/Ilustracoes'
-import { Step1Workspace, slugDoNome } from '@/components/onboarding/Step1Workspace'
-import { Step2Plan } from '@/components/onboarding/Step2Plan'
-import { Step3WhatsApp } from '@/components/onboarding/Step3WhatsApp'
-import { Step4Agent } from '@/components/onboarding/Step4Agent'
-import { Step5Terms } from '@/components/onboarding/Step5Terms'
+} from '@venn/core/components/onboarding/Ilustracoes'
+import { Step1Workspace, slugDoNome } from '@venn/core/components/onboarding/Step1Workspace'
+import { Step2Plan } from '@venn/core/components/onboarding/Step2Plan'
+import { Step3WhatsApp } from '@venn/core/components/onboarding/Step3WhatsApp'
+import { Step4Agent } from '@venn/core/components/onboarding/Step4Agent'
+import { Step5Terms } from '@venn/core/components/onboarding/Step5Terms'
 
 const TOTAL = 5
 

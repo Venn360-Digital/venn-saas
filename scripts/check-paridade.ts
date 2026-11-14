@@ -33,16 +33,37 @@
  */
 import { readFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
+import { resolverNoCodigo } from './lib/raizes-de-codigo.mjs'
 
 const RAIZ = process.cwd()
 
+/**
+ * Resolve um caminho do repo, tolerando que o código tenha mudado de pacote.
+ *
+ * Os caminhos desta tabela foram escritos quando tudo morava em `src/`. A Fase
+ * 2 levou `lib`, `trabalhos`, `hooks` e `components` para `packages/core`, e
+ * aqui o estrago seria **silencioso**: `ler()` devolve '' para arquivo
+ * inexistente, então cada linha da tabela passaria a avaliar o vazio e a
+ * responder GAP sem que nada falhasse. Por isso, quando o caminho direto não
+ * existe, procura-se pelo sufixo nas raízes de código.
+ */
+function caminhoReal(rel: string): string | null {
+    const direto = join(RAIZ, rel)
+    if (existsSync(direto)) return direto
+    try {
+        return join(RAIZ, resolverNoCodigo(rel.replace(/^src\//, '')))
+    } catch {
+        return null
+    }
+}
+
 /** Lê um arquivo do repo; devolve '' se não existir (o teste decide o que isso significa). */
 function ler(rel: string): string {
-    const p = join(RAIZ, rel)
-    return existsSync(p) ? readFileSync(p, 'utf8') : ''
+    const p = caminhoReal(rel)
+    return p ? readFileSync(p, 'utf8') : ''
 }
 function existe(rel: string): boolean {
-    return existsSync(join(RAIZ, rel))
+    return caminhoReal(rel) !== null
 }
 /** Verdadeiro se QUALQUER um dos padrões casa no arquivo. */
 function contem(rel: string, ...padroes: (RegExp | string)[]): boolean {

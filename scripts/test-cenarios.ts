@@ -18,18 +18,18 @@ import {
     catalogoDeCenarios,
     lerCenarios,
     procedimentoParaOPrompt,
-} from '@/lib/treinamento/cenarios'
+} from '@venn/core/lib/treinamento/cenarios'
 import {
     COMPACTAR_A_PARTIR_DE,
     RECALCULAR_A_CADA,
     precisaCompactar,
     resumoParaOPrompt,
     transcrever,
-} from '@/lib/conversas/resumo'
-import { acharDocumento, documentosDeFato, documentosDoAcervo, documentosDoPrompt } from '@/lib/treinamento/documentos'
-import { buildSystemPrompt } from '@/trabalhos/servicos/prompt'
+} from '@venn/core/lib/conversas/resumo'
+import { acharDocumento, documentosDeFato, documentosDoAcervo, documentosDoPrompt } from '@venn/core/lib/treinamento/documentos'
+import { buildSystemPrompt } from '@venn/core/trabalhos/servicos/prompt'
 import type { Agent } from '@venn/db'
-import { tipoDoAcervo, ehDeTreinamento, TIPO_DE_CENARIO, TIPO_DE_TREINAMENTO } from '@/lib/treinamento/indexar'
+import { tipoDoAcervo, ehDeTreinamento, TIPO_DE_CENARIO, TIPO_DE_TREINAMENTO } from '@venn/core/lib/treinamento/indexar'
 
 let passou = 0
 let falhou = 0

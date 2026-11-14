@@ -27,8 +27,8 @@ import {
     instanteNoFuso,
     limitesDoMes,
     somarDias,
-} from '@/lib/fuso'
-import { periodRange } from '@/lib/period'
+} from '@venn/core/lib/fuso'
+import { periodRange } from '@venn/core/lib/period'
 
 let falhas = 0
 const ok = (nome: string, cond: boolean, extra = '') => {

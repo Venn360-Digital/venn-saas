@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server'
-import { currentMembership } from '@/lib/auth/workspace'
+import { currentMembership } from '@venn/core/lib/auth/workspace'
 import prisma from '@venn/db/cliente'
-import { enderecoDoRetrato } from '@/lib/retratos'
-import { usuarioDaSessao } from '@/lib/auth/sessao'
-import { getPlatformAdmin } from '@/lib/platform-credentials'
+import { enderecoDoRetrato } from '@venn/core/lib/retratos'
+import { usuarioDaSessao } from '@venn/core/lib/auth/sessao'
+import { getPlatformAdmin } from '@venn/core/lib/platform-credentials'
 
 // GET: Returns authenticated user info including role and permissions
 export async function GET() {

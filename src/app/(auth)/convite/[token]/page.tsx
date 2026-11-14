@@ -1,7 +1,7 @@
 import { BRAND } from '@/config/brand'
-import { ROTULO_DO_PAPEL } from '@/lib/papeis'
-import { diasRestantes, estadoDoConvite } from '@/lib/convite/estado'
-import { pareceToken, resumoDoToken } from '@/lib/convite/token'
+import { ROTULO_DO_PAPEL } from '@venn/core/lib/papeis'
+import { diasRestantes, estadoDoConvite } from '@venn/core/lib/convite/estado'
+import { pareceToken, resumoDoToken } from '@venn/core/lib/convite/token'
 import prisma from '@venn/db/cliente'
 
 import { ConviteEncerrado } from './encerrado'

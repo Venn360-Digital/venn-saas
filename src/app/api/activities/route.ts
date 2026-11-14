@@ -1,14 +1,14 @@
-import { requireWritable } from '@/lib/billing'
+import { requireWritable } from '@venn/core/lib/billing'
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@venn/db/cliente'
-import { usuarioDaSessao } from '@/lib/auth/sessao'
-import { currentMembership, getWorkspaceMember, resolveOwnerScope } from '@/lib/auth/workspace'
-import { syncActivityToGoogleCalendar } from '@/lib/google-calendar'
+import { usuarioDaSessao } from '@venn/core/lib/auth/sessao'
+import { currentMembership, getWorkspaceMember, resolveOwnerScope } from '@venn/core/lib/auth/workspace'
+import { syncActivityToGoogleCalendar } from '@venn/core/lib/google-calendar'
 import { z } from 'zod'
 import { Prisma } from '@venn/db'
-import { normalizeSearch } from '@/lib/search'
-import { diaNoFuso, inicioDoDiaUtc, somarDias } from '@/lib/fuso'
-import { fusoDaUnidade } from '@/lib/fuso-da-unidade'
+import { normalizeSearch } from '@venn/core/lib/search'
+import { diaNoFuso, inicioDoDiaUtc, somarDias } from '@venn/core/lib/fuso'
+import { fusoDaUnidade } from '@venn/core/lib/fuso-da-unidade'
 
 const activitySchema = z.object({
     title: z.string().min(1),

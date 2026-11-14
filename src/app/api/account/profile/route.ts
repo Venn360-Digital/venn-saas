@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@venn/db/cliente'
-import { usuarioDaSessao } from '@/lib/auth/sessao'
-import { currentMembership } from '@/lib/auth/workspace'
-import { enderecoDoRetrato, guardarRetrato } from '@/lib/retratos'
+import { usuarioDaSessao } from '@venn/core/lib/auth/sessao'
+import { currentMembership } from '@venn/core/lib/auth/workspace'
+import { enderecoDoRetrato, guardarRetrato } from '@venn/core/lib/retratos'
 
 // GET /api/account/profile - Get current user profile
 export async function GET() {

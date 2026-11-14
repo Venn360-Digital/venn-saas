@@ -1,11 +1,11 @@
-import { requireWritable } from '@/lib/billing'
+import { requireWritable } from '@venn/core/lib/billing'
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@venn/db/cliente'
-import { currentMembership, hasEditorRole, PERMISSION_DENIED } from '@/lib/auth/workspace'
+import { currentMembership, hasEditorRole, PERMISSION_DENIED } from '@venn/core/lib/auth/workspace'
 import { z } from 'zod'
 import { Prisma } from '@venn/db'
-import { DEFAULT_ENTITY_COLOR } from '@/lib/palette'
-import { normalizeSearch } from '@/lib/search'
+import { DEFAULT_ENTITY_COLOR } from '@venn/core/lib/palette'
+import { normalizeSearch } from '@venn/core/lib/search'
 
 // GET - List tags with pagination and search
 export async function GET(request: NextRequest) {

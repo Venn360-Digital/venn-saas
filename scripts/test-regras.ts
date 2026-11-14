@@ -15,7 +15,7 @@
  * apagar o id errado remove a regra de outra pessoa, e não apagar é o defeito de
  * origem.
  */
-import { idsParaApagar } from '@/lib/rules/sincronizar'
+import { idsParaApagar } from '@venn/core/lib/rules/sincronizar'
 
 let passou = 0
 let falhou = 0

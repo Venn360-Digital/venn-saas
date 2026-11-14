@@ -1,14 +1,14 @@
-import { requireWritable } from '@/lib/billing'
+import { requireWritable } from '@venn/core/lib/billing'
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@venn/db/cliente'
-import { usuarioDaSessao } from '@/lib/auth/sessao'
+import { usuarioDaSessao } from '@venn/core/lib/auth/sessao'
 import { z } from 'zod'
 import { Prisma } from '@venn/db'
-import { searchTerms } from '@/lib/search'
-import { isDealLane, laneWhere } from '@/lib/deal-lanes'
-import { fusoDaUnidade } from '@/lib/fuso-da-unidade'
-import { periodWhere } from '@/lib/deal-filters'
-import { currentMembership, dealScope, getWorkspaceMember } from '@/lib/auth/workspace'
+import { searchTerms } from '@venn/core/lib/search'
+import { isDealLane, laneWhere } from '@venn/core/lib/deal-lanes'
+import { fusoDaUnidade } from '@venn/core/lib/fuso-da-unidade'
+import { periodWhere } from '@venn/core/lib/deal-filters'
+import { currentMembership, dealScope, getWorkspaceMember } from '@venn/core/lib/auth/workspace'
 
 const dealSchema = z.object({
     title: z.string().min(1),

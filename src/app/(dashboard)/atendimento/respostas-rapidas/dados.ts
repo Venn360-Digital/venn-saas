@@ -1,4 +1,4 @@
-import type { PaginaDeIndice } from '@/lib/indice'
+import type { PaginaDeIndice } from '@venn/core/lib/indice'
 
 /**
  * O contrato entre a casca de servidor e o componente de cliente.
@@ -11,7 +11,7 @@ import type { PaginaDeIndice } from '@/lib/indice'
  * compilação); **valor não**. Então tudo que os dois lados compartilham fica
  * aqui, num módulo neutro que cada um importa.
  *
- * A forma da página vem de `@/lib/indice`, o módulo **neutro** — nunca de
+ * A forma da página vem de `@venn/core/lib/indice`, o módulo **neutro** — nunca de
  * `indice-servidor.ts`, que importa `currentMembership` e `redirect` e
  * arrastaria código de servidor para o bundle do cliente.
  */

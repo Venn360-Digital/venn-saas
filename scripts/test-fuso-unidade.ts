@@ -15,15 +15,15 @@ import {
     horaMinutoNoFuso,
     instanteNoFuso,
     inicioDoDia,
-} from '../src/lib/fuso'
+} from '@venn/core/lib/fuso'
 import {
     comFusoNasConfiguracoes,
     lerFusoDasConfiguracoes,
     temFusoNasConfiguracoes,
-} from '../src/lib/fuso-da-unidade'
-import { FUSO_INICIAL } from '../src/lib/onboarding/padroes'
-import { isoDay, periodRange } from '../src/lib/period'
-import { laneWhere } from '../src/lib/deal-lanes'
+} from '@venn/core/lib/fuso-da-unidade'
+import { FUSO_INICIAL } from '@venn/core/lib/onboarding/padroes'
+import { isoDay, periodRange } from '@venn/core/lib/period'
+import { laneWhere } from '@venn/core/lib/deal-lanes'
 
 let passou = 0
 let falhou = 0

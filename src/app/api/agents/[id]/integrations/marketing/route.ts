@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 import prisma from '@venn/db/cliente'
-import { getWorkspaceMember } from '@/lib/auth/workspace'
-import { manageAgent } from '@/lib/auth/agent'
+import { getWorkspaceMember } from '@venn/core/lib/auth/workspace'
+import { manageAgent } from '@venn/core/lib/auth/agent'
 
 /**
  * Origem e mídia por linha — de **qualquer** canal.

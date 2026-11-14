@@ -36,7 +36,7 @@ const BASELINE_FILE = join(ROOT, 'scripts', 'workspace-baseline.json')
  * isso que ele precisa ser o único caminho — uma segunda porta significa uma
  * segunda chance de ler a unidade errada.
  */
-const ALLOWED = ['src/lib/auth/workspace.ts']
+const ALLOWED = ['packages/core/src/lib/auth/workspace.ts']
 
 const CHAMADA = 'prisma.workspaceUser.findFirst'
 
@@ -132,7 +132,7 @@ const baseline = existsSync(BASELINE_FILE)
 if (total > baseline) {
     console.error(
         `\nRota resolvendo workspace por conta própria: ${total} agora, ${baseline} na linha de base.\n` +
-            `Use getWorkspaceMember() de @/lib/auth/workspace — é ele que sabe qual unidade está escolhida.\n` +
+            `Use getWorkspaceMember() de @venn/core/lib/auth/workspace — é ele que sabe qual unidade está escolhida.\n` +
             `Para ver onde: npm run lint:workspace -- --list\n`
     )
     process.exit(1)

@@ -27,9 +27,9 @@
  * está declarado e morto.
  */
 import { readFileSync } from 'node:fs'
-import { arquivosDeCodigo, exigirPiso } from './lib/raizes-de-codigo.mjs'
+import { arquivosDeCodigo, exigirPiso, resolverNoCodigo } from './lib/raizes-de-codigo.mjs'
 
-import { TIPOS_DE_GATILHO, TEXTO_DO_GATILHO, type TipoDeGatilho } from '../src/lib/funil/gatilho'
+import { TIPOS_DE_GATILHO, TEXTO_DO_GATILHO, type TipoDeGatilho } from '@venn/core/lib/funil/gatilho'
 
 let falhas = 0
 const ok = (nome: string, cond: boolean, extra = '') => {
@@ -61,7 +61,7 @@ const DISPARO: Record<TipoDeGatilho, string> = {
 /**
  * Onde o disparo mora, procurado em vez de fixado.
  *
- * Era `'src/lib/funil/disparos.ts'`. Na Fase 2 `src/lib` vai para
+ * Era `'src/lib/funil/disparos.ts'`. Na Fase 2 `src/lib` FOI para
  * `packages/core`, e um caminho fixo aqui faria o `readFileSync` lançar — ou
  * pior, faria a lista de chamadores ficar vazia e todas as provas de "cada
  * disparo tem quem o chame" passarem sobre o nada.
@@ -147,7 +147,7 @@ ok(
     'importação é migração de acervo, não chegada de gente nova'
 )
 
-const noServico = readFileSync('src/trabalhos/servicos/conversation.ts', 'utf8')
+const noServico = readFileSync(resolverNoCodigo('trabalhos/servicos/conversation.ts'), 'utf8')
 ok(
     'o serviço de conversa não dispara funil',
     !/contatoCriado\(|talvezEntrarNoFunil\(/.test(noServico),

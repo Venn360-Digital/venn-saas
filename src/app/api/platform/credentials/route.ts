@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 
-import { usuarioDaSessao } from '@/lib/auth/sessao'
+import { usuarioDaSessao } from '@venn/core/lib/auth/sessao'
 import {
     PLATFORM_PROVIDERS,
     ambienteDaChave,
@@ -8,8 +8,8 @@ import {
     getPlatformAdmin,
     getPlatformCredentials,
     temSegredoDuplo,
-} from '@/lib/platform-credentials'
-import { estadoDoWebhook } from '@/lib/asaas/vigia'
+} from '@venn/core/lib/platform-credentials'
+import { estadoDoWebhook } from '@venn/core/lib/asaas/vigia'
 
 /**
  * Somente leitura, de propósito — e não é limitação, é a decisão.

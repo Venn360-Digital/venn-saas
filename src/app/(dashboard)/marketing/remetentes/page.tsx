@@ -1,6 +1,6 @@
 import prisma from '@venn/db/cliente'
-import { listaInteira, membroOuLogin } from '@/lib/indice-servidor'
-import { registrosDeDns } from '@/lib/marketing/remetentes'
+import { listaInteira, membroOuLogin } from '@venn/core/lib/indice-servidor'
+import { registrosDeDns } from '@venn/core/lib/marketing/remetentes'
 
 import { RemetentesClient } from './RemetentesClient'
 

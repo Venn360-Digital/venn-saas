@@ -2,17 +2,17 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { z } from 'zod'
 import prisma from '@venn/db/cliente'
 import type { Prisma } from '@venn/db'
-import { manageAgent } from '@/lib/auth/agent'
-import { QUEUE } from '@/lib/queue/definitions'
-import { entregar } from '@/lib/queue/entregar'
-import { acharDocumento, DOCUMENTOS } from '@/lib/treinamento/documentos'
+import { manageAgent } from '@venn/core/lib/auth/agent'
+import { QUEUE } from '@venn/core/lib/queue/definitions'
+import { entregar } from '@venn/core/lib/queue/entregar'
+import { acharDocumento, DOCUMENTOS } from '@venn/core/lib/treinamento/documentos'
 import {
     decidirIndexacao,
     hashDoAcervo,
     TIPOS_DE_TREINAMENTO,
     tipoDoAcervo,
     tituloDoAcervo,
-} from '@/lib/treinamento/indexar'
+} from '@venn/core/lib/treinamento/indexar'
 import {
     aplicarRascunhos,
     proximaVersao,
@@ -21,7 +21,7 @@ import {
     slugsQueMudam,
     type AcervoDoDocumento,
     type DocumentoComRascunho,
-} from '@/lib/treinamento/versao'
+} from '@venn/core/lib/treinamento/versao'
 
 /**
  * Publicar o treinamento: o rascunho vai ao ar, e fica um instantâneo.

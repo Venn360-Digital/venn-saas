@@ -1,9 +1,9 @@
 import { z } from 'zod'
 import type { Prisma } from '@venn/db'
 
-import { ESPERA_MAX_MIN, TIPOS_DE_PASSO } from '@/lib/funil/passos'
-import { TIPOS_DE_GATILHO } from '@/lib/funil/gatilho'
-import { MAX_PASSOS } from '@/lib/funil/publicar'
+import { ESPERA_MAX_MIN, TIPOS_DE_PASSO } from '@venn/core/lib/funil/passos'
+import { TIPOS_DE_GATILHO } from '@venn/core/lib/funil/gatilho'
+import { MAX_PASSOS } from '@venn/core/lib/funil/publicar'
 
 /**
  * A forma do que a tela do canvas manda.

@@ -21,15 +21,15 @@
  * assinatura **bate**. É a falha clássica desta integração, e ela passa em
  * qualquer teste feito só com mensagens legítimas.
  */
-import { certificadoConfiavel } from '../src/lib/email/sns'
-import { SITUACAO_DO_REMETENTE } from '../src/lib/marketing/remetentes'
-import { situacaoDoRemetente } from '../src/lib/marketing/situacao-do-remetente'
+import { certificadoConfiavel } from '@venn/core/lib/email/sns'
+import { SITUACAO_DO_REMETENTE } from '@venn/core/lib/marketing/remetentes'
+import { situacaoDoRemetente } from '@venn/core/lib/marketing/situacao-do-remetente'
 import {
     avanca,
     lerEventoDoSes,
     pedeSupressao,
     statusDoEvento,
-} from '../src/lib/email/eventos'
+} from '@venn/core/lib/email/eventos'
 
 let falhas = 0
 const ok = (nome: string, cond: boolean, extra = '') => {

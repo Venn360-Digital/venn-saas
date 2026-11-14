@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server'
 
-import { getWorkspaceMember } from '@/lib/auth/workspace'
-import { getMetaPublicConfig, getPlatformCredentials } from '@/lib/platform-credentials'
-import { INSTAGRAM_LOGIN_PROVIDER } from '@/lib/instagram/login'
+import { getWorkspaceMember } from '@venn/core/lib/auth/workspace'
+import { getMetaPublicConfig, getPlatformCredentials } from '@venn/core/lib/platform-credentials'
+import { INSTAGRAM_LOGIN_PROVIDER } from '@venn/core/lib/instagram/login'
 
 /**
  * Os dois ids públicos de que o navegador precisa para abrir o Embedded Signup.

@@ -6,21 +6,21 @@ import { toast } from 'sonner'
 
 import { Button } from '@venn/ui/button'
 import { Input } from '@venn/ui/input'
-import { DataTable, type Column } from '@/components/shared/DataTable'
-import { EmptyState } from '@/components/shared/EmptyState'
-import { FormField } from '@/components/shared/FormField'
-import { IndexFrame } from '@/components/shared/IndexFrame'
-import { RecordDialog } from '@/components/shared/RecordDialog'
-import { StatusBadge } from '@/components/shared/StatusBadge'
-import { usePermissions } from '@/hooks/usePermissions'
-import { useIndiceServidor } from '@/hooks/useIndiceServidor'
+import { DataTable, type Column } from '@venn/core/components/shared/DataTable'
+import { EmptyState } from '@venn/core/components/shared/EmptyState'
+import { FormField } from '@venn/core/components/shared/FormField'
+import { IndexFrame } from '@venn/core/components/shared/IndexFrame'
+import { RecordDialog } from '@venn/core/components/shared/RecordDialog'
+import { StatusBadge } from '@venn/core/components/shared/StatusBadge'
+import { usePermissions } from '@venn/core/hooks/usePermissions'
+import { useIndiceServidor } from '@venn/core/hooks/useIndiceServidor'
 import { BRAND } from '@/config/brand'
 import {
     explicacaoDoDkim,
     SITUACAO_DO_REMETENTE,
     type RegistroDeDns,
-} from '@/lib/marketing/remetentes'
-import type { SugestaoDeDmarc } from '@/lib/marketing/dmarc'
+} from '@venn/core/lib/marketing/remetentes'
+import type { SugestaoDeDmarc } from '@venn/core/lib/marketing/dmarc'
 
 import type { DadosIniciais, RemetenteItem } from './dados'
 

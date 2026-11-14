@@ -1,8 +1,8 @@
 import prisma from '@venn/db/cliente'
-import { listaInteira, membroOuLogin } from '@/lib/indice-servidor'
+import { listaInteira, membroOuLogin } from '@venn/core/lib/indice-servidor'
 
 import { CampanhasClient } from './CampanhasClient'
-import { apresentarCampanha, INCLUDE_DA_APRESENTACAO } from '@/lib/marketing/apresentacao'
+import { apresentarCampanha, INCLUDE_DA_APRESENTACAO } from '@venn/core/lib/marketing/apresentacao'
 
 /**
  * Campanhas — a primeira pintura vem do servidor. A consulta espelha o

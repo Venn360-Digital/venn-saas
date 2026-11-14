@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 import prisma from '@venn/db/cliente'
-import { assertConversationAccess, getWorkspaceMember } from '@/lib/auth/workspace'
-import { comEnderecoDeMidia } from '@/lib/midia'
+import { assertConversationAccess, getWorkspaceMember } from '@venn/core/lib/auth/workspace'
+import { comEnderecoDeMidia } from '@venn/core/lib/midia'
 
 /**
  * Tudo o que foi trocado em arquivo nesta conversa.

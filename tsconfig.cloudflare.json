@@ -8,6 +8,19 @@
     "`lib: dom` do app Next. Misturar os dois faz o typecheck do app acusar",
     "conflitos em arquivos que não têm nada a ver.",
     "",
+    "DOIS caminhos no `include`, e isto não é transição inacabada: o entrypoint",
+    "do Worker fica no app (ele compõe a identidade dele) e os Durable Objects,",
+    "consumidores e o Workflow moram em `packages/core`. Os dois lados precisam",
+    "dos mesmos globais.",
+    "",
+    "O `exclude` do tsconfig.json do app tem de acompanhar este include. Em",
+    "14/11 os Durable Objects saíram de `src/cloudflare` (excluído) para",
+    "`packages/core/src/cloudflare` (que o `include: **/*.ts` do app pegava), e a",
+    "`/// <reference types=\"@cloudflare/workers-types\" />` deles passou a",
+    "redefinir `Response` no programa inteiro: `res.json()` virou `unknown` e o",
+    "typecheck do app acusou 627 erros em arquivos que ninguém tocou. A causa",
+    "não se parece com o efeito.",
+    "",
     "`@cloudflare/workers-types` é pacote **só de tipos**: ele não carrega",
     "runtime e não depende do workerd — então isto confere de verdade nesta",
     "máquina, onde o workerd não roda (macOS 12.7.6, exige 13.5+). É o máximo de",
@@ -53,6 +66,6 @@
       "server-only": ["./workers/src/shims/server-only.ts"]
     }
   },
-  "include": ["src/cloudflare/**/*.ts", "cloudflare.config.ts", "vite.config.ts"],
+  "include": ["src/cloudflare/**/*.ts", "packages/core/src/cloudflare/**/*.ts", "cloudflare.config.ts", "vite.config.ts"],
   "exclude": ["node_modules"]
 }

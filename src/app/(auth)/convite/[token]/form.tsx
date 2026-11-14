@@ -8,7 +8,7 @@ import { toast } from 'sonner'
 import { Button } from '@venn/ui/button'
 import { Input } from '@venn/ui/input'
 import { Label } from '@venn/ui/label'
-import { Logo } from '@/components/brand/Logo'
+import { Logo } from '@venn/core/components/brand/Logo'
 import { cn } from '@venn/ui/utils'
 
 const MIN = 8

@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-import { QUEUE } from '@/lib/queue/definitions'
-import { entregar } from '@/lib/queue/entregar'
-import { assinaturaDoSnsValida, lerMensagemDoSns } from '@/lib/email/sns'
+import { QUEUE } from '@venn/core/lib/queue/definitions'
+import { entregar } from '@venn/core/lib/queue/entregar'
+import { assinaturaDoSnsValida, lerMensagemDoSns } from '@venn/core/lib/email/sns'
 
 export const runtime = 'nodejs'
 /** Nada aqui pode ser servido de cache: cada recibo é um recibo. */

@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 import prisma from '@venn/db/cliente'
-import { PERMISSION_DENIED, getWorkspaceMember, hasEditorRole } from '@/lib/auth/workspace'
-import { DEFAULT_AUTOMATIONS, readAutomations, type Automations } from '@/lib/automations'
-import { connectedWhatsApp } from '@/lib/intake'
+import { PERMISSION_DENIED, getWorkspaceMember, hasEditorRole } from '@venn/core/lib/auth/workspace'
+import { DEFAULT_AUTOMATIONS, readAutomations, type Automations } from '@venn/core/lib/automations'
+import { connectedWhatsApp } from '@venn/core/lib/intake'
 
 /** O que a clínica deixou ligado. */
 export async function GET() {

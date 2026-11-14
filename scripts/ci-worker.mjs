@@ -177,6 +177,11 @@ rodar('auditoria de isolamento', 'pnpm run audit:isolation -- --strict')
 // agravante de parecer que existe (`check:trabalhos` ficou meses reprovando
 // sem ninguém saber). Prova nova de script puro ENTRA NESTA LISTA.
 const PROVAS = [
+    // Importa os módulos do core sem registrar a marca: quem a lê na avaliação
+    // do módulo quebra o Worker no STARTUP, e isso só aparecia na PUBLICAÇÃO do
+    // preview — depois de o build inteiro compilar por 3min22s (14/11). Vem
+    // primeiro porque é barato e reprova o erro mais caro da lista.
+    'check:marca-tardia',
     'check:cofre',
     'check:storage',
     'check:tempo-real',

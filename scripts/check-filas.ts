@@ -13,6 +13,7 @@
  *     DATABASE_URL='<homologação>' npm run check:filas
  */
 import { readFileSync } from 'node:fs'
+import { resolverNoCodigo } from './lib/raizes-de-codigo.mjs'
 import prisma from '@venn/db/cliente'
 import {
     gravarEvento,
@@ -20,10 +21,10 @@ import {
     podarOutbox,
     MAXIMO_DE_TENTATIVAS,
     type EventoPendente,
-} from '@/lib/outbox'
-import { reservar, liberar, umaVezSo, podarChaves, chaveDeIdempotencia } from '@/lib/queue/idempotencia'
-import { consumirLote, exponencial, type LoteDaFila, type MensagemDaFila } from '@/lib/queue/consumidor'
-import { paraUTC, rotinasEmUTC, cronsParaWrangler, rotinasDoDisparo, cronDaVarredura, TAREFA_DA_VARREDURA, PadraoNaoConversivelError, ROTINAS } from '@/lib/cron/agenda'
+} from '@venn/core/lib/outbox'
+import { reservar, liberar, umaVezSo, podarChaves, chaveDeIdempotencia } from '@venn/core/lib/queue/idempotencia'
+import { consumirLote, exponencial, type LoteDaFila, type MensagemDaFila } from '@venn/core/lib/queue/consumidor'
+import { paraUTC, rotinasEmUTC, cronsParaWrangler, rotinasDoDisparo, cronDaVarredura, TAREFA_DA_VARREDURA, PadraoNaoConversivelError, ROTINAS } from '@venn/core/lib/cron/agenda'
 
 let falhas = 0
 const ok = (nome: string, cond: boolean, extra = '') => {
@@ -288,7 +289,7 @@ async function main() {
      * clínica autorizou** — este é o lado que machuca.
      */
     {
-        const fonte = readFileSync('src/trabalhos/processadores/cron/auto-follow-up.ts', 'utf8')
+        const fonte = readFileSync(resolverNoCodigo('trabalhos/processadores/cron/auto-follow-up.ts'), 'utf8')
         const inicio = fonte.match(/BUSINESS_START\s*=\s*(\d+)/)?.[1]
         const fim = fonte.match(/BUSINESS_END\s*=\s*(\d+)/)?.[1]
         const rotina = ROTINAS.find((r) => r.task === 'auto-follow-up')

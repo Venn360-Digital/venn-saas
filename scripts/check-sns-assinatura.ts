@@ -29,7 +29,7 @@ import { join } from 'node:path'
 import { execFileSync } from 'node:child_process'
 import { createSign } from 'node:crypto'
 
-import { assinaturaDoSnsValida, type MensagemDoSns } from '../src/lib/email/sns'
+import { assinaturaDoSnsValida, type MensagemDoSns } from '@venn/core/lib/email/sns'
 
 /**
  * Um certificado RSA 2048 de brinquedo, no mesmo formato que a AWS publica.

@@ -1,23 +1,23 @@
-import { planFor } from '@/lib/plans'
-import { isBillingCycle } from '@/lib/plan-limits'
-import { TRIAL_CREDITS, trialEndFrom } from '@/lib/billing'
+import { planFor } from '@venn/core/lib/plans'
+import { isBillingCycle } from '@venn/core/lib/plan-limits'
+import { TRIAL_CREDITS, trialEndFrom } from '@venn/core/lib/billing'
 import { NextRequest, NextResponse } from 'next/server'
-import { usuarioDaSessao } from '@/lib/auth/sessao'
+import { usuarioDaSessao } from '@venn/core/lib/auth/sessao'
 import prisma from '@venn/db/cliente'
-import { DEFAULT_MODEL } from '@/lib/llm/models'
+import { DEFAULT_MODEL } from '@venn/core/lib/llm/models'
 import { errorMessage } from '@venn/db/erros'
-import { AGENT_WIDGET_DEFAULTS, DEFAULT_PIPELINE_STAGES } from '@/lib/palette'
+import { AGENT_WIDGET_DEFAULTS, DEFAULT_PIPELINE_STAGES } from '@venn/core/lib/palette'
 import { DEFAULT_AGENT_PREFERENCES } from '@/types/agent-preferences'
-import { DEFAULT_AUTOMATIONS } from '@/lib/automations'
-import { ESTRATEGIA_INICIAL, FUSO_INICIAL, MOTIVOS_PADRAO } from '@/lib/onboarding/padroes'
+import { DEFAULT_AUTOMATIONS } from '@venn/core/lib/automations'
+import { ESTRATEGIA_INICIAL, FUSO_INICIAL, MOTIVOS_PADRAO } from '@venn/core/lib/onboarding/padroes'
 import {
     comFusoNasConfiguracoes,
     temFusoNasConfiguracoes,
-} from '@/lib/fuso-da-unidade'
+} from '@venn/core/lib/fuso-da-unidade'
 import type { Prisma } from '@venn/db'
-import { sendEmail } from '@/lib/email/send'
-import { TEMPLATES } from '@/lib/email/templates'
-import { sendBillingEmail } from '@/lib/email/billing'
+import { sendEmail } from '@venn/core/lib/email/send'
+import { TEMPLATES } from '@venn/core/lib/email/templates'
+import { sendBillingEmail } from '@venn/core/lib/email/billing'
 
 /**
  * O primeiro agente da clínica, com as preferências **gravadas**.

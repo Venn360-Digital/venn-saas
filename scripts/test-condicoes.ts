@@ -20,8 +20,8 @@
  * e número, e o avaliador recebe o instante **pelo contexto** — então a hora é
  * fixada aqui em vez de depender do relógio de quem roda.
  */
-import { dentroDaJanela, descreverJanela, normalizarJanela } from '@/lib/rules/expediente'
-import { RuleEvaluator } from '@/lib/rules/evaluator'
+import { dentroDaJanela, descreverJanela, normalizarJanela } from '@venn/core/lib/rules/expediente'
+import { RuleEvaluator } from '@venn/core/lib/rules/evaluator'
 import type { RuleContext } from '@/types/rules'
 
 let passou = 0

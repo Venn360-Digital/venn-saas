@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 import { APP } from '@/config/app.config'
-import { enderecoDaMidia } from '@/lib/midia'
-import { igualEmTempoConstante } from '@/lib/comparacao'
+import { enderecoDaMidia } from '@venn/core/lib/midia'
+import { igualEmTempoConstante } from '@venn/core/lib/comparacao'
 import prisma from '@venn/db/cliente'
-import { transcribeAudio } from '@/trabalhos/servicos/transcribe'
+import { transcribeAudio } from '@venn/core/trabalhos/servicos/transcribe'
 
 /**
  * Retranscreve nota de voz que ficou sem texto.

@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@venn/db/cliente'
-import { manageAgent } from '@/lib/auth/agent'
-import { novaChave } from '@/lib/widget'
+import { manageAgent } from '@venn/core/lib/auth/agent'
+import { novaChave } from '@venn/core/lib/widget'
 import {
     WIDGET_PADRAO,
     lerConfiguracaoDoWidget,
     comoJsonDoWidget,
     sanearConfiguracaoDoWidget,
     type ConfiguracaoDoWidget,
-} from '@/lib/widget-config'
+} from '@venn/core/lib/widget-config'
 import type { Prisma } from '@venn/db'
 
 /**

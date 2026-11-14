@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import prisma from '@venn/db/cliente'
-import { currentMembership, hasEditorRole, PERMISSION_DENIED } from '@/lib/auth/workspace'
-import { congelarDestinatarios, iniciarDisparo } from '@/trabalhos/servicos/broadcast'
-import { portaoDeDisparo, semDestinatarios } from '@/lib/marketing/portao'
+import { currentMembership, hasEditorRole, PERMISSION_DENIED } from '@venn/core/lib/auth/workspace'
+import { congelarDestinatarios, iniciarDisparo } from '@venn/core/trabalhos/servicos/broadcast'
+import { portaoDeDisparo, semDestinatarios } from '@venn/core/lib/marketing/portao'
 
 const sendSchema = z.object({
     /** ISO. Ausente ou no passado = dispara agora. */

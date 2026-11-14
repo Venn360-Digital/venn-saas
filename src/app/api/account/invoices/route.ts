@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server'
 
 import prisma from '@venn/db/cliente'
-import { currentMembership } from '@/lib/auth/workspace'
-import { accountIdOf } from '@/lib/account'
+import { currentMembership } from '@venn/core/lib/auth/workspace'
+import { accountIdOf } from '@venn/core/lib/account'
 
 /**
  * O histórico de cobranças da conta.

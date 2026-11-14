@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 
 import prisma from '@venn/db/cliente'
-import { WORKSPACE_COOKIE } from '@/lib/auth/workspace'
-import { usuarioDaSessao } from '@/lib/auth/sessao'
+import { WORKSPACE_COOKIE } from '@venn/core/lib/auth/workspace'
+import { usuarioDaSessao } from '@venn/core/lib/auth/sessao'
 
 /**
  * Troca a unidade que a pessoa está olhando.

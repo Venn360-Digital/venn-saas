@@ -66,7 +66,7 @@ const ISENTOS = [
     // no commit que o move — que é o único momento em que alguém sabe para
     // onde ele foi. `src/generated/` saiu da lista: o módulo de raízes já
     // exclui toda pasta `generated`, em qualquer pacote.
-    'src/lib/fuso.ts',
+    'packages/core/src/lib/fuso.ts',
 ]
 
 const PROIBIDO = /\.(getHours|getDate|getMonth|getDay|getFullYear|getMinutes)\(\)/g

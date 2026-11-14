@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 import prisma from '@venn/db/cliente'
-import { getPlatformAdmin } from '@/lib/platform-credentials'
+import { getPlatformAdmin } from '@venn/core/lib/platform-credentials'
 
 /**
  * Os parâmetros que a conta da Venn360 pode mexer na conta de um cliente.

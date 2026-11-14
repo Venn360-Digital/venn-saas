@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server'
 
 import prisma from '@venn/db/cliente'
-import { getWorkspaceMember, canSeeEveryone } from '@/lib/auth/workspace'
-import { estadoVisivel, type StatusDoMembro } from '@/lib/conversas/distribuicao'
-import { enderecoDoRetrato } from '@/lib/retratos'
-import { MINUTOS_PARA_AUSENTE_PADRAO } from '@/lib/automations'
+import { getWorkspaceMember, canSeeEveryone } from '@venn/core/lib/auth/workspace'
+import { estadoVisivel, type StatusDoMembro } from '@venn/core/lib/conversas/distribuicao'
+import { enderecoDoRetrato } from '@venn/core/lib/retratos'
+import { MINUTOS_PARA_AUSENTE_PADRAO } from '@venn/core/lib/automations'
 
 /**
  * Quem está na unidade agora — para o painel de equipe e para o recado.

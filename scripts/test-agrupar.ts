@@ -22,7 +22,7 @@ import {
     normalizarPergunta,
     ordenarPorDemanda,
     type LacunaParaAgrupar,
-} from '@/lib/lacunas/agrupar'
+} from '@venn/core/lib/lacunas/agrupar'
 import {
     ALVOS_POSSIVEIS,
     ALVO_PADRAO,
@@ -30,8 +30,8 @@ import {
     promptDoRascunho,
     somarAoDocumento,
     textoDoRascunho,
-} from '@/lib/lacunas/rascunho'
-import { semComentarios } from '@/lib/rag/secoes'
+} from '@venn/core/lib/lacunas/rascunho'
+import { semComentarios } from '@venn/core/lib/rag/secoes'
 
 let passou = 0
 let falhou = 0

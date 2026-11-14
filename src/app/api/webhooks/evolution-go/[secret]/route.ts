@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import {
     processarEventoEvolutionGo,
     segredoDoWebhookValido,
-} from '@/lib/whatsapp/webhook-evolution-go'
+} from '@venn/core/lib/whatsapp/webhook-evolution-go'
 
 /**
  * Porta COM segredo — a do Evolution Go no VPS, que posta pela internet.

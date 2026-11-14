@@ -41,7 +41,7 @@
  *     DATABASE_URL='<homologação>' npm run check:tenant
  */
 import prisma from '@venn/db/cliente'
-import { conferirRelacoes } from '@/lib/auth/relacoes'
+import { conferirRelacoes } from '@venn/core/lib/auth/relacoes'
 
 let falhas = 0
 const ok = (nome: string, cond: boolean, extra = '') => {

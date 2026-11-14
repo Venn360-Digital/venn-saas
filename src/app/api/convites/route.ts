@@ -3,12 +3,12 @@ import { z } from 'zod'
 
 import { APP } from '@/config/app.config'
 import { BRAND } from '@/config/brand'
-import { MANAGER_ROLES, requireRole } from '@/lib/auth/workspace'
-import { TEMPLATES } from '@/lib/email/templates'
-import { estadoDoConvite, normalizarEmail, vencimentoDe } from '@/lib/convite/estado'
+import { MANAGER_ROLES, requireRole } from '@venn/core/lib/auth/workspace'
+import { TEMPLATES } from '@venn/core/lib/email/templates'
+import { estadoDoConvite, normalizarEmail, vencimentoDe } from '@venn/core/lib/convite/estado'
 import prisma from '@venn/db/cliente'
-import { sendEmail } from '@/lib/email/send'
-import { sortearToken } from '@/lib/convite/token'
+import { sendEmail } from '@venn/core/lib/email/send'
+import { sortearToken } from '@venn/core/lib/convite/token'
 
 /**
  * Os convites desta unidade: listar e criar.

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 
-import { marcaDaSessao } from '@/lib/session-brand'
+import { marcaDaSessao } from '@venn/core/lib/session-brand'
 
 /**
  * A marca da sessão, para o cliente se atualizar **sem recarregar**.

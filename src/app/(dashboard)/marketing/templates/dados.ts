@@ -1,4 +1,4 @@
-import type { PaginaDeIndice } from '@/lib/indice'
+import type { PaginaDeIndice } from '@venn/core/lib/indice'
 
 /** Um template espelhado da Meta, como a tela o consome. */
 export interface TemplateItem {

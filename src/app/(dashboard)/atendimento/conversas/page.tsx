@@ -2,11 +2,11 @@
 
 import { useRouter, useSearchParams } from 'next/navigation'
 
-import { apelidoDaLinha } from '@/lib/linha'
-import { formatPhone } from '@/lib/phone'
-import { prettyPhone } from '@/lib/masks'
-import { useNow } from '@/hooks/useNow'
-import { usePermissions } from '@/hooks/usePermissions'
+import { apelidoDaLinha } from '@venn/core/lib/linha'
+import { formatPhone } from '@venn/core/lib/phone'
+import { prettyPhone } from '@venn/core/lib/masks'
+import { useNow } from '@venn/core/hooks/useNow'
+import { usePermissions } from '@venn/core/hooks/usePermissions'
 
 import { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from 'react'
 import { Input } from '@venn/ui/input'
@@ -64,9 +64,9 @@ import {
 import { Separator } from '@venn/ui/separator'
 import { Toggle } from '@venn/ui/toggle'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@venn/ui/tooltip'
-import { RowActionItem, RowActionsSeparator } from '@/components/shared/RowActions'
+import { RowActionItem, RowActionsSeparator } from '@venn/core/components/shared/RowActions'
 import { toast } from 'sonner'
-import { EmojiPicker } from '@/components/shared/EmojiPicker'
+import { EmojiPicker } from '@venn/core/components/shared/EmojiPicker'
 import {
     ContextMenu,
     ContextMenuContent,
@@ -90,40 +90,40 @@ import {
     CommandList,
 } from '@venn/ui/command'
 import { Popover, PopoverContent, PopoverTrigger } from '@venn/ui/popover'
-import { AudioMessage } from '@/components/shared/AudioMessage'
-import { TextoDeWhatsApp } from '@/components/shared/TextoDeWhatsApp'
-import { EtapaChip } from '@/components/shared/EtapaChip'
-import { Retrato } from '@/components/shared/Retrato'
-import { useIntervaloVisivel } from '@/hooks/useIntervaloVisivel'
+import { AudioMessage } from '@venn/core/components/shared/AudioMessage'
+import { TextoDeWhatsApp } from '@venn/core/components/shared/TextoDeWhatsApp'
+import { EtapaChip } from '@venn/core/components/shared/EtapaChip'
+import { Retrato } from '@venn/core/components/shared/Retrato'
+import { useIntervaloVisivel } from '@venn/core/hooks/useIntervaloVisivel'
 import {
     ROTULO_DA_ABA,
     ROTULO_DO_VER,
     opcoesDeVer,
     type Aba,
     type Ver,
-} from '@/lib/conversas/recortes'
-import { semMarcacao } from '@/lib/texto-whatsapp'
-import { ActivityForm } from '@/components/shared/ActivityForm'
-import { ActivityList } from '@/components/shared/ActivityList'
-import { AiSummaryPanel } from '@/components/shared/AiSummaryPanel'
-import { ConversationFilesPanel } from '@/components/shared/ConversationFilesPanel'
-import { InternalNotesPanel } from '@/components/shared/InternalNotesPanel'
-import { NewAttendanceDialog } from '@/components/shared/NewAttendanceDialog'
-import { TagPicker } from '@/components/shared/TagPicker'
-import { TagChip } from '@/components/shared/TagChip'
-import { PanelField, PanelSection, RecordPanel } from '@/components/shared/RecordPanel'
+} from '@venn/core/lib/conversas/recortes'
+import { semMarcacao } from '@venn/core/lib/texto-whatsapp'
+import { ActivityForm } from '@venn/core/components/shared/ActivityForm'
+import { ActivityList } from '@venn/core/components/shared/ActivityList'
+import { AiSummaryPanel } from '@venn/core/components/shared/AiSummaryPanel'
+import { ConversationFilesPanel } from '@venn/core/components/shared/ConversationFilesPanel'
+import { InternalNotesPanel } from '@venn/core/components/shared/InternalNotesPanel'
+import { NewAttendanceDialog } from '@venn/core/components/shared/NewAttendanceDialog'
+import { TagPicker } from '@venn/core/components/shared/TagPicker'
+import { TagChip } from '@venn/core/components/shared/TagChip'
+import { PanelField, PanelSection, RecordPanel } from '@venn/core/components/shared/RecordPanel'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@venn/ui/select'
-import { waitedFor, type QueueCounts } from '@/components/shared/QueueMeter'
+import { waitedFor, type QueueCounts } from '@venn/core/components/shared/QueueMeter'
 import {
     DealJourney,
     type JourneyEntry,
     type JourneyStage,
-} from '@/components/shared/DealJourney'
+} from '@venn/core/components/shared/DealJourney'
 import { format, isToday, isYesterday } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { assinarTempoReal } from '@/lib/realtime/assinatura'
-import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
-import { DEFAULT_ENTITY_COLOR } from '@/lib/palette'
+import { assinarTempoReal } from '@venn/core/lib/realtime/assinatura'
+import { ConfirmDialog } from '@venn/core/components/shared/ConfirmDialog'
+import { DEFAULT_ENTITY_COLOR } from '@venn/core/lib/palette'
 
 
 /** Corpo do POST de mensagem; os dois últimos campos são condicionais. */

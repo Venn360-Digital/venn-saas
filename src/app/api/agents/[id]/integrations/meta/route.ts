@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 
 import prisma from '@venn/db/cliente'
-import { manageAgent } from '@/lib/auth/agent'
-import { canConnectWhatsApp } from '@/lib/limits'
+import { manageAgent } from '@venn/core/lib/auth/agent'
+import { canConnectWhatsApp } from '@venn/core/lib/limits'
 import {
     MetaOnboardingError,
     assinarContaAoApp,
@@ -12,7 +12,7 @@ import {
     novoPin,
     registrarNumero,
     trocarCodigoPorToken,
-} from '@/lib/meta/onboarding'
+} from '@venn/core/lib/meta/onboarding'
 
 export const runtime = 'nodejs'
 

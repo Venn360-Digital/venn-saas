@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@venn/db/cliente'
-import { PERMISSION_DENIED, dealScope, getWorkspaceMember, hasEditorRole } from '@/lib/auth/workspace'
-import { negocioEntrouNaEtapa, negocioFoiFechado } from '@/lib/funil/disparos'
-import { conferirRelacoes } from '@/lib/auth/relacoes'
-import { usuarioDaSessao } from '@/lib/auth/sessao'
+import { PERMISSION_DENIED, dealScope, getWorkspaceMember, hasEditorRole } from '@venn/core/lib/auth/workspace'
+import { negocioEntrouNaEtapa, negocioFoiFechado } from '@venn/core/lib/funil/disparos'
+import { conferirRelacoes } from '@venn/core/lib/auth/relacoes'
+import { usuarioDaSessao } from '@venn/core/lib/auth/sessao'
 import { Prisma } from '@venn/db'
 
 const dealInclude = {

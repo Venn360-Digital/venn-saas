@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-import { assertConversationAccess, getWorkspaceMember } from '@/lib/auth/workspace'
-import { buildFollowUpSuggestion } from '@/lib/follow-up-suggestion'
+import { assertConversationAccess, getWorkspaceMember } from '@venn/core/lib/auth/workspace'
+import { buildFollowUpSuggestion } from '@venn/core/lib/follow-up-suggestion'
 
 const MESSAGES: Record<string, { error: string; status: number }> = {
     not_found: { error: 'Conversa não encontrada', status: 404 },
