@@ -1,34 +1,9 @@
-import { NextResponse } from 'next/server'
-
-import { getWorkspaceMember } from '@venn/core/lib/auth/workspace'
-import { getWorkspaceLimits } from '@venn/core/lib/limits'
-import { getBillingState } from '@venn/core/lib/billing'
-
-export const dynamic = 'force-dynamic'
-
-/**
- * What the plan allows and how much is left, for the screens that create agents
- * and connect numbers. They state the allowance up front rather than letting the
- * user fill in a form and discover the limit on submit.
+/* GERADO por scripts/gerar-rotas.ts — não edite.
+ * Conteúdo: packages/core/src/rotas/api/account/limits/route.ts
+ *
+ * Os configs abaixo são COPIADOS, não re-exportados: o SWC os lê por análise
+ * estática e não atravessa um `export … from`. Re-exportados, seriam ignorados
+ * em silêncio e a rota rodaria no modo errado.
  */
-export async function GET() {
-    try {
-        const auth = await getWorkspaceMember()
-        if (!auth.ok) {
-            return NextResponse.json({ error: auth.error }, { status: auth.status })
-        }
-        const [limits, billing] = await Promise.all([
-            getWorkspaceLimits(auth.member.workspaceId),
-            getBillingState(auth.member.workspaceId),
-        ])
-        // One request for both: the sidebar needs the countdown and the credit
-        // state on every page, and two round trips for that is one too many.
-        return NextResponse.json({ ...limits, billing })
-    } catch (error) {
-        console.error('[ACCOUNT_LIMITS]', error)
-        return NextResponse.json(
-            { error: 'Não foi possível carregar os limites do plano' },
-            { status: 500 }
-        )
-    }
-}
+export { GET } from '@venn/core/rotas/api/account/limits/route'
+export const dynamic = 'force-dynamic'

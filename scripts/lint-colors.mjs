@@ -31,7 +31,12 @@ const ALLOWED = [
     // The single component that renders a user-chosen hex from the database.
     'packages/core/src/components/shared/TagChip.tsx',
     // Renders above ThemeProvider, where CSS variables are not guaranteed.
-    'apps/*/src/app/global-error.tsx',
+    // O conteúdo foi para `packages/core/src/rotas/` na Fase 3; no app sobrou a
+    // casca gerada, que não tem cor. Atenção ao modo como esta linha quase
+    // passou errada: `conferirAllowlist` não a acusou de órfã, porque o wrapper
+    // OCUPA o caminho antigo — a isenção casava a casca e deixava o conteúdo
+    // sem proteção. Quem cobrou foi a contagem de cores, de outro ângulo.
+    'packages/core/src/rotas/global-error.tsx',
     // Other companies' brand colours, declared in one place on purpose.
     'packages/core/src/lib/brand-colors.ts',
     // Our own palette as literal hex, for the three places a token cannot
@@ -50,7 +55,7 @@ const ALLOWED = [
     // token seria pedir uma cor que ninguém definiu. Passava sem estar aqui
     // só porque os hex estão soltos dentro de um template, e não entre aspas —
     // isenção por acidente do padrão. Agora é por decisão.
-    'apps/*/src/app/widget.js/',
+    'packages/core/src/rotas/widget.js/',
 ]
 
 const PREFIX =

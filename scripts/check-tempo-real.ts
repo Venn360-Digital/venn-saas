@@ -277,7 +277,7 @@ async function main() {
      */
     const fs = await import('node:fs')
     const { execSync } = await import('node:child_process')
-    const tela = fs.readFileSync(resolverNoCodigo('app/(dashboard)/atendimento/conversas/page.tsx'), 'utf8')
+    const tela = fs.readFileSync(resolverNoCodigo('rotas/(dashboard)/atendimento/conversas/page.tsx'), 'utf8')
     // De `chaves`, não de `avisar`: aquele importa o Prisma por `./index`, que
     // lança na carga sem DATABASE_URL — e este teste roda sem banco.
     const { CHAVES } = await import('@venn/core/lib/outbox/chaves')

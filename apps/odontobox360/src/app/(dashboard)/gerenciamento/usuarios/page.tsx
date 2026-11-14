@@ -1,13 +1,4 @@
-import { redirect } from 'next/navigation'
-
-/**
- * Atalho para a guia, não uma segunda tela.
- *
- * Esta rota desenhava Usuários por conta própria, com cabeçalho e moldura
- * diferentes dos da guia em Gerenciar conta: duas portas para a mesma coisa,
- * cada uma com uma cara. Quem chega por um link antigo — um convite por
- * e-mail, um favorito — cai na guia, que é onde a tela mora.
+/* GERADO por scripts/gerar-rotas.ts — não edite.
+ * Conteúdo: packages/core/src/rotas/(dashboard)/gerenciamento/usuarios/page.tsx
  */
-export default function UsuariosPage() {
-    redirect('/gerenciamento/conta?tab=usuarios')
-}
+export { default } from '@venn/core/rotas-jsx/(dashboard)/gerenciamento/usuarios/page'
