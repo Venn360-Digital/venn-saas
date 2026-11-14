@@ -1,7 +1,13 @@
 {
-  "$comment": "Identificadores reais do app Odontobox (Fase 01). Nos repos de Stagent360/Conecta360 este arquivo é LISTA PROIBIDA. Sem secrets (client/app IDs são públicos; aqui estão como desconhecidos por viverem em Vault/DB). Gerado 2026-10-27.",
+  "$comment": "Identificadores reais do app Odontobox (Fase 01). Nos repos de Stagent360/Conecta360 este arquivo é LISTA PROIBIDA. Sem secrets (client/app IDs são públicos; aqui estão como desconhecidos por viverem em Vault/DB). Gerado 2026-10-27. Nomes de CLASSE de Durable Object NÃO entram aqui: a classe mora no core e todo app a exporta no entrypoint e a declara no cloudflare.config.ts — listá-la como identidade proibiria o 2º app de usar o próprio core. O que é identidade de verdade é o NAMESPACE do DO (o binding por ambiente), que o manifest valida. O fingerprint do Stagent360 já declarava isso; este não, e as três classes estavam listadas — corrigido em 14/11/2026, antes de criar o 2º app.",
   "slug": "odontobox",
-  "strings": ["odontobox", "odontobox360", "odonto box", "OdontoBox360", "venn.odontobox360"],
+  "strings": [
+    "odontobox",
+    "odontobox360",
+    "odonto box",
+    "OdontoBox360",
+    "venn.odontobox360"
+  ],
   "hostnames": [
     "odontobox.venn360.com",
     "evo-odontobox.venn360.com",
@@ -22,8 +28,13 @@
     "892e1e51de799e177bbf9a0b85ba5259.access",
     "8d90f2b1-c880-4a4b-a0e5-5b636219f3bd"
   ],
-  "workers": ["odontobox"],
-  "buckets": ["odontobox-public", "odontobox-private"],
+  "workers": [
+    "odontobox"
+  ],
+  "buckets": [
+    "odontobox-public",
+    "odontobox-private"
+  ],
   "queues": [
     "odontobox-whatsapp-inbound",
     "odontobox-whatsapp-event",
@@ -36,7 +47,9 @@
     "odontobox-cron"
   ],
   "turnstileSitekeys": [],
-  "neonProjectIds": ["polished-shape-42069569"],
+  "neonProjectIds": [
+    "polished-shape-42069569"
+  ],
   "neonEndpoints": [
     "ep-icy-mode-b6mp2z8h.c-2.sa-east-1.aws.neon.tech",
     "ep-lucky-pond-b6n42j1j.c-2.sa-east-1.aws.neon.tech"
@@ -46,8 +59,13 @@
     "odontobox-evolution-postgres-1",
     "odontobox-evolution-cloudflared-1"
   ],
-  "composeProjects": ["odontobox-evolution"],
-  "vpsDatabases": ["evogo_auth", "evogo_users"],
+  "composeProjects": [
+    "odontobox-evolution"
+  ],
+  "vpsDatabases": [
+    "evogo_auth",
+    "evogo_users"
+  ],
   "googleClientIds": [],
   "metaAppIds": [],
   "other": [
@@ -57,9 +75,6 @@
     "/opt/evolution/compose.yaml",
     "odontobox-evolution_evo",
     "odontobox-evolution_evo-postgres",
-    "SalaDoWorkspace",
-    "AgendaDaConversa",
-    "TravaDeContato",
     "br-weathered-water-b6wu2by1",
     "br-bold-violet-b6phz4yu"
   ],
@@ -68,5 +83,16 @@
     "metaAppId (META_APP_ID / meta_messaging)",
     "instagramAppId (INSTAGRAM_APP_ID / instagram_login)"
   ],
-  "warnStrings": ["odontograma", "dentista", "odontológic", "odontológica", "paciente", "especialista", "procedimento", "clínica", "CRO", "convênio"]
+  "warnStrings": [
+    "odontograma",
+    "dentista",
+    "odontológic",
+    "odontológica",
+    "paciente",
+    "especialista",
+    "procedimento",
+    "clínica",
+    "CRO",
+    "convênio"
+  ]
 }
