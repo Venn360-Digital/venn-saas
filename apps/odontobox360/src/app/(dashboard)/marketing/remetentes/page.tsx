@@ -1,38 +1,4 @@
-import prisma from '@venn/db/cliente'
-import { listaInteira, membroOuLogin } from '@venn/core/lib/indice-servidor'
-import { registrosDeDns } from '@venn/core/lib/marketing/remetentes'
-
-import { RemetentesClient } from './RemetentesClient'
-
-/**
- * Remetentes de e-mail — a primeira página vem do servidor, como manda o padrão
- * de índice (DESIGN.md §5). A projeção é a mesma do
- * `GET /api/marketing/remetentes`, para a releitura depois de cadastrar não
- * trocar a ordem nem o formato.
+/* GERADO por scripts/gerar-rotas.ts — não edite.
+ * Conteúdo: packages/core/src/rotas/(dashboard)/marketing/remetentes/page.tsx
  */
-export default async function RemetentesPage() {
-    const membro = await membroOuLogin()
-
-    const inicial = await listaInteira(async () => {
-        const remetentes = await prisma.emailSender.findMany({
-            where: { workspaceId: membro.workspaceId },
-            orderBy: { createdAt: 'desc' },
-        })
-        return remetentes.map((r) => ({
-            id: r.id,
-            domain: r.domain,
-            from: `${r.fromLocal}@${r.domain}`,
-            fromLocal: r.fromLocal,
-            fromName: r.fromName,
-            replyTo: r.replyTo,
-            status: r.status,
-            dkimStatus: r.dkimStatus,
-            verifiedAt: r.verifiedAt?.toISOString() ?? null,
-            lastCheckedAt: r.lastCheckedAt?.toISOString() ?? null,
-            dns: registrosDeDns(r.domain, r.dkimTokens),
-            createdAt: r.createdAt.toISOString(),
-        }))
-    })
-
-    return <RemetentesClient inicial={inicial} />
-}
+export { default } from '@venn/core/rotas/(dashboard)/marketing/remetentes/page'

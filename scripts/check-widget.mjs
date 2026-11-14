@@ -3,7 +3,7 @@
  *
  *   npm run check:widget
  *
- * Ele vive dentro de um template literal em resolverNoCodigo('app/widget.js/route.ts'), e o
+ * Ele vive dentro de um template literal em resolverNoCodigo('rotas/widget.js/route.ts'), e o
  * TypeScript não olha o conteúdo de uma string. Um `if (x { ... }` ali dentro
  * passa pelo `tsc`, passa pelo build, e só quebra no navegador de um cliente —
  * **verificado**: com esse erro injetado, o `tsc` não reclama e esta checagem
@@ -15,9 +15,23 @@
  * pego antes de chegar aqui.
  */
 import { readFileSync } from 'node:fs'
+/*
+ * O sufixo precisa dizer `rotas/`, e isto quase passou errado na Fase 3.
+ *
+ * Era `app/widget.js/route.ts`. Quando o conteúdo foi para
+ * `packages/core/src/rotas/widget.js/route.ts`, esse sufixo passou a casar
+ * APENAS a casca gerada em `apps/<app>/src/app/widget.js/route.ts` — um
+ * resultado, sem ambiguidade, resolvido com sucesso. `resolverNoCodigo` fez o
+ * trabalho dele; o sufixo é que ficou apontando para o lugar errado.
+ *
+ * Só falhou porque este verificador procura o template DENTRO do arquivo. Um
+ * critério mais frouxo teria aprovado a casca vazia — a mesma assimetria da
+ * guarda do tempo real: a verificação que grita custa um ciclo de build, a que
+ * se cala custa um incidente.
+ */
 import { resolverNoCodigo } from './lib/raizes-de-codigo.mjs'
 
-const ARQUIVO = resolverNoCodigo('app/widget.js/route.ts')
+const ARQUIVO = resolverNoCodigo('rotas/widget.js/route.ts')
 const linhas = readFileSync(ARQUIVO, 'utf8').split('\n')
 
 const inicio = linhas.findIndex((l) => l.includes('=> `'))

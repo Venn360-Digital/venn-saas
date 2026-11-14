@@ -104,6 +104,43 @@ if (ENTRADAS.length === 0) {
     process.exit(1)
 }
 
+/**
+ * O script importa algo de `@venn/core`?
+ *
+ * Pela LINHA, não pelo texto inteiro: um import estático começa a linha, e um
+ * import multi-linha termina em `} from '…'`. Um especificador escrito no meio
+ * de uma chamada — o que o gerador de rotas faz — não casa nenhuma das duas.
+ *
+ * Import dinâmico conta também — são quatro os scripts que usam um
+ * (`check-tempo-real`, `check-trabalhos`, `check-auth`), e o core avaliado
+ * tarde pede a marca do mesmo jeito. Aqui a forma é inconfundível:
+ * `import(` com o especificador logo dentro.
+ */
+function importaDoCore(texto) {
+    return texto.split('\n').some((l) => {
+        const t = l.trim()
+        if (!/['"]@venn\/core/.test(t)) return false
+        if (/import\s*\(\s*['"]@venn\/core/.test(t)) return true
+        return t.startsWith('import ') || /^\}\s*from\s*['"]/.test(t)
+    })
+}
+
+/**
+ * O script REGISTRA a marca de teste — pelo import, não pela menção.
+ *
+ * Era `texto.includes('marca-de-teste')`, e isso é falso negativo garantido:
+ * `check-auth.ts` cita o arquivo num comentário acima do import ("Ver
+ * `./lib/marca-de-teste.ts`"), então apagar o import deixava a regra passar.
+ * Verificado: com o import removido e o comentário no lugar, a regra aprovava
+ * — exatamente o build que ela existe para não deixar quebrar.
+ */
+function registraMarcaDeTeste(texto) {
+    return texto.split('\n').some((l) => {
+        const t = l.trim()
+        return t.startsWith('import ') && t.includes('marca-de-teste')
+    })
+}
+
 let falhas = 0
 const erro = (msg) => { console.error(`✖ ${msg}`); falhas++ }
 
@@ -176,8 +213,28 @@ for (const { arquivo, existe } of ENTRADAS.filter((e) => e.arquivo.endsWith('lay
 for (const f of readdirSync('scripts').filter((n) => n.endsWith('.ts'))) {
     const caminho = join('scripts', f)
     const texto = readFileSync(caminho, 'utf8')
-    if (!texto.includes('@venn/core')) continue
-    if (!texto.includes('marca-de-teste')) {
+    // Um import de verdade, não uma string que se parece com um — e foram
+    // três tentativas, com os dois tipos de erro, que é o que vale registrar:
+    //
+    //   1. `texto.includes('@venn/core')` reprovou `gerar-rotas.ts`, que só
+    //      cita o nome do pacote dentro dos wrappers que escreve. Falso
+    //      positivo: barato, aparece na hora.
+    //   2. Exigir a declaração no início da linha deixou de cobrar
+    //      `check-auth.ts` com a linha de registro removida. **Falso
+    //      negativo** — o lado caro: a regra passaria a aprovar exatamente o
+    //      caso que ela existe para pegar, e foi esse caso que reprovou um
+    //      build em 14/11.
+    //   3. Apagar comentários e template literals antes de procurar pareceu a
+    //      saída, e não é: o gerador tem um backtick ÍMPAR dentro de `['\"`]`
+    //      num regex, e isso desalinha o pareamento de todos os templates
+    //      seguintes. Remover literal de string por expressão regular é
+    //      aproximação, não análise.
+    //
+    // `importaDoCore` olha a LINHA: declaração estática começa a linha, e um
+    // import multi-linha fecha com `} from '…'`. O especificador que o gerador
+    // escreve está no meio de uma chamada, e nenhuma das duas formas o alcança.
+    if (!importaDoCore(texto)) continue
+    if (!registraMarcaDeTeste(texto)) {
         erro(`"${caminho}" importa de @venn/core e não registra a marca de teste.`)
         console.error("  Acrescente `import './lib/marca-de-teste.ts'` como PRIMEIRO import.")
     }
