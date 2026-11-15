@@ -18,6 +18,8 @@ import { Label } from '@venn/ui/label'
 import { Popover, PopoverContent, PopoverTrigger } from '@venn/ui/popover'
 import { formatPhone, phoneIssue } from '../../lib/phone'
 import { PhoneInput } from './PhoneInput'
+import { useVocab } from '../../hooks/useVocab'
+import { comArtigo } from '../../lib/concordancia'
 
 export interface PickedContact {
     id: string
@@ -46,6 +48,8 @@ export function ContactPicker({
     onSelect: (contact: PickedContact) => void
     onClear: () => void
 }) {
+    const v = useVocab()
+
     const [open, setOpen] = useState(false)
     const [search, setSearch] = useState('')
     const [results, setResults] = useState<PickedContact[]>([])
@@ -107,10 +111,10 @@ export function ContactPicker({
                     onSelect({ id: data.contactId, name: name || null, phone: phone || null })
                     setCreating(false)
                     setOpen(false)
-                    toast.info(data.error || 'Paciente já cadastrado; usando a ficha existente')
+                    toast.info(data.error || 'Já cadastrado; usando a ficha existente')
                     return
                 }
-                toast.error(data.error || 'Não foi possível cadastrar o paciente')
+                toast.error(data.error || `Não foi possível cadastrar ${comArtigo(v, 'pessoa')}`)
                 return
             }
             const contact: PickedContact = {
@@ -124,9 +128,9 @@ export function ContactPicker({
             setNewPhone('')
             setSearch('')
             setOpen(false)
-            toast.success('Paciente cadastrado')
+            toast.success('Cadastro criado')
         } catch {
-            toast.error('Não foi possível cadastrar o paciente')
+            toast.error(`Não foi possível cadastrar ${comArtigo(v, 'pessoa')}`)
         } finally {
             setSaving(false)
         }
@@ -137,7 +141,7 @@ export function ContactPicker({
             <div className="flex items-center gap-2 rounded-md border border-border bg-accent/30 p-2">
                 <User className="size-4 text-muted-foreground" />
                 <span className="flex-1 truncate text-sm">{value.name || formatPhone(value.phone)}</span>
-                <Button variant="ghost" size="icon-sm" onClick={onClear} aria-label="Remover paciente">
+                <Button variant="ghost" size="icon-sm" onClick={onClear} aria-label={`Remover ${v.pessoa}`}>
                     <X className="size-4" />
                 </Button>
             </div>
@@ -155,14 +159,14 @@ export function ContactPicker({
             <div className="flex gap-2">
                 <PopoverTrigger asChild>
                     <Button variant="outline" className="flex-1 justify-start font-normal text-muted-foreground">
-                        Buscar paciente por nome ou telefone…
+                        Buscar {v.pessoa} por nome ou telefone…
                     </Button>
                 </PopoverTrigger>
                 <Button
                     variant="outline"
                     size="icon"
-                    aria-label="Cadastrar paciente"
-                    title="Cadastrar paciente"
+                    aria-label={`Cadastrar ${v.pessoa}`}
+                    title={`Cadastrar ${v.pessoa}`}
                     onClick={() => {
                         setCreating(true)
                         setOpen(true)
@@ -181,7 +185,7 @@ export function ContactPicker({
                                 id="newcontact-name"
                                 value={newName}
                                 onChange={(e) => setNewName(e.target.value)}
-                                placeholder="Nome do paciente"
+                                placeholder={`Nome ${comArtigo(v, 'pessoa', 'de')}`}
                                 autoFocus
                             />
                         </div>
@@ -221,7 +225,7 @@ export function ContactPicker({
                                     ? 'Buscando…'
                                     : search.trim().length < 2
                                         ? 'Digite ao menos duas letras.'
-                                        : 'Nenhum paciente encontrado.'}
+                                        : 'Nenhum resultado.'}
                             </CommandEmpty>
                             {results.length > 0 ? (
                                 <CommandGroup>
@@ -254,7 +258,7 @@ export function ContactPicker({
                                     }}
                                 >
                                     <Plus className="size-3.5" />
-                                    {search.trim() ? `Cadastrar “${search.trim()}”` : 'Cadastrar paciente'}
+                                    {search.trim() ? `Cadastrar “${search.trim()}”` : `Cadastrar ${v.pessoa}`}
                                 </CommandItem>
                             </CommandGroup>
                         </CommandList>

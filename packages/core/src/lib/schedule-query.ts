@@ -1,4 +1,5 @@
 import prisma from '@venn/db/cliente'
+import { vocab } from './vocabulario'
 import { SCHEDULABLE_CATEGORIES } from './product-categories'
 import {
     calcularVagas,
@@ -16,13 +17,13 @@ import {
  * dois tornaria impossível exercitar o caso do feriado móvel sem semear banco.
  */
 
-/** Minutos reservados quando o compromisso não aponta para um procedimento. */
+/** Minutos reservados quando o compromisso não aponta para um servico. */
 const DURACAO_PADRAO = 30
 
 export interface VagasInput {
     workspaceId: string
     professionalId: string
-    /** O Item (procedimento) que se quer marcar. */
+    /** O Item (servico) que se quer marcar. */
     procedureId: string
     de: string
     ate: string
@@ -33,13 +34,13 @@ export interface VagasInput {
 }
 
 export type VagasResultado =
-    | { ok: true; vagas: Vaga[]; procedimento: { name: string; durationMinutes: number } }
+    | { ok: true; vagas: Vaga[]; servico: { name: string; durationMinutes: number } }
     | { ok: false; motivo: string }
 
 export async function buscarVagas(input: VagasInput): Promise<VagasResultado> {
     const { workspaceId, professionalId, procedureId, de, ate, paraAgente, agora } = input
 
-    const [especialista, procedimento] = await Promise.all([
+    const [profissional, servico] = await Promise.all([
         prisma.professional.findFirst({
             where: { id: professionalId, workspaceId, isActive: true },
             include: { windows: { include: { services: true } } },
@@ -50,16 +51,16 @@ export async function buscarVagas(input: VagasInput): Promise<VagasResultado> {
         }),
     ])
 
-    if (!especialista) return { ok: false, motivo: 'Especialista não encontrado ou inativo.' }
-    if (!procedimento) return { ok: false, motivo: 'Procedimento não encontrado.' }
-    if (!procedimento.durationMinutes) {
+    if (!profissional) return { ok: false, motivo: `${vocab().Profissional} não encontrado ou inativo.` }
+    if (!servico) return { ok: false, motivo: `${vocab().Servico} não encontrado.` }
+    if (!servico.durationMinutes) {
         return {
             ok: false,
-            motivo: `"${procedimento.name}" não tem duração cadastrada, então não dá para reservar o tempo dele.`,
+            motivo: `"${servico.name}" não tem duração cadastrada, então não dá para reservar o tempo dele.`,
         }
     }
 
-    const janelas: Janela[] = especialista.windows.map((w) => ({
+    const janelas: Janela[] = profissional.windows.map((w) => ({
         weekday: w.weekday,
         startTime: w.startTime,
         endTime: w.endTime,
@@ -68,13 +69,13 @@ export async function buscarVagas(input: VagasInput): Promise<VagasResultado> {
     }))
 
     if (janelas.length === 0) {
-        return { ok: false, motivo: `${especialista.name} ainda não tem horários cadastrados.` }
+        return { ok: false, motivo: `${profissional.name} ainda não tem horários cadastrados.` }
     }
 
     /**
      * O que já ocupa a agenda dele no período.
      *
-     * Só os compromissos **deste especialista**: a agenda de uma doutora não é
+     * Só os compromissos **deste profissional**: a agenda de uma doutora não é
      * afetada pelo que outra tem marcado.
      */
     const inicio = new Date(`${de}T00:00:00`)
@@ -143,7 +144,7 @@ export async function buscarVagas(input: VagasInput): Promise<VagasResultado> {
         excecoes,
         de,
         ate,
-        duracaoMinutos: procedimento.durationMinutes,
+        duracaoMinutos: servico.durationMinutes,
         ...(paraAgente ? { paraAgente: { procedureId } } : {}),
         ...(agora ? { agora } : {}),
     })
@@ -151,6 +152,6 @@ export async function buscarVagas(input: VagasInput): Promise<VagasResultado> {
     return {
         ok: true,
         vagas,
-        procedimento: { name: procedimento.name, durationMinutes: procedimento.durationMinutes },
+        servico: { name: servico.name, durationMinutes: servico.durationMinutes },
     }
 }

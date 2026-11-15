@@ -30,6 +30,8 @@ import {
     SelectValue,
 } from '@venn/ui/select'
 import { cn } from '@venn/ui/utils'
+import { useVocab } from '../../hooks/useVocab'
+import { comArtigo } from '../../lib/concordancia'
 
 /**
  * Conta da Clínica — a conta e as clínicas dela, numa guia.
@@ -116,7 +118,11 @@ interface FormUnidade {
     fusoHorario: string
 }
 
-export function ContaClinicaTab({ formId }: { formId: string }) {
+export function ContaDaUnidadeTab({ formId }: { formId: string }) {
+    // Palavras do nicho da unidade; `comArtigo` monta o determinante pelo
+    // gênero declarado na marca.
+    const v = useVocab()
+
     const [conta, setConta] = useState<Conta | null>(null)
     const [dados, setDados] = useState<Unidades | null>(null)
     const [carregando, setCarregando] = useState(true)
@@ -233,7 +239,7 @@ export function ContaClinicaTab({ formId }: { formId: string }) {
             return
         }
         if (formUnidade.name.trim().length < 2) {
-            toast.error('Dê um nome à clínica.')
+            toast.error(`Dê um nome ${comArtigo(v, 'organizacao', 'a')}.`)
             return
         }
         // 11 = CPF, 14 = CNPJ. Os dois valem; o que não vale é parar no meio.
@@ -289,7 +295,7 @@ export function ContaClinicaTab({ formId }: { formId: string }) {
                 })
                 if (!ru.ok) {
                     const erro = await ru.json().catch(() => ({}))
-                    toast.error(erro.error ?? 'Não foi possível salvar os dados da clínica')
+                    toast.error(erro.error ?? `Não foi possível salvar os dados ${comArtigo(v, 'organizacao', 'de')}`)
                     return
                 }
             }
@@ -557,7 +563,7 @@ export function ContaClinicaTab({ formId }: { formId: string }) {
                                     // eslint-disable-next-line @next/next/no-img-element
                                     <img
                                         src={formConta.logo}
-                                        alt="Logomarca da clínica"
+                                        alt={`Logomarca ${comArtigo(v, 'organizacao', 'de')}`}
                                         className="max-h-6 max-w-[150px] object-contain"
                                     />
                                 ) : (
@@ -805,7 +811,7 @@ export function ContaClinicaTab({ formId }: { formId: string }) {
                                     `até a renovação; depois dela a conta comporta ${u.maxDepois} ` +
                                     `unidade${u.maxDepois === 1 ? '' : 's'}.`
                                   : '')
-                            : 'Cada clínica tem pacientes, agenda e conversas próprios.'
+                            : `Cada ${v.organizacao} tem ${v.pessoas}, agenda e conversas próprios.`
                     }
                     aside={
                         u ? (
@@ -892,10 +898,10 @@ export function ContaClinicaTab({ formId }: { formId: string }) {
                                             <div className="border-t border-border/60 px-3.5 py-3">
                                                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-[1fr_1.5fr_.85fr_1.15fr]">
                                                     <FormField
-                                                        label="Nome da clínica"
+                                                        label={`Nome ${comArtigo(v, 'organizacao', 'de')}`}
                                                         htmlFor={`nome-${unidade.id}`}
                                                         required
-                                                        hint="É como ela aparece no seletor de clínicas."
+                                                        hint={`É como aparece no seletor ${comArtigo(v, 'organizacoes', 'de')}.`}
                                                     >
                                                         <Input
                                                             id={`nome-${unidade.id}`}
@@ -956,7 +962,7 @@ export function ContaClinicaTab({ formId }: { formId: string }) {
                                                     <FormField
                                                         label="Fuso horário"
                                                         htmlFor={`fuso-${unidade.id}`}
-                                                        hint="O que é “hoje” para esta clínica."
+                                                        hint={`O que é “hoje” para ${comArtigo(v, 'organizacao', 'este')}.`}
                                                     >
                                                         <Select
                                                             value={formUnidade.fusoHorario}
@@ -999,7 +1005,7 @@ export function ContaClinicaTab({ formId }: { formId: string }) {
                                                         <span className="num">{unidade.usuarios}</span>{' '}
                                                         usuário{unidade.usuarios === 1 ? '' : 's'} ·{' '}
                                                         <span className="num">{unidade.pacientes}</span>{' '}
-                                                        paciente{unidade.pacientes === 1 ? '' : 's'} ·{' '}
+                                                        {unidade.pacientes === 1 ? v.pessoa : v.pessoas} ·{' '}
                                                         <span className="num">{unidade.agentes}</span>{' '}
                                                         agente{unidade.agentes === 1 ? '' : 's'}
                                                     </p>
@@ -1018,11 +1024,11 @@ export function ContaClinicaTab({ formId }: { formId: string }) {
                                                                 {trocando === unidade.id ? (
                                                                     <Loader2 className="size-3.5 animate-spin" />
                                                                 ) : null}
-                                                                Trabalhar nesta clínica
+                                                                Trabalhar {comArtigo(v, 'organizacao', 'em')}
                                                             </Button>
                                                         ) : (
                                                             <span className="text-xs text-muted-foreground">
-                                                                Você não participa desta clínica
+                                                                Você não participa {comArtigo(v, 'organizacao', 'de')}
                                                             </span>
                                                         )
                                                     ) : null}
@@ -1050,7 +1056,7 @@ export function ContaClinicaTab({ formId }: { formId: string }) {
                 open={criando}
                 onOpenChange={setCriando}
                 title="Nova unidade"
-                description="A clínica nasce vazia, com você dentro. O que já existe aqui não é copiado."
+                description={`${comArtigo(v, 'Organizacao')} começa sem nada dentro, só com você. O que já existe aqui não é copiado.`}
                 submitLabel="Criar unidade"
                 submitting={salvando}
                 submitDisabled={nomeNova.trim().length < 2}
@@ -1061,7 +1067,7 @@ export function ContaClinicaTab({ formId }: { formId: string }) {
                     <Input
                         value={nomeNova}
                         onChange={(e) => setNomeNova(e.target.value)}
-                        placeholder="Clínica Centro"
+                        placeholder={`${v.Organizacao} Centro`}
                         maxLength={80}
                         autoFocus
                     />

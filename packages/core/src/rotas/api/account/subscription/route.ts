@@ -1,6 +1,6 @@
 import {
     CREDIT_PACKS,
-    PLAN_LIST,
+    planList,
     TRIAL,
     TREINAMENTO_DE_AGENTE,
     UNIDADE_ADICIONAL,
@@ -67,8 +67,16 @@ import { usuarioDaSessao } from '@venn/core/lib/auth/sessao'
  * channel row, which cannot be serialised, so the client imports those directly
  * and only the data travels.
  */
-const PLANS = Object.fromEntries(
-    PLAN_LIST.map((p) => [
+/*
+ * Função memoizada, e não constante: `planList()` lê a marca pelo vocabulário
+ * das descrições, e `BRAND()` é fail-fast. Uma constante aqui é avaliada quando
+ * a Cloudflare VALIDA o script — sem requisição e sem marca registrada — e a
+ * publicação reprova com `MarcaNaoRegistradaError`. O `check:marca-tardia`
+ * pegou isto no instante em que o vocabulário entrou em `lib/plans.ts`.
+ */
+function montarPlanosJson() {
+    return Object.fromEntries(
+    planList().map((p) => [
         p.id,
         {
             name: p.name,
@@ -105,6 +113,13 @@ const PLANS = Object.fromEntries(
         },
     ])
 )
+}
+
+let planosJsonCache: ReturnType<typeof montarPlanosJson> | null = null
+function planosJson() {
+    if (planosJsonCache === null) planosJsonCache = montarPlanosJson()
+    return planosJsonCache
+}
 
 /**
  * O catálogo do treinamento, como a tela o recebe.
@@ -227,7 +242,7 @@ export async function GET() {
                 spokenRepliesUsed: 0,
                 paymentMethod: null,
                 trialEndsAt: null,
-                plans: PLANS,
+                plans: planosJson(),
                 trial: TRIAL,
                 creditPacks: CREDIT_PACKS,
                 treinamento: treinamentoParaATela(),
@@ -376,7 +391,7 @@ export async function GET() {
                 ? await regimeDaConta(accountId)
                 : { precisaPagar: true, motivo: null, a_partir_de: null },
             pastDueSince: subscription.pastDueSince,
-            plans: PLANS,
+            plans: planosJson(),
             creditPacks: CREDIT_PACKS,
             treinamento: treinamentoParaATela(),
             /**
@@ -525,7 +540,7 @@ export async function POST(request: NextRequest) {
                     )
                 }
 
-                const planConfig = PLANS[plan]
+                const planConfig = planosJson()[plan]
 
                 const accountId = await accountIdOf(workspaceUser.workspaceId)
                 if (!accountId) {

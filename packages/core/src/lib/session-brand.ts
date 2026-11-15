@@ -1,6 +1,7 @@
 import prisma from '@venn/db/cliente'
 import { getWorkspaceMember } from './auth/workspace'
 import { lerFusoDasConfiguracoes } from './fuso-da-unidade'
+import { vocab, type Vocabulario } from './vocabulario'
 
 /**
  * A marca da sessão: em que clínica se está, de qual conta, e a logo da conta.
@@ -50,6 +51,18 @@ export interface MarcaDaSessao {
      * dispara `workspace:updated`, e os rótulos trocam sem recarregar.
      */
     fuso: string
+    /**
+     * As palavras do nicho, já resolvidas para esta unidade.
+     *
+     * Viaja aqui pela mesma razão do fuso e da moeda: precisa estar no
+     * **primeiro paint**. Buscada no cliente, uma listagem nasceria escrita com
+     * a palavra padrão da marca e trocaria um quadro depois — e trocar o
+     * substantivo de uma coluna à vista lê como defeito, não como carregamento.
+     *
+     * Resolvido no servidor de propósito: é aqui que `Workspace.settings`
+     * existe. O cliente recebe o resultado, não as duas camadas.
+     */
+    vocabulario: Vocabulario
 }
 
 /**
@@ -114,5 +127,6 @@ async function lerMarca(): Promise<MarcaDaSessao | null> {
         currency: workspace.account.currency,
         unidades: participacoes.map((p) => p.workspace),
         fuso: lerFusoDasConfiguracoes(workspace.settings),
+        vocabulario: vocab(workspace.settings),
     }
 }

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import prisma from '@venn/db/cliente'
 import { PERMISSION_DENIED, getWorkspaceMember, hasEditorRole } from '@venn/core/lib/auth/workspace'
+import { vocab } from '@venn/core/lib/vocabulario'
+import { comArtigo } from '@venn/core/lib/concordancia'
 
 const patchSchema = z.object({
     name: z.string().trim().min(1).max(120).optional(),
@@ -11,7 +13,15 @@ const patchSchema = z.object({
     userId: z.string().nullable().optional(),
 })
 
-/** Confirma que o especialista é desta clínica antes de qualquer coisa. */
+/*
+ * `vocab()` sem argumento: o PADRÃO da marca, não o ajuste da unidade.
+ *
+ * Esta é rota de API, e buscar `Workspace.settings` só para escrever a palavra
+ * de uma mensagem de erro custaria uma consulta por 404. O padrão da marca é a
+ * palavra do nicho deste produto — o override por unidade é raro, e onde ele
+ * importa de verdade (a tela) o vocabulário já desce resolvido.
+ */
+/** Confirma que o profissional é desta unidade antes de qualquer coisa. */
 async function doWorkspace(id: string, workspaceId: string) {
     return prisma.professional.findFirst({ where: { id, workspaceId }, select: { id: true } })
 }
@@ -21,7 +31,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     const auth = await getWorkspaceMember()
     if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
-    const especialista = await prisma.professional.findFirst({
+    const profissional = await prisma.professional.findFirst({
         where: { id, workspaceId: auth.member.workspaceId },
         include: {
             user: { select: { name: true } },
@@ -37,19 +47,19 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
             },
         },
     })
-    if (!especialista) {
-        return NextResponse.json({ error: 'Especialista não encontrado' }, { status: 404 })
+    if (!profissional) {
+        return NextResponse.json({ error: `${vocab().Profissional} não encontrado` }, { status: 404 })
     }
 
     return NextResponse.json({
-        id: especialista.id,
-        name: especialista.name,
-        specialty: especialista.specialty,
-        color: especialista.color,
-        isActive: especialista.isActive,
-        userId: especialista.userId,
-        userName: especialista.user?.name ?? null,
-        windows: especialista.windows.map((w) => ({
+        id: profissional.id,
+        name: profissional.name,
+        specialty: profissional.specialty,
+        color: profissional.color,
+        isActive: profissional.isActive,
+        userId: profissional.userId,
+        userName: profissional.user?.name ?? null,
+        windows: profissional.windows.map((w) => ({
             id: w.id,
             weekday: w.weekday,
             startTime: w.startTime,
@@ -72,7 +82,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         return NextResponse.json({ error: PERMISSION_DENIED }, { status: 403 })
     }
     if (!(await doWorkspace(id, auth.member.workspaceId))) {
-        return NextResponse.json({ error: 'Especialista não encontrado' }, { status: 404 })
+        return NextResponse.json({ error: `${vocab().Profissional} não encontrado` }, { status: 404 })
     }
 
     const parsed = patchSchema.safeParse(await request.json().catch(() => ({})))
@@ -96,7 +106,7 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
         return NextResponse.json({ error: PERMISSION_DENIED }, { status: 403 })
     }
     if (!(await doWorkspace(id, auth.member.workspaceId))) {
-        return NextResponse.json({ error: 'Especialista não encontrado' }, { status: 404 })
+        return NextResponse.json({ error: `${vocab().Profissional} não encontrado` }, { status: 404 })
     }
 
     /**
@@ -113,7 +123,7 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
         return NextResponse.json({
             deactivated: true,
             message:
-                `Este especialista tem ${compromissos} compromisso(s) na agenda, então foi ` +
+                `${comArtigo(vocab(), 'Profissional', 'este')} tem ${compromissos} compromisso(s) na agenda, então foi ` +
                 'desativado em vez de excluído — o histórico continua dizendo quem atendeu.',
         })
     }

@@ -70,7 +70,7 @@ const VAZIO = {
     blocks: true,
 }
 
-export function AgendaClinicaTab() {
+export function AgendaDaUnidadeTab() {
     const { canEdit } = usePermissions()
     const [ano, setAno] = useState(new Date().getFullYear())
     const [feriados, setFeriados] = useState<Feriado[]>([])

@@ -3,7 +3,7 @@
 import { Check, GraduationCap, Sparkles } from 'lucide-react'
 
 import { Badge } from '@venn/ui/badge'
-import { PLAN_LIST, TREINAMENTO_DE_AGENTE, TRIAL, formatPrice, redesDoPlano } from '../../lib/plans'
+import { planList, TREINAMENTO_DE_AGENTE, TRIAL, formatPrice, redesDoPlano } from '../../lib/plans'
 import {
     CICLOS,
     mensalEquivalente,
@@ -98,7 +98,7 @@ export function Step2Plan({ data, updateData }: Step2PlanProps) {
             </div>
 
             <div className="grid gap-3 sm:grid-cols-3">
-                {PLAN_LIST.map((plan) => {
+                {planList().map((plan) => {
                     const selected = data.plan === plan.id
                     const porMes = mensalEquivalente(plan.id, 0, data.cycle)
                     const ganhaTreinamento = treinamentoIncluido(plan.id, data.cycle) > 0

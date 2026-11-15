@@ -124,6 +124,8 @@ import { ptBR } from 'date-fns/locale'
 import { assinarTempoReal } from '@venn/core/lib/realtime/assinatura'
 import { ConfirmDialog } from '@venn/core/components/shared/ConfirmDialog'
 import { DEFAULT_ENTITY_COLOR } from '@venn/core/lib/palette'
+import { useVocab } from '@venn/core/hooks/useVocab'
+import { comArtigo } from '@venn/core/lib/concordancia'
 
 
 /** Corpo do POST de mensagem; os dois últimos campos são condicionais. */
@@ -502,6 +504,10 @@ function mediaIcon(contentType: string) {
 }
 
 export default function ConversasPage() {
+    // Palavras do nicho da unidade. `comArtigo` monta o determinante pelo
+    // gênero da marca; frase com particípio foi reescrita em forma neutra.
+    const v = useVocab()
+
     // Só dono e administrador reconectam uma linha; o aviso de linha fora do ar
     // muda de destinatário por isso.
     const { canManage } = usePermissions()
@@ -770,11 +776,11 @@ export default function ConversasPage() {
               : `nesta fase há ${stageDays} ${stageDays === 1 ? 'dia' : 'dias'}`
 
     const PANEL_TITLES: Record<PanelMode, string> = {
-        summary: 'Resumo do paciente',
+        summary: `Resumo ${comArtigo(v, 'pessoa', 'de')}`,
         schedule: 'Agendar atividade',
-        activities: 'Atividades do paciente',
+        activities: `Atividades ${comArtigo(v, 'pessoa', 'de')}`,
         files: 'Arquivos da conversa',
-        journey: 'Jornada do paciente',
+        journey: `Jornada ${comArtigo(v, 'pessoa', 'de')}`,
         notes: 'Notas internas',
     }
 
@@ -1377,8 +1383,8 @@ export default function ConversasPage() {
      * it narrows the same popover to the clinic's saved answers.
      */
     const SLASH_COMMANDS: { id: string; command: string; label: string; run: () => void }[] = [
-        { id: 'resposta', command: '/resposta', label: 'Respostas rápidas da clínica', run: () => { setSlashPage('replies'); setQuickSearch(''); setSlashIndex(0) } },
-        { id: 'agendar', command: '/agendar', label: 'Agendar atividade para este paciente', run: runScheduling },
+        { id: 'resposta', command: '/resposta', label: `Respostas rápidas ${comArtigo(v, 'organizacao', 'de')}`, run: () => { setSlashPage('replies'); setQuickSearch(''); setSlashIndex(0) } },
+        { id: 'agendar', command: '/agendar', label: `Agendar atividade para ${comArtigo(v, 'pessoa', 'este')}`, run: runScheduling },
         { id: 'assumir', command: '/assumir', label: 'Assumir esta conversa', run: () => { replaceSlashToken(''); void handleAction('assign') } },
     ]
 
@@ -1704,7 +1710,7 @@ export default function ConversasPage() {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    title: conv.contact.name || conv.contact.phone || 'Novo paciente',
+                    title: conv.contact.name || conv.contact.phone || `${v.Pessoa} sem nome`,
                     stageId: first.id,
                     contactId: conv.contact.id,
                     // O dono é quem está na conversa: quem já é responsável por
@@ -2093,7 +2099,7 @@ export default function ConversasPage() {
                         <div className="relative flex-1">
                             <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
                             <Input
-                                placeholder="Buscar paciente ou mensagem"
+                                placeholder={`Buscar ${v.pessoa} ou mensagem`}
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
                                 className="h-8 bg-muted/50 pl-8 text-xs"
@@ -2691,10 +2697,10 @@ export default function ConversasPage() {
                                                 </TooltipTrigger>
                                                 <TooltipContent>
                                                     {conv.line.status === 'connected'
-                                                        ? 'O paciente recebe suas mensagens por este número.'
+                                                        ? `${comArtigo(v, 'Pessoa')} recebe suas mensagens por este número.`
                                                         : canManage
-                                                          ? 'Este número está desconectado: nada que você enviar daqui chega ao paciente, e as mensagens dele não entram. Reconecte em Agentes de IA → Integrações.'
-                                                          : 'Este número está desconectado: nada que você enviar daqui chega ao paciente, e as mensagens dele não entram. Avise um administrador para reconectá-lo.'}
+                                                          ? `Este número está desconectado: nada que você enviar daqui chega ${comArtigo(v, 'pessoa', 'a')}, e as mensagens de volta não entram. Reconecte em Agentes de IA → Integrações.`
+                                                          : `Este número está desconectado: nada que você enviar daqui chega ${comArtigo(v, 'pessoa', 'a')}, e as mensagens de volta não entram. Avise um administrador para reconectá-lo.`}
                                                 </TooltipContent>
                                             </Tooltip>
                                         ) : null}
@@ -2948,12 +2954,12 @@ export default function ConversasPage() {
                                                     className={cn(panel === 'summary' && PANEL_ON)}
                                                     pressed={panel === 'summary'}
                                                     onPressedChange={() => togglePanel('summary')}
-                                                    aria-label="Resumo do paciente"
+                                                    aria-label={`Resumo ${comArtigo(v, 'pessoa', 'de')}`}
                                                 >
                                                     <Sparkles className="size-3.5" />
                                                 </Toggle>
                                             </TooltipTrigger>
-                                            <TooltipContent>Resumo do paciente</TooltipContent>
+                                            <TooltipContent>Resumo {comArtigo(v, 'pessoa', 'de')}</TooltipContent>
                                         </Tooltip>
 
                                         <Tooltip>
@@ -2978,12 +2984,12 @@ export default function ConversasPage() {
                                                     className={cn(panel === 'activities' && PANEL_ON)}
                                                     pressed={panel === 'activities'}
                                                     onPressedChange={() => togglePanel('activities')}
-                                                    aria-label="Atividades do paciente"
+                                                    aria-label={`Atividades ${comArtigo(v, 'pessoa', 'de')}`}
                                                 >
                                                     <ListTodo className="size-3.5" />
                                                 </Toggle>
                                             </TooltipTrigger>
-                                            <TooltipContent>Atividades do paciente</TooltipContent>
+                                            <TooltipContent>Atividades {comArtigo(v, 'pessoa', 'de')}</TooltipContent>
                                         </Tooltip>
                                         {/* Etiquetas — Popover, não div com z-50:
                                             o primitivo trata Esc, clique fora,
@@ -3060,7 +3066,7 @@ export default function ConversasPage() {
                                                     className={cn(panel === 'journey' && PANEL_ON)}
                                                     pressed={panel === 'journey'}
                                                     onPressedChange={() => togglePanel('journey')}
-                                                    aria-label="Jornada do paciente"
+                                                    aria-label={`Jornada ${comArtigo(v, 'pessoa', 'de')}`}
                                                 >
                                                     {/* `Route` e não `PanelRight`: o ícone
                                                         dizia "abre um painel", não o que o
@@ -3068,7 +3074,7 @@ export default function ConversasPage() {
                                                     <Route className="size-3.5" />
                                                 </Toggle>
                                             </TooltipTrigger>
-                                            <TooltipContent>Jornada do paciente</TooltipContent>
+                                            <TooltipContent>Jornada {comArtigo(v, 'pessoa', 'de')}</TooltipContent>
                                         </Tooltip>
 
                                         <Tooltip>
@@ -3229,7 +3235,7 @@ export default function ConversasPage() {
                                                                     'font-semibold block text-[10px]',
                                                                     isInbound ? 'text-primary' : 'opacity-80'
                                                                 )}>
-                                                                    {msg.replyTo.direction === 'inbound' ? '👤 Paciente' : '🤖 Agente'}
+                                                                    {msg.replyTo.direction === 'inbound' ? `👤 ${v.Pessoa}` : '🤖 Agente'}
                                                                 </span>
                                                                 <p className="truncate opacity-80">{semMarcacao(msg.replyTo.content)}</p>
                                                             </div>
@@ -3554,7 +3560,7 @@ export default function ConversasPage() {
                                         heading={PANEL_TITLES[panel]}
                                         onClose={() => setPanel(null)}
                                         onEditFull={conv.contact?.id ? () => router.push(`/vendas/clientes?open=${conv.contact.id}`) : undefined}
-                                        editLabel="Abrir a ficha do paciente"
+                                        editLabel={`Abrir a ficha ${comArtigo(v, 'pessoa', 'de')}`}
                                         hint="Esc fecha"
                                         /* No celular o painel toma a tela, que é o padrão da
                                            própria conversa ali. De 768 para cima ele é coluna,
@@ -3578,7 +3584,7 @@ export default function ConversasPage() {
                                                 <ActivityForm
                                                     key={conv.id}
                                                     contactId={conv.contact.id}
-                                                    contactName={conv.contact.name || conv.contact.phone || 'paciente'}
+                                                    contactName={conv.contact.name || conv.contact.phone || v.pessoa}
                                                     dealId={conv.openDeal?.id ?? null}
                                                     dealTitle={conv.openDeal?.title ?? null}
                                                     onScheduled={({ date, time }) => {
@@ -3731,7 +3737,7 @@ export default function ConversasPage() {
                                                         </>
                                                     ) : (
                                                         <div className="rounded-md border border-dashed border-border px-3 py-3 text-center">
-                                                            <p className="text-xs text-muted-foreground">Nenhum negócio aberto para este paciente.</p>
+                                                            <p className="text-xs text-muted-foreground">Nenhum negócio aberto para {comArtigo(v, 'pessoa', 'este')}.</p>
                                                             <Button size="sm" variant="outline" className="mt-2 text-xs" onClick={createDealForContact} disabled={creatingDeal}>
                                                                 {creatingDeal ? 'Criando…' : 'Abrir negócio'}
                                                             </Button>

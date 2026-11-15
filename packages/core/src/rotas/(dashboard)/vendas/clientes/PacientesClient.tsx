@@ -39,6 +39,8 @@ import { formatPhone, nationalDigits, phoneIssue } from '@venn/core/lib/phone'
 import { MASKS, dateFromMask, maskDigitsFromIso, prettyPhone } from '@venn/core/lib/masks'
 import { useIndiceServidor } from '@venn/core/hooks/useIndiceServidor'
 import { LIMITE_PADRAO, type DadosIniciais, type PacienteDaLista } from './dados'
+import { useVocab } from '@venn/core/hooks/useVocab'
+import { comArtigo } from '@venn/core/lib/concordancia'
 import { MaskedInput } from '@venn/core/components/shared/MaskedInput'
 import { RecordDialog, SummaryCard, SummaryNotice } from '@venn/core/components/shared/RecordDialog'
 import { FormField } from '@venn/core/components/shared/FormField'
@@ -99,6 +101,15 @@ const DEAL_FILTER_OPTIONS = [
 
 // ─── Main Component ─────────────────────────────────────────────────
 export function PacientesClient({ inicial }: { inicial: DadosIniciais }) {
+    /*
+     * As palavras do nicho vêm da unidade. Onde a frase tem determinante,
+     * `comArtigo` o monta a partir do gênero declarado na marca — trocar só o
+     * substantivo escreveria "a estúdio". Onde há adjetivo ou particípio
+     * ("Paciente atualizado"), a frase foi reescrita em forma neutra, que é
+     * mais simples que concordar adjetivo e é melhor português.
+     */
+    const v = useVocab()
+
     // Presentation only — the API enforces the same rule. Without this an
     // ATENDENTE would see Delete controls that answer 403.
     const { canEdit } = usePermissions()
@@ -248,7 +259,7 @@ export function PacientesClient({ inicial }: { inicial: DadosIniciais }) {
     const openEdit = async (id: string) => {
         try {
             const res = await fetch(`/api/contacts/${id}`)
-            if (!res.ok) { toast.error('Não foi possível abrir o paciente'); return }
+            if (!res.ok) { toast.error(`Não foi possível abrir ${comArtigo(v, 'pessoa')}`); return }
             const c: Contact = await res.json()
             setEditingId(id)
             setFormData({ name: c.name ?? '', email: c.email ?? '', phone: nationalDigits(c.phone), notes: c.notes ?? '', originId: c.origin?.id ?? '' })
@@ -256,7 +267,7 @@ export function PacientesClient({ inicial }: { inicial: DadosIniciais }) {
             setCustomFieldValues(c.customFields ?? {})
             setErrors({}); setClash(null); setClashDismissed(false)
             setIsDialogOpen(true)
-        } catch { toast.error('Não foi possível abrir o paciente') }
+        } catch { toast.error(`Não foi possível abrir ${comArtigo(v, 'pessoa')}`) }
     }
 
     // O telefone é o que reencontra o paciente quando a mensagem chega — então,
@@ -283,7 +294,7 @@ export function PacientesClient({ inicial }: { inicial: DadosIniciais }) {
     const handleSave = async (again: boolean) => {
         const name = formData.name.trim()
         const next: typeof errors = {}
-        if (!name) next.name = 'Dê um nome ao paciente.'
+        if (!name) next.name = `Dê um nome ${comArtigo(v, 'pessoa', 'a')}.`
         const issue = phoneIssue(formData.phone)
         if (!formData.phone.trim()) next.phone = 'Informe o telefone, com DDD.'
         else if (issue) next.phone = issue
@@ -302,7 +313,7 @@ export function PacientesClient({ inicial }: { inicial: DadosIniciais }) {
             const res = await fetch(editingId ? `/api/contacts/${editingId}` : '/api/contacts', { method: editingId ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
             if (res.ok) {
                 const created = await res.json().catch(() => null)
-                toast.success(editingId ? 'Paciente atualizado' : 'Paciente criado')
+                toast.success(editingId ? 'Cadastro atualizado' : 'Cadastro criado')
                 setErrors({})
                 if (editingId) {
                     setIsDialogOpen(false)
@@ -316,20 +327,20 @@ export function PacientesClient({ inicial }: { inicial: DadosIniciais }) {
                 void recarregar()
             } else {
                 const data = await res.json().catch(() => ({}))
-                const msg: string = data.error || 'Não foi possível criar o paciente'
+                const msg: string = data.error || `Não foi possível criar ${comArtigo(v, 'pessoa')}`
                 // O choque de telefone volta para o campo que o causou.
                 if (/telefone/i.test(msg)) setErrors({ phone: msg })
                 else toast.error(msg)
             }
-        } catch { toast.error('Não foi possível criar o paciente') } finally { setSubmitting(false) }
+        } catch { toast.error(`Não foi possível criar ${comArtigo(v, 'pessoa')}`) } finally { setSubmitting(false) }
     }
 
     const handleDelete = async (id: string) => {
         try {
             const res = await fetch(`/api/contacts/${id}`, { method: 'DELETE' })
-            if (res.ok) { toast.success('Paciente excluído'); void recarregar() }
-            else toast.error('Erro ao excluir paciente')
-        } catch { toast.error('Erro ao excluir paciente') }
+            if (res.ok) { toast.success('Cadastro excluído'); void recarregar() }
+            else toast.error(`Erro ao excluir ${comArtigo(v, 'pessoa')}`)
+        } catch { toast.error(`Erro ao excluir ${comArtigo(v, 'pessoa')}`) }
     }
 
     // ─── Export ──────────────────────────────────────────────────────
@@ -499,14 +510,14 @@ export function PacientesClient({ inicial }: { inicial: DadosIniciais }) {
         const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' })
         const url = URL.createObjectURL(blob)
         const a = document.createElement('a')
-        a.href = url; a.download = `pacientes_selecionados_${new Date().toISOString().split('T')[0]}.csv`
+        a.href = url; a.download = `${v.pessoas}_selecionados_${new Date().toISOString().split('T')[0]}.csv`
         a.click(); URL.revokeObjectURL(url)
         toast.success(`${rows.length} exportado${rows.length === 1 ? '' : 's'}`)
     }
 
     const deleteSelected = async () => {
         const ok = await deleteEach(selectedIds, (id) => `/api/contacts/${id}`)
-        if (ok > 0) toast.success(`${ok} paciente${ok === 1 ? '' : 's'} excluído${ok === 1 ? '' : 's'}`)
+        if (ok > 0) toast.success(`${ok} registro${ok === 1 ? '' : 's'} excluído${ok === 1 ? '' : 's'}`)
         if (ok < selectedIds.length) toast.error(`${selectedIds.length - ok} não puderam ser excluídos`)
         if (selectedIds.includes(openId ?? '')) setOpenId(null)
         setSelectedIds([])
@@ -599,7 +610,7 @@ export function PacientesClient({ inicial }: { inicial: DadosIniciais }) {
     return (
         <>
             <IndexFrame
-                title="Pacientes"
+                title={v.Pessoas}
                 actions={
                     <>
                         <Button variant="outline" size="sm" className="h-8 gap-1.5" onClick={() => { setShowImportDialog(true); setImportStep('upload') }}>
@@ -612,7 +623,7 @@ export function PacientesClient({ inicial }: { inicial: DadosIniciais }) {
                 }
                 primary={
                     <Button size="sm" className="h-8 gap-1.5" onClick={openNew}>
-                        <Plus className="size-3.5" /> Novo paciente
+                        <Plus className="size-3.5" /> Adicionar {v.pessoa}
                     </Button>
                 }
                 search={search}
@@ -687,7 +698,7 @@ export function PacientesClient({ inicial }: { inicial: DadosIniciais }) {
                     selected={selectedIds}
                     onSelectedChange={setSelectedIds}
                     bulkActions={(ids) => (
-                        <BulkBar count={ids.length} noun={['paciente', 'pacientes']} onDelete={() => setBulkDeleting(true)} onClear={() => setSelectedIds([])}>
+                        <BulkBar count={ids.length} noun={[v.pessoa, v.pessoas]} onDelete={() => setBulkDeleting(true)} onClear={() => setSelectedIds([])}>
                             <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-background hover:bg-background/10 hover:text-background" onClick={() => exportSelected(ids)}>
                                 <Download className="size-3.5" /> Exportar
                             </Button>
@@ -703,7 +714,7 @@ export function PacientesClient({ inicial }: { inicial: DadosIniciais }) {
                     onRowClick={c => setOpenId(c.id)}
                     mobile={ContactRowCard}
                     rowActions={c => (
-                        <RowActions label={`Ações de ${c.name || 'paciente'}`}>
+                        <RowActions label={`Ações de ${c.name || v.pessoa}`}>
                             <RowActionItem icon={Pencil} onClick={() => setOpenId(c.id)}>
                                 Abrir ficha
                             </RowActionItem>
@@ -726,7 +737,7 @@ export function PacientesClient({ inicial }: { inicial: DadosIniciais }) {
                         <EmptyState
                             variant="inline"
                             icon={User}
-                            title={search || activeFilterCount ? 'Nenhum paciente encontrado' : 'Nenhum paciente ainda'}
+                            title={search || activeFilterCount ? 'Nenhum resultado' : `Ainda não há ${v.pessoas}`}
                             description={
                                 search || activeFilterCount
                                     ? 'Tente outro termo ou limpe os filtros.'
@@ -734,7 +745,7 @@ export function PacientesClient({ inicial }: { inicial: DadosIniciais }) {
                             }
                             action={
                                 !search && !activeFilterCount ? (
-                                    <Button onClick={openNew}><Plus /> Novo paciente</Button>
+                                    <Button onClick={openNew}><Plus /> Adicionar {v.pessoa}</Button>
                                 ) : null
                             }
                         />
@@ -756,9 +767,9 @@ export function PacientesClient({ inicial }: { inicial: DadosIniciais }) {
             <RecordDialog
                 open={isDialogOpen}
                 onOpenChange={setIsDialogOpen}
-                title={editingId ? 'Editar paciente' : 'Novo paciente'}
+                title={editingId ? `Editar ${v.pessoa}` : `Adicionar ${v.pessoa}`}
                 description="O telefone é o que liga a conversa ao cadastro."
-                submitLabel={editingId ? 'Salvar paciente' : 'Criar paciente'}
+                submitLabel={editingId ? 'Salvar' : `Criar ${v.pessoa}`}
                 hideAgain={editingId !== null}
                 onSubmit={handleSave}
                 submitting={submitting}
@@ -769,7 +780,7 @@ export function PacientesClient({ inicial }: { inicial: DadosIniciais }) {
                                 <AvatarFallback className="bg-muted text-[10px] font-bold text-muted-foreground">{getInitials(formData.name) || '?'}</AvatarFallback>
                             </Avatar>
                             <span className="min-w-0">
-                                <span className="block truncate text-[12.5px] font-semibold">{formData.name.trim() || 'Nome do paciente'}</span>
+                                <span className="block truncate text-[12.5px] font-semibold">{formData.name.trim() || `Nome ${comArtigo(v, 'pessoa', 'de')}`}</span>
                                 <span className="num block text-[11px] text-muted-foreground">{prettyPhone(formData.phone) || '(00) 00000-0000'}</span>
                             </span>
                         </SummaryCard>
@@ -781,7 +792,7 @@ export function PacientesClient({ inicial }: { inicial: DadosIniciais }) {
                             <SummaryNotice>
                                 <span className="flex items-start gap-1.5">
                                     <AlertCircle className="mt-0.5 size-3.5 shrink-0" />
-                                    <span><strong>Parece já existir.</strong> {clash.name || 'Um paciente'} usa o mesmo telefone desde {shortDate(clash.createdAt.slice(0, 10))}.</span>
+                                    <span><strong>Parece já existir.</strong> {clash.name || comArtigo(v, 'Pessoa', 'um')} usa o mesmo telefone desde {shortDate(clash.createdAt.slice(0, 10))}.</span>
                                 </span>
                                 <span className="mt-2 flex gap-3">
                                     <button type="button" className="font-semibold underline-offset-2 hover:underline" onClick={() => { setIsDialogOpen(false); setOpenId(clash.id) }}>Abrir a ficha</button>
@@ -793,7 +804,7 @@ export function PacientesClient({ inicial }: { inicial: DadosIniciais }) {
                 }
             >
                 <FormField label="Nome" htmlFor="ct-name" required error={errors.name} className="col-span-2">
-                    <Input id="ct-name" value={formData.name} onChange={e => { setFormData(p => ({ ...p, name: e.target.value })); if (errors.name) setErrors(p => ({ ...p, name: undefined })) }} placeholder="Nome do paciente" aria-invalid={errors.name ? true : undefined} autoFocus />
+                    <Input id="ct-name" value={formData.name} onChange={e => { setFormData(p => ({ ...p, name: e.target.value })); if (errors.name) setErrors(p => ({ ...p, name: undefined })) }} placeholder={`Nome ${comArtigo(v, 'pessoa', 'de')}`} aria-invalid={errors.name ? true : undefined} autoFocus />
                 </FormField>
 
                 <FormField label="Telefone" htmlFor="ct-phone" required error={errors.phone} hint="Com DDD. É por ele que a conversa chega.">
@@ -803,7 +814,7 @@ export function PacientesClient({ inicial }: { inicial: DadosIniciais }) {
                 {/* Sem `required`: origem que ninguém sabe fica em branco. Obrigar
                   * a escolher aqui produz "Manual" em toda ficha, que é o
                   * mesmo que não ter o campo. */}
-                <FormField label="Origem" htmlFor="ct-origin" hint="O que trouxe o paciente. Em branco quando não se sabe.">
+                <FormField label="Origem" htmlFor="ct-origin" hint={`O que trouxe ${comArtigo(v, 'pessoa')}. Em branco quando não se sabe.`}>
                     <Select value={formData.originId || 'none'} onValueChange={v => setFormData(p => ({ ...p, originId: v === 'none' ? '' : v }))}>
                         <SelectTrigger id="ct-origin" className="w-full"><SelectValue /></SelectTrigger>
                         <SelectContent>
@@ -927,12 +938,12 @@ export function PacientesClient({ inicial }: { inicial: DadosIniciais }) {
             {/* ═══ Import Dialog ═══ */}
             <Dialog open={showImportDialog} onOpenChange={setShowImportDialog}>
                 <DialogContent className="!w-[80vw] !max-w-[900px] max-h-[85vh] overflow-y-auto bg-card border-border text-foreground">
-                    <DialogHeader><DialogTitle>Importar pacientes</DialogTitle></DialogHeader>
+                    <DialogHeader><DialogTitle>Importar {v.pessoas}</DialogTitle></DialogHeader>
 
                     {importStep === 'upload' && (
                         <div className="py-8 text-center">
                             <Upload className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                            <p className="text-muted-foreground mb-4">Selecione um arquivo CSV com os pacientes a importar</p>
+                            <p className="text-muted-foreground mb-4">Selecione um arquivo CSV com {comArtigo(v, 'pessoas')} a importar</p>
                             <input ref={fileInputRef} type="file" accept=".csv" onChange={handleFileUpload} className="hidden" />
                             <Button onClick={() => fileInputRef.current?.click()} >Selecionar arquivo CSV</Button>
                             <p className="text-xs text-muted-foreground mt-3">Colunas esperadas: Nome, E-mail, Telefone, Observações</p>
@@ -941,7 +952,7 @@ export function PacientesClient({ inicial }: { inicial: DadosIniciais }) {
 
                     {importStep === 'mapping' && (
                         <div className="space-y-4">
-                            <p className="text-sm text-muted-foreground">Mapeie as colunas do CSV para os campos do paciente:</p>
+                            <p className="text-sm text-muted-foreground">Mapeie as colunas do CSV para os campos {comArtigo(v, 'pessoa', 'de')}:</p>
                             <div className="grid grid-cols-2 gap-3">
                                 {csvHeaders.map((header, i) => (
                                     <div key={i} className="flex items-center gap-3">
@@ -988,7 +999,7 @@ export function PacientesClient({ inicial }: { inicial: DadosIniciais }) {
                                 <div className="flex items-center gap-3 p-3 rounded-lg border border-warning bg-warning-subtle">
                                     <AlertCircle className="h-5 w-5 text-warning-subtle-foreground flex-shrink-0" />
                                     <div className="flex-1">
-                                        <p className="text-sm text-warning-subtle-foreground">Pacientes duplicados encontrados</p>
+                                        <p className="text-sm text-warning-subtle-foreground">Registros duplicados encontrados</p>
                                         <p className="text-xs text-muted-foreground mt-0.5">Escolha o que fazer com eles:</p>
                                     </div>
                                     <Select value={duplicateAction} onValueChange={v => setDuplicateAction(v as 'skip' | 'update')}>
@@ -1023,7 +1034,7 @@ export function PacientesClient({ inicial }: { inicial: DadosIniciais }) {
                             <div className="flex justify-end gap-2">
                                 <Button variant="outline" className="border-border" onClick={() => setImportStep('mapping')}>Voltar</Button>
                                 <Button onClick={handleCommitImport} disabled={importing} >
-                                    {importing ? 'Importando...' : `Importar ${importSummary.total} pacientes`}
+                                    {importing ? 'Importando...' : `Importar ${importSummary.total} ${v.pessoas}`}
                                 </Button>
                             </div>
                         </div>
@@ -1050,7 +1061,7 @@ export function PacientesClient({ inicial }: { inicial: DadosIniciais }) {
                 onOpenChange={open => {
                     if (!open) setDeletingContact(null)
                 }}
-                title="Excluir paciente"
+                title={`Excluir ${v.pessoa}`}
                 description={`"${deletingContact?.name || 'Sem nome'}" sai da lista junto com suas etiquetas. Negócios e conversas ligados a ele não são apagados.`}
                 confirmLabel="Excluir"
                 destructive
@@ -1062,7 +1073,7 @@ export function PacientesClient({ inicial }: { inicial: DadosIniciais }) {
             <ConfirmDialog
                 open={bulkDeleting}
                 onOpenChange={open => { if (!open) setBulkDeleting(false) }}
-                title={`Excluir ${selectedIds.length} paciente${selectedIds.length === 1 ? '' : 's'}`}
+                title={`Excluir ${selectedIds.length} ${selectedIds.length === 1 ? v.pessoa : v.pessoas}`}
                 description="Eles saem da lista junto com suas etiquetas. Negócios e conversas ligados a eles não são apagados."
                 confirmLabel="Excluir"
                 destructive
@@ -1075,7 +1086,7 @@ export function PacientesClient({ inicial }: { inicial: DadosIniciais }) {
                     if (!open) setDeletingField(null)
                 }}
                 title="Excluir campo personalizado"
-                description={`O campo "${deletingField?.name ?? ''}" deixa de aparecer no cadastro, e o que já foi preenchido nele em cada paciente é perdido.`}
+                description={`O campo "${deletingField?.name ?? ''}" deixa de aparecer no cadastro, e o que já foi preenchido nele em cada ${v.pessoa} é perdido.`}
                 confirmLabel="Excluir"
                 destructive
                 onConfirm={async () => {

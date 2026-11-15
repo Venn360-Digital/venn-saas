@@ -2,6 +2,7 @@ import { AppSidebar } from '@venn/core/components/layout/AppSidebar'
 import { FaixaDeAvaliacao } from '@venn/core/components/layout/FaixaDeAvaliacao'
 import { avaliacaoDaSessao } from '@venn/core/lib/avaliacao'
 import { marcaDaSessao } from '@venn/core/lib/session-brand'
+import { VocabularioProvider } from '@venn/core/hooks/useVocab'
 import { DocumentTitle } from '@venn/core/components/layout/DocumentTitle'
 import { Topbar } from '@venn/core/components/layout/Topbar'
 import { SidebarInset, SidebarProvider } from '@venn/ui/sidebar'
@@ -85,12 +86,17 @@ export default async function DashboardLayout({
     const [marca, avaliacao] = await Promise.all([marcaDaSessao(), avaliacaoDaSessao()])
 
     return (
-        // `fixed inset-0`, não só `h-svh`: preso ao viewport, o shell não
-        // acompanha nenhuma rolagem do documento — nem a elástica do macOS/iOS,
-        // nem a que uma página com `h-screen` interno provocava ao estourar a
-        // altura. `overscroll-contain` impede que o fim da lista interna
-        // "puxe" a página inteira junto.
-        <SidebarProvider className="fixed inset-0 h-svh min-h-0 overflow-hidden">
+        // As palavras do nicho envolvem TUDO, e não só o conteúdo como a moeda:
+        // a calha e o cabeçalho também escrevem o substantivo — é lá que estão
+        // os rótulos de navegação. Resolvido no servidor, de onde
+        // `marcaDaSessao()` já trouxe a logomarca, a moeda e o fuso.
+        <VocabularioProvider vocabulario={marca?.vocabulario}>
+            {/* `fixed inset-0`, não só `h-svh`: preso ao viewport, o shell não
+                acompanha nenhuma rolagem do documento — nem a elástica do
+                macOS/iOS, nem a que uma página com `h-screen` interno provocava
+                ao estourar a altura. `overscroll-contain` impede que o fim da
+                lista interna "puxe" a página inteira junto. */}
+            <SidebarProvider className="fixed inset-0 h-svh min-h-0 overflow-hidden">
             {/* Primeiro alvo de Tab: sem ele, chegar ao conteúdo por teclado
                 custa percorrer a navegação inteira em cada troca de página.
                 Invisível até receber foco — então não é enfeite nem ruído. */}
@@ -132,6 +138,7 @@ export default async function DashboardLayout({
                     <MoedaProvider codigo={marca?.currency}>{children}</MoedaProvider>
                 </div>
             </SidebarInset>
-        </SidebarProvider>
+            </SidebarProvider>
+        </VocabularioProvider>
     )
 }

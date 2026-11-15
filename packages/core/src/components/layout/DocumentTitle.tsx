@@ -4,6 +4,7 @@ import { useEffect } from 'react'
 import { usePathname } from 'next/navigation'
 
 import { pageTitleFor } from '../../lib/nav'
+import { useVocab } from '../../hooks/useVocab'
 import { useMarca } from '@venn/core/marca-contexto'
 
 /**
@@ -26,11 +27,14 @@ export function DocumentTitle() {
     // `packages/core`, que não pode importar o `brand.ts` do app — seria
     // `core → app`. Ver `packages/core/src/marca-contexto.tsx`.
     const marca = useMarca()
+    // As palavras do nicho vêm da unidade, pelo mesmo caminho e pela mesma
+    // razão: a aba é onde alguém acha esta janela entre quinze.
+    const vocabulario = useVocab()
 
     useEffect(() => {
-        const page = pageTitleFor(pathname)
+        const page = pageTitleFor(pathname, vocabulario, marca.name)
         document.title = page === marca.name ? page : `${page} · ${marca.name}`
-    }, [pathname, marca.name])
+    }, [pathname, vocabulario, marca.name])
 
     return null
 }
