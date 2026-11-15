@@ -497,7 +497,7 @@ export async function generateReply(input: GenerateReplyInput): Promise<Generate
           }
         : null
     const ferramentas =
-        toolContext && !input.semFerramentas ? AGENT_TOOL_DEFINITIONS : undefined
+        toolContext && !input.semFerramentas ? AGENT_TOOL_DEFINITIONS() : undefined
 
     let response = await llm.generate(messages, ferramentas)
     await cobrar(response, 0)

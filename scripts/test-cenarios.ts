@@ -34,6 +34,7 @@ import { acharDocumento, documentosDeFato, documentosDoAcervo, documentosDoPromp
 import { buildSystemPrompt } from '@venn/core/trabalhos/servicos/prompt'
 import type { Agent } from '@venn/db'
 import { tipoDoAcervo, ehDeTreinamento, TIPO_DE_CENARIO, TIPO_DE_TREINAMENTO } from '@venn/core/lib/treinamento/indexar'
+import { BRAND } from '@venn/core/marca'
 
 let passou = 0
 let falhou = 0
@@ -317,27 +318,39 @@ console.log('\nA transcrição')
 
 const quando = new Date('2026-10-30T12:00:00Z')
 
+/*
+ * Os rótulos vêm do VOCABULÁRIO, não de literais.
+ *
+ * A transcrição é o que o modelo lê para resumir a conversa, e quem falou é
+ * dito com a palavra do nicho — num app de viagem o modelo precisa ler
+ * "Cliente:", não "Paciente:". Escrever o literal esperado aqui prenderia o
+ * teste ao primeiro nicho e, pior, aprovaria um código que também o prendesse.
+ * Derivado, ele reprova se o rótulo deixar de seguir o vocabulário.
+ */
+const QUEM_ENTRA = BRAND().vocabulario.Pessoa
+const QUEM_RESPONDE = BRAND().vocabulario.Organizacao
+
 conferir(
     'quem falou e o que falou',
     transcrever([
         { direction: 'inbound', content: 'oi', transcript: null, contentType: 'text', createdAt: quando },
         { direction: 'outbound', content: 'olá', transcript: null, contentType: 'text', createdAt: quando },
     ]),
-    '2026-10-30 Paciente: oi\n2026-10-30 Clínica: olá'
+    `2026-10-30 ${QUEM_ENTRA}: oi\n2026-10-30 ${QUEM_RESPONDE}: olá`
 )
 conferir(
     'ÁUDIO entra pela transcrição — senão o resumo veria uma sequência de nada',
     transcrever([
         { direction: 'inbound', content: '🎵 Áudio', transcript: 'quanto custa', contentType: 'audio', createdAt: quando },
     ]),
-    '2026-10-30 Paciente: quanto custa'
+    `2026-10-30 ${QUEM_ENTRA}: quanto custa`
 )
 conferir(
     'mídia sem texto nem transcrição mostra o tipo',
     transcrever([
         { direction: 'inbound', content: null, transcript: null, contentType: 'image', createdAt: quando },
     ]),
-    '2026-10-30 Paciente: [image]'
+    `2026-10-30 ${QUEM_ENTRA}: [image]`
 )
 conferir('nada devolve vazio', transcrever([]), '')
 

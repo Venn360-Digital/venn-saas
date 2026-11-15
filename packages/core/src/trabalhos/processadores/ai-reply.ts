@@ -14,7 +14,7 @@ import { LLMFactory } from '../../lib/llm/factory'
 import {
     JANELA_DO_RESUMO,
     MODELO_DO_RESUMO,
-    SYSTEM_DO_RESUMO,
+    systemDoResumo,
     precisaCompactar,
     transcrever,
 } from '../../lib/conversas/resumo'
@@ -536,7 +536,7 @@ async function compactarSePreciso(
             maxTokens: 600,
         })
         const r = await llm.generate([
-            { role: 'system', content: SYSTEM_DO_RESUMO },
+            { role: 'system', content: systemDoResumo() },
             /**
              * "Agendamentos já marcados" vazio aqui, de propósito.
              *

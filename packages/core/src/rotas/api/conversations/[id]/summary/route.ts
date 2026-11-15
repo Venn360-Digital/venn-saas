@@ -9,7 +9,7 @@ import { fusoDaUnidade } from '@venn/core/lib/fuso-da-unidade'
 import {
     JANELA_DO_RESUMO,
     MODELO_DO_RESUMO,
-    SYSTEM_DO_RESUMO,
+    systemDoResumo,
     transcrever,
 } from '@venn/core/lib/conversas/resumo'
 
@@ -107,7 +107,7 @@ export async function POST(
 
         const llm = LLMFactory.create('openai', { model: MODELO_DO_RESUMO, temperature: 0.2, maxTokens: 600 })
         const result = await llm.generate([
-            { role: 'system', content: SYSTEM_DO_RESUMO },
+            { role: 'system', content: systemDoResumo() },
             { role: 'user', content: `Agendamentos já marcados na Agenda: ${agenda}.\n\n${transcriptText}` },
         ])
 

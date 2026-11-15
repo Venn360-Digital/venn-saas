@@ -1,6 +1,8 @@
 import prisma from '@venn/db/cliente'
 import { LLMFactory } from './llm/factory'
 import { checkCredits, spendAiCredits, trackUsage } from './llm/usage-tracker'
+import { vocab } from './vocabulario'
+import { comArtigo } from './concordancia'
 
 /** Resumir e escrever follow-up não precisam do modelo caro. */
 const MODEL = 'gpt-4o-mini'
@@ -8,12 +10,21 @@ const MODEL = 'gpt-4o-mini'
 /** Quantas mensagens a sugestão lê. O fim da conversa é o que importa aqui. */
 const WINDOW = 30
 
-const SYSTEM = `Você escreve a próxima mensagem de follow-up de uma clínica odontológica para um paciente, em português do Brasil.
+/**
+ * Função memoizada, e não constante: o texto lê o vocabulário, e `BRAND()` é
+ * fail-fast. Constante de módulo é avaliada quando a Cloudflare VALIDA o
+ * script — sem requisição e sem marca registrada — e a publicação reprova com
+ * `MarcaNaoRegistradaError`. O `check:marca-tardia` apontou este arquivo no
+ * instante em que o vocabulário entrou no prompt.
+ */
+let systemCache: string | null = null
+function system(): string {
+    if (systemCache === null) systemCache = `Você escreve a próxima mensagem de follow-up de ${comArtigo(vocab(), 'organizacao', 'um')} odontológica para ${comArtigo(vocab(), 'pessoa', 'um')}, em português do Brasil.
 
 Regras:
 - No máximo três frases. Mensagem de WhatsApp, não carta.
-- Cite algo concreto da conversa — o procedimento, o que ficou combinado, o motivo da espera. É isso que separa um follow-up de um "oi, tudo bem?".
-- Nunca invente preço, data, nome de procedimento ou promessa que não esteja na conversa.
+- Cite algo concreto da conversa — ${comArtigo(vocab(), 'servico')}, o que ficou combinado, o motivo da espera. É isso que separa um follow-up de um "oi, tudo bem?".
+- Nunca invente preço, data, nome de ${vocab().servico} ou promessa que não esteja na conversa.
 - Termine com uma pergunta simples de responder.
 - Trate por "você". Nada de "prezado". Sem emoji.
 - Não se apresente como robô nem diga que é uma mensagem automática.
@@ -21,7 +32,9 @@ Regras:
 Responda SOMENTE um JSON, sem cercas de código:
 {"mensagem":"...","quando":"AAAA-MM-DD","porque":"uma frase sobre por que esta é a hora e este é o assunto"}
 
-"quando" é a data sugerida para o retorno caso o paciente não responda: dois dias úteis à frente, no máximo sete.`
+"quando" é a data sugerida para o retorno caso ${comArtigo(vocab(), 'pessoa')} não responda: dois dias úteis à frente, no máximo sete.`
+    return systemCache
+}
 
 export interface FollowUpSuggestion {
     message: string
@@ -112,7 +125,7 @@ export async function buildFollowUpSuggestion(
     const transcript = [...messages]
         .reverse()
         .map((m) => {
-            const who = m.direction === 'inbound' ? 'Paciente' : 'Clínica'
+            const who = m.direction === 'inbound' ? `${vocab().Pessoa}` : `${vocab().Organizacao}`
             const body = m.transcript?.trim() || m.content?.trim() || `[${m.contentType}]`
             return `${m.createdAt.toISOString().slice(0, 10)} ${who}: ${body}`
         })
@@ -123,8 +136,8 @@ export async function buildFollowUpSuggestion(
     const idleDays = Math.floor((Date.now() - since.getTime()) / 86_400_000)
 
     const context = [
-        `Clínica: ${deal.workspace.name}`,
-        `Paciente: ${deal.contact?.name || 'sem nome cadastrado'}`,
+        `${vocab().Organizacao}: ${deal.workspace.name}`,
+        `${vocab().Pessoa}: ${deal.contact?.name || 'sem nome cadastrado'}`,
         `Assunto do negócio: ${deal.title}`,
         `Fase atual: ${deal.stage?.name ?? '—'} (há ${idleDays} dias)`,
         entry?.note ? `Nota da fase: ${entry.note}` : null,
@@ -132,7 +145,7 @@ export async function buildFollowUpSuggestion(
         '',
         transcript
             ? `Conversa (mais antiga primeiro):\n${transcript}`
-            : 'Não há conversa registrada com este paciente. Escreva uma primeira retomada curta, sem inventar histórico.',
+            : `Não há conversa registrada com ${comArtigo(vocab(), 'pessoa', 'este')}. Escreva uma primeira retomada curta, sem inventar histórico.`,
     ]
         .filter(Boolean)
         .join('\n')
@@ -175,8 +188,8 @@ async function buildFromConversation(
     const transcript = [...messages].reverse().map(line).join('\n')
 
     const context = [
-        `Clínica: ${conversation.workspace.name}`,
-        `Paciente: ${conversation.contact?.name || 'sem nome cadastrado'}`,
+        `${vocab().Organizacao}: ${conversation.workspace.name}`,
+        `${vocab().Pessoa}: ${conversation.contact?.name || 'sem nome cadastrado'}`,
         `Hoje: ${new Date().toISOString().slice(0, 10)}`,
         '',
         transcript
@@ -195,7 +208,7 @@ function line(m: {
     contentType: string
     createdAt: Date
 }): string {
-    const who = m.direction === 'inbound' ? 'Paciente' : 'Clínica'
+    const who = m.direction === 'inbound' ? `${vocab().Pessoa}` : `${vocab().Organizacao}`
     const body = m.transcript?.trim() || m.content?.trim() || `[${m.contentType}]`
     return `${m.createdAt.toISOString().slice(0, 10)} ${who}: ${body}`
 }
@@ -210,7 +223,7 @@ async function generate(
     try {
         const llm = LLMFactory.create('openai', { model: MODEL, temperature: 0.6, maxTokens: 400 })
         const result = await llm.generate([
-            { role: 'system', content: SYSTEM },
+            { role: 'system', content: system() },
             { role: 'user', content: context },
         ])
 
