@@ -1,7 +1,7 @@
 {
-  "$comment": "Fonte unica de verdade dos recursos do Stagent360. IDs __FASE06__/__FASE07__ preenchidos nas Fases 06-08. Sem secrets. Arquitetura espelha o app de origem (vinext/Workers + Neon + R2 + Evolution no VPS); nomes pela convencao do runbook, hosts sob venn360.com. MIGRADO para o monorepo em 15/11/2026: o manifesto passou a ser um arquivo por app (`infra/manifest/<slug>.json`), e `app.repo` aponta para o repositório unificado. O nome do arquivo e `app.slug` TÊM de concordar — é do nome que as regras de isolamento derivam o dono.",
+  "$comment": "Fonte unica de verdade dos recursos do Stagent360. IDs __FASE06__/__FASE07__ preenchidos nas Fases 06-08. Sem secrets. Arquitetura espelha o app de origem (vinext/Workers + Neon + R2 + Evolution no VPS); nomes pela convencao do runbook, hosts sob venn360.com. MIGRADO para o monorepo em 15/11/2026: o manifesto passou a ser um arquivo por app (`infra/manifest/<slug>.json`), e `app.repo` aponta para o repositório unificado. O nome do arquivo e `app.slug` TÊM de concordar — é do nome que as regras de isolamento derivam o dono. O DONO no GitHub passou a ser a organização `Venn360-Digital` em 15/11/2026 (era a conta pessoal `venn360`). O `repo_id` numérico não muda com o transfer, então a conexão do Workers Builds continua apontando para o repositório certo — mas a INSTALAÇÃO do app do GitHub é por conta, e a que autoriza a Cloudflare pertencia à conta pessoal. Se um build parar de disparar, é isso: a organização precisa instalar o app e a conexão precisa ser reapontada no painel.",
   "app": {
-    "repo": "venn360/venn-saas",
+    "repo": "Venn360-Digital/venn-saas",
     "name": "Stagent360",
     "slug": "stagent",
     "segment": "none",

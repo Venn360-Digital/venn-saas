@@ -13,8 +13,8 @@ confirmar).
 
 | Item | Valor | Estado |
 | --- | --- | --- |
-| Diretório | `/Users/andre/Desktop/Projects/venn.odontobox360` | `VERIFICADO` |
-| Remoto oficial | `https://github.com/venn360/venn.odontobox360.git` | `VERIFICADO` |
+| Diretório | `/Users/andre/Desktop/Projects/venn-saas` (era `venn.odontobox360` até 14/11/2026) | `VERIFICADO` |
+| Remoto oficial | `https://github.com/Venn360-Digital/venn-saas.git` (era `venn360/venn.odontobox360`: renomeado em 14/11, transferido para a organização em 15/11) | `VERIFICADO` |
 | Branch no início | `main`, limpa, sincronizada com `origin/main` | `VERIFICADO` |
 | Branch de trabalho | `migracao/cloudflare-neon` (criada nesta sessão) | `VERIFICADO` |
 | Último commit | `54cb209 fix(avaliação): os avisos de fim de trial ganham escopo de ciclo` | `VERIFICADO` |

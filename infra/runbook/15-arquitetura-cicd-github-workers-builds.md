@@ -841,6 +841,44 @@ não é higiene opcional.
 Redisparar é pelo painel, ou por um commit novo — que é o caminho desenhado
 ("todo build nasce de um commit") e foi como este registro subiu.
 
+## O dono do repositório virou organização (15/11/2026)
+
+Os repositórios saíram da conta pessoal `venn360` para a organização
+**`Venn360-Digital`** (id 357112773, 14 privados). Decisão do André: repositório
+privado em organização é mais protegido.
+
+**O que NÃO muda:** o `repo_id` numérico. Lido da conexão da Cloudflare antes e
+depois:
+
+```
+repo_connection: { repo_id: "1151560208", repo_name: "venn.odontobox360",
+                   provider_account_id: "241046697",
+                   provider_account_name: "venn360" }
+```
+
+Repare no `repo_name`: está **desatualizado desde o rename de 14/11** e os
+builds continuaram funcionando por três semanas de commits — é a prova de que a
+conexão segue o id, não o nome. O rename já havia demonstrado isso; o transfer
+preserva o id da mesma forma.
+
+⚠️ **O que PODE mudar, e é o ponto de atenção:** `provider_account_id` aponta
+para a conta PESSOAL. A instalação do app do GitHub que autoriza a Cloudflare é
+por conta, e o repositório deixou de pertencer àquela conta. Se um build parar
+de disparar depois do transfer, a causa é esta — e o conserto é no painel: a
+organização instala o app "Cloudflare Workers and Pages" e a conexão do
+repositório é reapontada. Nenhum comando resolve isso de fora; escrita na
+Cloudflare é barrada pelo classificador de permissões desta sessão.
+
+**Como saber sem adivinhar:** o próximo push para uma branch de PR dispara (ou
+não) o build de preview. É a medição mais barata que existe, e foi assim que
+este bloco foi verificado.
+
+E o que muda no repositório, feito neste commit: o `origin` dos três checkouts
+locais, o `upstream` dos dois clones, `app.repo` nos três manifestos e as
+referências em runbook e docs. **Nada de marca:** `venn360.com`, `Venn360` como
+`vendor` e `mail.venn360.com` seguem iguais — só o dono no GitHub mudou, e a
+substituição foi escopada a `venn360/`, com barra.
+
 ## Homolog da Odontobox: o que foi provisionado e os quatro tropeços (03/11/2026)
 
 Estado: **os 21 segredos completos** (03/11), Worker nascido de placeholder, 9 filas, 2
@@ -1057,7 +1095,7 @@ agora conhecida.
 
 ## Apêndice C — Segredos que viveram no GitHub (rotação)
 Regra: apagar do GitHub **não desfaz** a exposição passada — todo segredo que viveu lá é tratado como potencialmente vazado e trocado, DEPOIS do corte (rotacionar antes quebraria o `deploy-stg.yml` ainda ativo). Donos e locais:
-- **Por clone** (medido 01/11; vivem em GitHub *Environments*, não no nível do repo — apagar com `gh secret delete <NOME> -R venn360/<repo> -e <env>`):
+- **Por clone** (medido 01/11; vivem em GitHub *Environments*, não no nível do repo — apagar com `gh secret delete <NOME> -R Venn360-Digital/<repo> -e <env>`):
   - env `stg` (19): `BETTER_AUTH_SECRET`, `CF_ACCESS_CLIENT_ID`, `CF_ACCESS_CLIENT_SECRET`, `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN`, `DATABASE_URL`, `DATABASE_URL_MIGRATOR`, `EVOLUTION_GO_API_KEY`, `EVOLUTION_WEBHOOK_SECRET`, `IDENTITY_TOKEN`, `OPENAI_API_KEY`, `PRIVATE_STORAGE_*` (3), `PUBLIC_STORAGE_*` (3), `TOKEN_ENCRYPTION_KEY`, `WEBHOOK_BASE_URL`;
   - env `production` (5): `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN`, `DATABASE_URL_MIGRATOR`, `IDENTITY_TOKEN`, `OPENAI_API_KEY`.
   Rotacionar **no Worker** (e `EVOLUTION_*` também na VPS do app); `CLOUDFLARE_ACCOUNT_ID` não é segredo, só apagar.
