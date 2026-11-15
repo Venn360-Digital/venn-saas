@@ -1,0 +1,55 @@
+{
+    "compilerOptions": {
+        "target": "ES2017",
+        "lib": [
+            "dom",
+            "dom.iterable",
+            "esnext"
+        ],
+        "allowJs": true,
+        "skipLibCheck": true,
+        "strict": true,
+        "noEmit": true,
+        "esModuleInterop": true,
+        "module": "esnext",
+        "moduleResolution": "bundler",
+        "resolveJsonModule": true,
+        "isolatedModules": true,
+        "jsx": "react-jsx",
+        "incremental": true,
+        "plugins": [
+            {
+                "name": "next"
+            }
+        ],
+        "paths": {
+            "@/*": [
+                "./src/*"
+            ]
+        }
+    },
+    "include": [
+        "next-env.d.ts",
+        "src/**/*.ts",
+        "src/**/*.tsx",
+        ".next/types/**/*.ts",
+        ".next/dev/types/**/*.ts"
+    ],
+    "exclude": [
+        "node_modules",
+        "src/cloudflare",
+        "cloudflare.config.ts",
+        "vite.config.ts"
+    ],
+    "//": [
+        "O tsconfig DESTE app. Antes era o único do repositório, na raiz, e o `paths`",
+        "dele mapeava `@/*` para `./src/*` — o que funcionava com um app só e viraria",
+        "um defeito silencioso com dois: o alias aponta para UM diretório, então o",
+        "código de um app resolveria `@/…` no outro, e compilaria verde.",
+        "",
+        "Por isso cada app tem o seu, com `@/*` apontando para o próprio `src`. O",
+        "`tsconfig.json` da raiz cobre `scripts/` e `packages/`, e NÃO declara `@/*`:",
+        "nos pacotes esse alias não existe de propósito — quem o usar lá reprova no",
+        "`check-marca.mjs`, que é a regra da fronteira core → app."
+    ]
+}

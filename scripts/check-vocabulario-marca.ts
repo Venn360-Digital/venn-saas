@@ -106,15 +106,25 @@ for (const app of apps) {
             `${Plur} vs ${capitalizar(plur)}`)
 
         /*
-         * Plural começando pelo singular cobre as flexões do português que
-         * importam aqui (clínica→clínicas, paciente→pacientes,
-         * especialista→especialistas, procedimento→procedimentos). Um eixo que
-         * precise de plural irregular — e nenhum dos quatro precisa — teria de
-         * afrouxar esta linha de propósito, com a razão escrita.
+         * O plural compartilha o radical do singular — e o radical é o singular
+         * MENOS a última letra, não o singular inteiro.
+         *
+         * A primeira escrita desta linha era `plur.startsWith(sing)` e reprovou
+         * um dado correto: em português, palavra terminada em -l faz plural em
+         * -is, então `profissional` → `profissionais` não começa por
+         * `profissional`. Mesma família: -el → -eis, -ol → -ois. Cortar a
+         * última letra cobre essas e continua pegando o que importa — um plural
+         * que fala de outra palavra (`servico` → `procedimentos`) não casa o
+         * radical.
+         *
+         * Não vale apertar mais: `agência` → `agências`, `clínica` → `clínicas`
+         * e `serviço` → `serviços` têm acento e cedilha no radical, e qualquer
+         * normalização que os apague deixaria passar a troca de palavra.
          */
-        ok(`${app}/${eixo}: o plural começa pelo singular`,
-            typeof plur === 'string' && typeof sing === 'string' && plur.startsWith(sing),
-            `${plur} começa por ${sing}?`)
+        const radical = typeof sing === 'string' ? sing.slice(0, -1) : ''
+        ok(`${app}/${eixo}: o plural compartilha o radical do singular`,
+            typeof plur === 'string' && radical.length > 0 && plur.startsWith(radical),
+            `${plur} começa por "${radical}"?`)
         ok(`${app}/${eixo}: singular e plural são diferentes`, sing !== plur, `${sing} / ${plur}`)
     }
 }

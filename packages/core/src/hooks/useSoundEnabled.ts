@@ -5,14 +5,20 @@ import { useCallback, useMemo, useSyncExternalStore } from 'react'
 import { useArmazenamento } from './useArmazenamento'
 
 /**
- * A chave que já existe no navegador de quem usa o produto hoje.
+ * O SUFIXO da chave que já existe no navegador de quem usa o produto hoje.
+ *
+ * O nome completo é `<slug>360-sound-enabled`, e o slug vem da marca —
+ * `armazenamento.anterior()` o monta. Escrever o literal aqui prendia a leitura
+ * dupla ao primeiro app: do segundo em diante ela migraria a preferência de um
+ * produto e **apagaria a do outro**, que é o acidente que ela existe para
+ * evitar.
  *
  * Passa para `ler()` como nome antigo: na primeira leitura depois do deploy o
  * valor é migrado para a chave nova e esta é removida. Sem isso, **o som
  * voltaria a ligado para todo mundo que o desligou** — não quebra nada, e é
  * exatamente o tipo de perda que ninguém reporta como bug.
  */
-const CHAVE_ANTIGA = 'odontobox360-sound-enabled'
+const SUFIXO_ANTIGO = '360-sound-enabled'
 const NOME = 'som'
 const NOME_DO_EVENTO = 'som-mudou'
 
@@ -58,7 +64,7 @@ export function useSoundEnabled(): [boolean, (next: boolean) => void] {
             },
             // `ler` já engole a exceção de janela privativa e devolve null: som
             // ligado é o melhor padrão para quem nunca escolheu.
-            getSnapshot: () => armazenamento.ler(NOME, [CHAVE_ANTIGA]) !== 'false',
+            getSnapshot: () => armazenamento.ler(NOME, [armazenamento.anterior(SUFIXO_ANTIGO)]) !== 'false',
         }
     }, [armazenamento])
 

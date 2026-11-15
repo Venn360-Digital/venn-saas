@@ -53,12 +53,13 @@ function GROUPS(v: Vocabulario): { label: string; emojis: string[] }[] {
  * jeito ruim.
  */
 const NOME_RECENTES = 'emoji-recentes'
-const CHAVE_ANTIGA = 'odontobox.inbox.emoji.recent'
+/** Sufixo da chave anterior: o nome completo é `<slug>.inbox.emoji.recent`. */
+const SUFIXO_ANTIGO = '.inbox.emoji.recent'
 const RECENT_MAX = 16
 
 function readRecent(armazenamento: Armazenamento): string[] {
     try {
-        const raw = armazenamento.ler(NOME_RECENTES, [CHAVE_ANTIGA])
+        const raw = armazenamento.ler(NOME_RECENTES, [armazenamento.anterior(SUFIXO_ANTIGO)])
         const list = raw ? (JSON.parse(raw) as unknown) : []
         return Array.isArray(list) ? list.filter((e): e is string => typeof e === 'string') : []
     } catch {

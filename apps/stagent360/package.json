@@ -1,0 +1,25 @@
+{
+    "name": "@venn/stagent360",
+    "version": "0.1.0",
+    "private": true,
+    "type": "module",
+    "// o que mora aqui": "O app: as rotas do App Router, a marca, a identidade da Cloudflare e as três configurações de build (next, vite, cloudflare). Todo o domínio está em @venn/core — 686 arquivos do repositório, dos quais 237 são deste app.",
+    "// as dependências ficam na raiz": "De propósito, e por ora. Com `node-linker=hoisted` no .npmrc a árvore é plana e o app alcança tudo o que a raiz instalou, então mover as ~50 dependências para cá seria reclassificá-las uma a uma sem mudar nada do que o build faz — trabalho independente, e misturá-lo ao movimento de arquivos tornaria qualquer falha de build ambígua. Quando os três apps existirem e um precisar de dependência que os outros não têm, é aí que a separação paga.",
+    "scripts": {
+        "dev": "next dev",
+        "build": "pnpm --filter @venn/db run generate && next build",
+        "start": "next start",
+        "typecheck": "tsc --noEmit",
+        "typecheck:cloudflare": "tsc --noEmit -p tsconfig.cloudflare.json",
+        "dev:vinext": "BUILD_TARGET=cloudflare vite dev --port 3001",
+        "build:vinext": "BUILD_TARGET=cloudflare vite build",
+        "start:vinext": "BUILD_TARGET=cloudflare vite preview",
+        "deploy:vinext": "BUILD_TARGET=cloudflare vinext-cloudflare deploy",
+        "build:preview": "DEPLOY_ENV=stg BUILD_TARGET=cloudflare CF_PREVIEW=1 vite build",
+        "deploy:preview": "DEPLOY_ENV=stg BUILD_TARGET=cloudflare CF_PREVIEW=1 vinext-cloudflare previews deploy",
+        "build:prod": "pnpm run build:vinext",
+        "build:stg": "DEPLOY_ENV=stg pnpm run build:vinext",
+        "deploy:prod": "pnpm run deploy:vinext",
+        "deploy:stg": "DEPLOY_ENV=stg pnpm run deploy:vinext"
+    }
+}

@@ -29,6 +29,23 @@ export interface Armazenamento {
     ler: (nome: string, antigas?: string[]) => string | null
     escrever: (nome: string, valor: string) => void
     remover: (nome: string, antigas?: string[]) => void
+    /**
+     * A chave que ESTE produto usava antes do prefixo vir da marca.
+     *
+     * Existe porque a lista de chaves antigas estava escrita com os literais do
+     * PRIMEIRO app — `odontobox360-sound-enabled` e companhia — dentro do core.
+     * Com um app só funcionava; com dois, a leitura dupla migraria a preferência
+     * de um e **apagaria a do outro em silêncio**, que é exatamente o acidente
+     * que ela existe para evitar.
+     *
+     * Medido nos três produtos antes de derivar, lendo o código de cada um:
+     * `<slug>360-sound-enabled`, `<slug>360-last-reminder-count` e
+     * `<slug>.inbox.emoji.recent`. O sufixo é o que o chamador passa; o slug vem
+     * da marca. Os valores por app ficam travados à mão em
+     * `scripts/test-armazenamento.ts` — derivá-los lá também tornaria a prova
+     * tautológica.
+     */
+    anterior: (sufixo: string) => string
 }
 
 export function useArmazenamento(): Armazenamento {
@@ -40,6 +57,7 @@ export function useArmazenamento(): Armazenamento {
             ler: (nome, antigas) => ler(slug, nome, antigas),
             escrever: (nome, valor) => escrever(slug, nome, valor),
             remover: (nome, antigas) => remover(slug, nome, antigas),
+            anterior: (sufixo) => `${slug}${sufixo}`,
         }),
         [slug]
     )

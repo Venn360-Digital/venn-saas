@@ -169,18 +169,26 @@ async function main() {
      * sem mexer na agenda. Então o teste confere que a chamada está lá, e que
      * não há padrão de hora fixa escrito à mão no arquivo.
      */
-    const config = readFileSync(configuracoesDeApp('cloudflare.config.ts')[0], 'utf8')
-
-    ok(
-        'a configuração gera os crons pela agenda, não os lista à mão',
-        /cronsParaWrangler\(/.test(config),
-        'com argumento desde 2026-11-07: a agenda de homologação é menor'
-    )
-    ok(
-        'e não há padrão de hora fixa escrito literalmente nela',
-        !/triggers\.scheduled\(\{\s*schedule:\s*['"`]\d/.test(config),
-        'um `schedule: "13 3 ..."` literal escaparia da conversão de fuso'
-    )
+    /*
+     * TODOS os configs, não o primeiro.
+     *
+     * Era `configuracoesDeApp(...)[0]`, e com um app só dava no mesmo. Com dois
+     * passaria a verificar um e **ignorar o outro em silêncio** — a forma de
+     * falso verde que mais apareceu nesta fase. O helper já devolve a lista.
+     */
+    for (const caminho of configuracoesDeApp('cloudflare.config.ts')) {
+        const config = readFileSync(caminho, 'utf8')
+        ok(
+            `${caminho}: gera os crons pela agenda, não os lista à mão`,
+            /cronsParaWrangler\(/.test(config),
+            'com argumento desde 2026-11-07: a agenda de homologação é menor'
+        )
+        ok(
+            `${caminho}: não há padrão de hora fixa escrito literalmente`,
+            !/triggers\.scheduled\(\{\s*schedule:\s*['"`]\d/.test(config),
+            'um `schedule: "13 3 ..."` literal escaparia da conversão de fuso'
+        )
+    }
 
     /**
      * A varredura da outbox precisa de um gatilho que EXISTA.
