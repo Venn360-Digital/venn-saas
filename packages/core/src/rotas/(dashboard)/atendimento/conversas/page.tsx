@@ -504,6 +504,7 @@ function mediaIcon(contentType: string) {
 }
 
 export default function ConversasPage() {
+
     // Palavras do nicho da unidade. `comArtigo` monta o determinante pelo
     // gênero da marca; frase com particípio foi reescrita em forma neutra.
     const v = useVocab()
@@ -3887,7 +3888,7 @@ export default function ConversasPage() {
                 open={showDeleteDialog}
                 onOpenChange={setShowDeleteDialog}
                 title="Excluir conversa"
-                description="Todas as mensagens, áudios, imagens e anexos desta conversa saem do sistema. O paciente permanece."
+                description={`Todas as mensagens, áudios, imagens e anexos desta conversa saem do sistema. ${comArtigo(v, 'Pessoa')} permanece.`}
                 confirmLabel="Excluir"
                 destructive
                 onConfirm={handleDeleteConversation}

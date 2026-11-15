@@ -38,6 +38,8 @@ import { toast } from 'sonner'
 import { BILLING_UPDATED } from '../layout/AppSidebar'
 import { CancelarAssinaturaCard } from './CancelarAssinaturaCard'
 import { DadosDeCobrancaDialog } from './DadosDeCobrancaDialog'
+import { useVocab } from '../../hooks/useVocab'
+import { comArtigo } from '../../lib/concordancia'
 
 /**
  * Uma célula de consumo: rótulo, "usado de total", barra fina e a validade.
@@ -280,6 +282,8 @@ interface PlanConfig {
 }
 
 export function PlanoTab() {
+    const v = useVocab()
+
     // Pelo contexto: este componente mora em `packages/core`, que não pode
     // importar o `brand.ts` do app. Ver `packages/core/src/marca-contexto.tsx`.
     const marca = useMarca()
@@ -1454,7 +1458,7 @@ export function PlanoTab() {
                             <p className="font-medium">Há uma cobrança vencida.</p>
                             <p className="text-sm text-muted-foreground">
                                 {carenciaAte
-                                    ? `Você tem até ${carenciaAte} para pagar. Depois disso a clínica fica em somente-leitura: as mensagens continuam chegando e o histórico fica inteiro, mas o envio para.`
+                                    ? `Você tem até ${carenciaAte} para pagar. Depois disso ${comArtigo(v, 'organizacao')} fica em somente-leitura: as mensagens continuam chegando e o histórico fica inteiro, mas o envio para.`
                                     : 'Regularize para manter o envio de mensagens.'}
                             </p>
                         </div>
@@ -2243,7 +2247,7 @@ export function PlanoTab() {
                                             ['Agentes', unidade.agentes],
                                             ['Canais', unidade.canais],
                                             ['Conversas', unidade.conversas],
-                                            ['Pacientes', unidade.pacientes],
+                                            [`${v.Pessoas}`, unidade.pacientes],
                                         ].map(([rotulo, valor]) => (
                                             <div key={rotulo as string} className="px-3 py-2">
                                                 <p className="text-[11px] text-muted-foreground">{rotulo}</p>

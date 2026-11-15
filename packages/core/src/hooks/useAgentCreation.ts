@@ -9,7 +9,8 @@ import {
     PADROES_DO_AGENTE, MODELOS_DE_TEXTO,
 } from '../types/agent-creation'
 import { ENTONACAO_PADRAO, VOZ_PADRAO } from '../lib/voz'
-import { SETOR_PADRAO } from '../components/agents/creation/tabs/TrabalhoTab'
+import { setorPadrao } from '../components/agents/creation/tabs/TrabalhoTab'
+import { useVocab } from './useVocab'
 import { acharDocumento, DOCUMENTOS } from '../lib/treinamento/documentos'
 
 /**
@@ -26,6 +27,7 @@ const PROMPT_INICIAL =
     'com a equipe em vez de inventar.'
 
 export function useAgentCreation(workspaceId: string) {
+    const v = useVocab()
     const router = useRouter()
     const [isSaving, setIsSaving] = useState(false)
 
@@ -207,7 +209,7 @@ export function useAgentCreation(workspaceId: string) {
                 companyName: trabalho.companyName,
                 // Fixo: o produto atende clínicas odontológicas. Gravar sempre
                 // normaliza também o agente criado antes desta decisão.
-                companySector: SETOR_PADRAO,
+                companySector: setorPadrao(v),
                 companyWebsite: trabalho.companyWebsite,
                 companyDescription: trabalho.companyDescription,
                 companyAddress: trabalho.companyAddress,

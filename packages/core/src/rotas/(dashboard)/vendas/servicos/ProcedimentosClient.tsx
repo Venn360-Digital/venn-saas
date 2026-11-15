@@ -35,6 +35,9 @@ import { usePermissions } from '@venn/core/hooks/usePermissions'
 
 import { useIndiceServidor } from '@venn/core/hooks/useIndiceServidor'
 import { CATEGORIA_PADRAO, LIMITE_PADRAO, type DadosIniciais, type ProductItem } from './dados'
+import { useVocab } from '../../../../hooks/useVocab'
+import { comArtigo } from '../../../../lib/concordancia'
+import type { Vocabulario } from '../../../../lib/vocabulario'
 
 /** Memoizado: `PRODUCT_CATEGORIES()` lê o vocabulário no rótulo. */
 let categoriasCache: { id: string; label: string }[] | null = null
@@ -45,14 +48,21 @@ function CATEGORIES(): { id: string; label: string }[] {
     return categoriasCache
 }
 
-const CATEGORY_TONES = {
+/** Função, não constante: o texto usa o vocabulário da unidade, que vem do
+ * hook no componente. No cliente `vocab()` não serve — `BRAND()` lança no
+ * navegador —, e hook não alcança nível de módulo. */
+function CATEGORY_TONES(v: Vocabulario) {
+    return {
     // O que ocupa agenda leva cor; o que é mercadoria fica neutro.
     service: { label: 'Serviço', tone: 'primary' as const },
-    procedure: { label: 'Procedimento', tone: 'info' as const },
+    procedure: { label: `${v.Servico}`, tone: 'info' as const },
     product: { label: 'Produto', tone: 'neutral' as const },
+}
 }
 
 export function ProcedimentosClient({ inicial }: { inicial: DadosIniciais }) {
+    const v = useVocab()
+
     // Presentation only — the API enforces the same rule. Without this an
     // ATENDENTE would see Edit/Delete controls that answer 403.
     const { canEdit } = usePermissions()
@@ -283,7 +293,7 @@ export function ProcedimentosClient({ inicial }: { inicial: DadosIniciais }) {
             header: 'Categoria',
             sortable: true,
             sortValue: (p) => p.category ?? '',
-            cell: (p) => <StatusBadge value={p.category} map={CATEGORY_TONES} />,
+            cell: (p) => <StatusBadge value={p.category} map={CATEGORY_TONES(v)} />,
         },
         {
             id: 'group',
@@ -330,7 +340,7 @@ export function ProcedimentosClient({ inicial }: { inicial: DadosIniciais }) {
                    discordando é pior que um nome amplo demais. O catálogo
                    continua guardando produto e serviço — quem diz isso é a
                    etiqueta de cada linha. */
-                title="Procedimentos"
+                title={v.Servicos}
                 primary={
                     canEdit ? (
                         <Button size="sm" className="h-8 gap-1.5" onClick={openNew}>
@@ -400,7 +410,7 @@ export function ProcedimentosClient({ inicial }: { inicial: DadosIniciais }) {
                             description={
                                 query || activeFilters
                                     ? 'Tente outro termo ou limpe os filtros.'
-                                    : 'Cadastre os servicos e materiais que a clínica oferece.'
+                                    : `Cadastre os servicos e materiais que ${comArtigo(v, 'organizacao')} oferece.`
                             }
                             action={
                                 canEdit && !query && !activeFilters ? (
@@ -445,7 +455,7 @@ export function ProcedimentosClient({ inicial }: { inicial: DadosIniciais }) {
                         <SummaryCard className="flex-col items-start gap-1.5">
                             <span className="flex w-full items-center justify-between gap-2">
                                 <span className="truncate text-sm font-semibold">{formData.name.trim() || 'Nome do item'}</span>
-                                <StatusBadge value={formData.category} map={CATEGORY_TONES} />
+                                <StatusBadge value={formData.category} map={CATEGORY_TONES(v)} />
                             </span>
                             <span className="num text-xs text-muted-foreground">
                                 {formData.priceCents ? precoDigitado(formData.priceCents) : 'Sem preço'}

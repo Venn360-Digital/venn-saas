@@ -16,6 +16,9 @@ import {
     normalizarJanela,
     type JanelaDeExpediente,
 } from '../../../../lib/rules/expediente'
+import { useVocab } from '../../../../hooks/useVocab'
+import { comArtigo } from '../../../../lib/concordancia'
+import type { Vocabulario } from '../../../../lib/vocabulario'
 
 /**
  * As condições que o avaliador sabe executar — e só elas.
@@ -49,9 +52,13 @@ type CondicaoSuportada =
     | 'first_message'
     | 'business_hours'
 
-const CONDICOES: Record<CondicaoSuportada, DefinicaoCondicao> = {
+/** Função, não constante: o texto usa o vocabulário da unidade, que vem do
+ * hook no componente. No cliente `vocab()` não serve — `BRAND()` lança no
+ * navegador —, e hook não alcança nível de módulo. */
+function CONDICOES(v: Vocabulario): Record<CondicaoSuportada, DefinicaoCondicao> {
+    return {
     message_contains: {
-        label: 'A mensagem do paciente',
+        label: `A mensagem ${comArtigo(v, 'pessoa', 'de')}`,
         operadores: [
             { value: 'contains', label: 'contém' },
             { value: 'equals', label: 'é exatamente' },
@@ -87,12 +94,13 @@ const CONDICOES: Record<CondicaoSuportada, DefinicaoCondicao> = {
         ],
         tipo: 'expediente',
         placeholder: '',
-        ajuda: 'A hora é a do fuso da unidade, definido em Conta → Conta da Clínica. O fim é exclusivo: às 18:00 em ponto já está fora de uma janela que fecha às 18:00.',
+        ajuda: `A hora é a do fuso da unidade, definido em Conta → Conta da ${v.Organizacao}. O fim é exclusivo: às 18:00 em ponto já está fora de uma janela que fecha às 18:00.`,
     },
 }
+}
 
-function isSuportada(tipo: string): tipo is CondicaoSuportada {
-    return tipo in CONDICOES
+function isSuportada(tipo: string, v: Vocabulario): tipo is CondicaoSuportada {
+    return tipo in CONDICOES(v)
 }
 
 /**
@@ -218,6 +226,8 @@ function CampoDeExpediente({
 }
 
 export function CondicoesTab({ rules, onChange }: CondicoesTabProps) {
+    const v = useVocab()
+
     const [stages, setStages] = useState<Opcao[]>([])
     const [departments, setDepartments] = useState<Opcao[]>([])
     const [tags, setTags] = useState<Opcao[]>([])
@@ -267,8 +277,8 @@ export function CondicoesTab({ rules, onChange }: CondicoesTabProps) {
 
         // Trocar o tipo troca o operador junto: um operador que o tipo novo não
         // aceita faz a condição nunca casar, sem nada na tela dizendo por quê.
-        if (patch.type && isSuportada(patch.type)) {
-            const def = CONDICOES[patch.type]
+        if (patch.type && isSuportada(patch.type, v)) {
+            const def = CONDICOES(v)[patch.type]
             const permitidos = def.operadores.map((o) => o.value)
             if (!permitidos.includes(atual.operator)) {
                 atual.operator = permitidos[0] as RuleCondition['operator']
@@ -309,7 +319,7 @@ export function CondicoesTab({ rules, onChange }: CondicoesTabProps) {
 
     /** Texto vira lista (qualquer-uma-delas); tempo vira número. */
     const gravarValor = (tipo: CondicaoSuportada, texto: string): RuleCondition['value'] => {
-        if (CONDICOES[tipo].tipo === 'numero') return Number(texto)
+        if (CONDICOES(v)[tipo].tipo === 'numero') return Number(texto)
         const partes = texto.split(',').map((p) => p.trim()).filter(Boolean)
         return partes.length > 1 ? partes : texto
     }
@@ -396,8 +406,8 @@ export function CondicoesTab({ rules, onChange }: CondicoesTabProps) {
                             <Label className="text-sm font-medium">SE (todas)</Label>
 
                             {rule.conditions.map((condition, ci) => {
-                                const def = isSuportada(condition.type)
-                                    ? CONDICOES[condition.type]
+                                const def = isSuportada(condition.type, v)
+                                    ? CONDICOES(v)[condition.type]
                                     : null
                                 const suportada = def !== null
 
@@ -425,7 +435,7 @@ export function CondicoesTab({ rules, onChange }: CondicoesTabProps) {
                                                 className="h-10 min-w-[220px] flex-1 rounded-md border bg-muted/50 px-3 text-sm"
                                             >
                                                 {!suportada && <option value="">Selecione…</option>}
-                                                {Object.entries(CONDICOES).map(([value, c]) => (
+                                                {Object.entries(CONDICOES(v)).map(([value, c]) => (
                                                     <option key={value} value={value}>
                                                         {c.label}
                                                     </option>

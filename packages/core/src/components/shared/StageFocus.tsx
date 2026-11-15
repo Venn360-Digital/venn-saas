@@ -12,6 +12,7 @@ import { useNow } from '../../hooks/useNow'
 import { useFusoDaUnidade } from '../../hooks/useUnidades'
 import { cn } from '@venn/ui/utils'
 import { useMoeda } from '../../hooks/useMoeda'
+import { useVocab } from '../../hooks/useVocab'
 
 export type FocusOrder = 'age' | 'value' | 'recent'
 
@@ -65,6 +66,7 @@ export function StageFocus({
     emptyHint?: string
     className?: string
 }) {
+
     const now = useNow()
     const moeda = useMoeda()
     // Desce por prop junto com o relógio e a moeda, pelo mesmo motivo: um
@@ -151,6 +153,7 @@ function FocusRow({
         open: (target: { id?: string; name?: string | null; phone?: string | null }) => void
     }
 }) {
+    const v = useVocab()
     const closed = deal.status !== 'open'
     const moeda = useMoeda()
     const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
@@ -205,7 +208,7 @@ function FocusRow({
                 <p className="truncate text-[11px] text-muted-foreground">
                     {[deal.contact?.name || formatPhone(deal.contact?.phone), deal.owner?.name]
                         .filter(Boolean)
-                        .join(' · ') || 'Sem paciente'}
+                        .join(' · ') || `Sem ${v.pessoa}`}
                 </p>
             </div>
 

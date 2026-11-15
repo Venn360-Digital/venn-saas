@@ -8,6 +8,8 @@ import { toast } from 'sonner'
 import { Button } from '@venn/ui/button'
 import { ConfirmDialog } from '../../shared/ConfirmDialog'
 import { SettingsRow } from '../../shared/TabsFrame'
+import { useVocab } from '../../../hooks/useVocab'
+import { comArtigo } from '../../../lib/concordancia'
 
 /**
  * O cartão que liga o Instagram da clínica — botão e orientação juntos.
@@ -170,6 +172,8 @@ function LembreteDeAcesso() {
 }
 
 export function InstagramConnect({ agentId, canManage, renderAcao }: Props) {
+    const v = useVocab()
+
     const [configurado, setConfigurado] = useState<boolean | null>(null)
     const [conta, setConta] = useState<Conta | null>(null)
     const [carregando, setCarregando] = useState(false)
@@ -349,7 +353,7 @@ export function InstagramConnect({ agentId, canManage, renderAcao }: Props) {
                         Instagram Direct
                     </span>
                 }
-                description="O Direct da conta profissional da clínica. A conta é escolhida numa janela da Meta; nenhuma credencial passa por aqui."
+                description={`O Direct da conta profissional ${comArtigo(v, 'organizacao', 'de')}. A conta é escolhida numa janela da Meta; nenhuma credencial passa por aqui.`}
                 action={acao}
             />
 
@@ -365,7 +369,7 @@ export function InstagramConnect({ agentId, canManage, renderAcao }: Props) {
                 title="Desligar o Instagram?"
                 description={
                     'O Direct para de chegar na hora. As conversas e o histórico ficam, e ' +
-                    'religar não pede nada ao paciente. A clínica continua respondendo pelo ' +
+                    `religar não pede nada ${comArtigo(v, 'pessoa', 'a')}. ${comArtigo(v, 'Organizacao')} continua respondendo pelo ` +
                     'aplicativo do Instagram normalmente.'
                 }
                 confirmLabel="Desligar"

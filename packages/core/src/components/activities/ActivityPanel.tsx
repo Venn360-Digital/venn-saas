@@ -13,6 +13,7 @@ import { WhatsAppMark } from '../shared/WhatsAppMark'
 import { ACTIVITY_TYPES } from '../../lib/activity-types'
 import { MASKS, dateFromMask, maskDigitsFromIso, prettyPhone } from '../../lib/masks'
 import { cn } from '@venn/ui/utils'
+import { useVocab } from '../../hooks/useVocab'
 
 export interface ActivityPanelItem {
     id: string
@@ -84,6 +85,8 @@ export function ActivityPanel({
     onEditFull: (id: string) => void
     onDelete: (id: string) => void
 }) {
+    const v = useVocab()
+
     const { save, saved, local } = usePanelSave<ActivityPanelItem>(`/api/activities/${item.id}`, onChanged, item)
     const a = { ...item, ...local }
     const type = ACTIVITY_TYPES.find((t) => t.id === a.type) ?? ACTIVITY_TYPES[0]
@@ -201,7 +204,7 @@ export function ActivityPanel({
             </PanelSection>
 
             {a.contact ? (
-                <PanelSection title="Paciente">
+                <PanelSection title={v.Pessoa}>
                     <Link href={`/vendas/clientes?open=${a.contact.id}`} className="flex items-center gap-2 text-sm hover:text-primary-subtle-foreground">
                         <span className="font-semibold">{a.contact.name || 'Sem nome'}</span>
                         {phone ? <span className="num text-muted-foreground">{prettyPhone(phone)}</span> : null}

@@ -33,6 +33,7 @@ import { useFusoDaUnidade } from '@venn/core/hooks/useUnidades'
 import { usePermissions } from '@venn/core/hooks/usePermissions'
 import { JanelasDialog } from '@venn/core/components/professionals/JanelasDialog'
 import { useVocab } from '@venn/core/hooks/useVocab'
+import { comArtigo } from '../../../../lib/concordancia'
 
 // ─── Types ──────────────────────────────────────────────────────────
 interface Activity {
@@ -129,6 +130,7 @@ function isSameDay(d1: Date, d2: Date): boolean {
 // ─── Main Page ──────────────────────────────────────────────────────
 export default function AgendaPage() {
     const v = useVocab()
+
 
     // Presentation only — the API enforces the same rule. Without this an
     // ATENDENTE would see Delete controls that answer 403.
@@ -1072,16 +1074,16 @@ export default function AgendaPage() {
                     </FormField>
                 ) : null}
 
-                <FormField label="Paciente" htmlFor="act-contact" className={formData.recurrenceType ? '' : 'col-span-1'}>
+                <FormField label={v.Pessoa} htmlFor="act-contact" className={formData.recurrenceType ? '' : 'col-span-1'}>
                     {selectedContact ? (
                         <div className="flex h-9 items-center gap-2 rounded-md border border-input bg-muted/40 px-3">
                             <User className="size-4 text-muted-foreground" />
                             <span className="flex-1 truncate text-sm">{selectedContact.name || selectedContact.phone}</span>
-                            <button type="button" aria-label="Tirar o paciente" onClick={() => { setSelectedContact(null); setFormData(f => ({ ...f, contactId: '' })) }} className="text-muted-foreground hover:text-foreground"><X className="size-3.5" /></button>
+                            <button type="button" aria-label={`Tirar ${comArtigo(v, 'pessoa')}`} onClick={() => { setSelectedContact(null); setFormData(f => ({ ...f, contactId: '' })) }} className="text-muted-foreground hover:text-foreground"><X className="size-3.5" /></button>
                         </div>
                     ) : (
                         <div className="relative">
-                            <Input id="act-contact" placeholder="Buscar paciente…" value={contactSearch}
+                            <Input id="act-contact" placeholder={`Buscar ${v.pessoa}…`} value={contactSearch}
                                 onChange={(e) => { setContactSearch(e.target.value); setShowContactDropdown(true) }}
                                 onFocus={() => setShowContactDropdown(true)} />
                             {showContactDropdown && contactResults.length > 0 && (

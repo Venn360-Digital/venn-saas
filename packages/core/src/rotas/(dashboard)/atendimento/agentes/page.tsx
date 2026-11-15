@@ -26,6 +26,8 @@ import { ErrorState } from '@venn/core/components/shared/ErrorState'
 import { IndexFrame } from '@venn/core/components/shared/IndexFrame'
 import { usePermissions } from '@venn/core/hooks/usePermissions'
 import { AgentCard } from '@venn/core/components/agents/AgentCard'
+import { useVocab } from '../../../../hooks/useVocab'
+import { comArtigo } from '../../../../lib/concordancia'
 
 interface Limites {
     planName: string | null
@@ -46,6 +48,8 @@ interface Limites {
  * ficha lateral.
  */
 export default function AgentsPage() {
+    const v = useVocab()
+
     const router = useRouter()
     // Configurar agente é de dono e administrador; ver é de todo mundo.
     const { canManage, loading: permissoesCarregando } = usePermissions()
@@ -372,8 +376,8 @@ export default function AgentsPage() {
                 description={
                     `"${movendo?.name ?? ''}" vai inteiro: prompt, regras, campos, webhooks, ` +
                     'base de conhecimento e os números conectados — a próxima mensagem naquele ' +
-                    'número já nasce na clínica de destino. As conversas e o histórico ficam ' +
-                    'nesta clínica, porque pertencem aos pacientes dela.' +
+                    `número já nasce ${comArtigo(v, 'organizacao', 'em')} de destino. As conversas e o histórico ficam ` +
+                    `nesta ${v.organizacao}, porque pertencem ${comArtigo(v, 'pessoas', 'a')} dela.` +
                     /* O caso que decepciona em silêncio: mover um agente pausado
                        e esperar que a clínica nova passe a ser atendida. A vaga
                        é da conta, então ele chega pausado do outro lado. */
@@ -391,11 +395,11 @@ export default function AgentsPage() {
                 <FormField
                     label="Unidade de destino"
                     required
-                    hint="O departamento e a origem padrão dos números são limpos: são desta clínica."
+                    hint={`O departamento e a origem padrão dos números são limpos: são ${comArtigo(v, 'organizacao', 'este')}.`}
                 >
                     <Select value={destino} onValueChange={setDestino}>
                         <SelectTrigger className="w-full" aria-label="Unidade de destino">
-                            <SelectValue placeholder="Escolha a clínica" />
+                            <SelectValue placeholder={`Escolha ${comArtigo(v, 'organizacao')}`} />
                         </SelectTrigger>
                         <SelectContent>
                             {destinos.map((u) => (
