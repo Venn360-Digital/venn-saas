@@ -78,7 +78,7 @@ export function FunisClient({ inicial }: { inicial: DadosIniciais }) {
         }
         setCriando(true)
         try {
-            const partida = GALERIA_DE_FUNIS.find((g) => g.id === modelo)
+            const partida = GALERIA_DE_FUNIS().find((g) => g.id === modelo)
             const res = await fetch('/api/marketing/funis', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -286,7 +286,7 @@ export function FunisClient({ inicial }: { inicial: DadosIniciais }) {
                         className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
                     >
                         <option value="vazio">Começar do zero</option>
-                        {GALERIA_DE_FUNIS.map((g) => (
+                        {GALERIA_DE_FUNIS().map((g) => (
                             <option key={g.id} value={g.id}>
                                 {g.nome}
                             </option>

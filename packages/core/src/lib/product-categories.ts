@@ -1,3 +1,4 @@
+import { vocab } from './vocabulario'
 /**
  * As três categorias de item da clínica, e quais delas ocupam a agenda.
  *
@@ -8,13 +9,26 @@
  * A ordem é a de uso numa clínica: o que ela vende o dia todo primeiro, a
  * mercadoria por último.
  */
-export const PRODUCT_CATEGORIES = [
+/**
+ * Função memoizada, e não constante: o texto lê o vocabulário, e `BRAND()` é
+ * fail-fast. Constante de módulo é avaliada quando a Cloudflare VALIDA o
+ * script — sem requisição e sem marca registrada —, e a publicação reprova com
+ * `MarcaNaoRegistradaError`. A forma que já reprovou cinco publicações.
+ */
+function montarProductCategories() {
+    return [
     { id: 'service', label: 'Serviço' },
-    { id: 'procedure', label: 'Procedimento' },
+    { id: 'procedure', label: `${vocab().Servico}` },
     { id: 'product', label: 'Produto' },
 ] as const
+}
+let productCategoriesCache: ReturnType<typeof montarProductCategories> | null = null
+export function PRODUCT_CATEGORIES(): ReturnType<typeof montarProductCategories> {
+    if (productCategoriesCache === null) productCategoriesCache = montarProductCategories()
+    return productCategoriesCache
+}
 
-export type ProductCategory = (typeof PRODUCT_CATEGORIES)[number]['id']
+export type ProductCategory = ReturnType<typeof PRODUCT_CATEGORIES>[number]['id']
 
 /**
  * O que ocupa tempo na agenda — e, por isso, tem duração.
@@ -40,5 +54,5 @@ export function isSchedulable(category: string | null | undefined): boolean {
 
 /** O rótulo da categoria, para a tela. */
 export function categoryLabel(category: string | null | undefined): string {
-    return PRODUCT_CATEGORIES.find((c) => c.id === category)?.label ?? 'Item'
+    return PRODUCT_CATEGORIES().find((c) => c.id === category)?.label ?? 'Item'
 }

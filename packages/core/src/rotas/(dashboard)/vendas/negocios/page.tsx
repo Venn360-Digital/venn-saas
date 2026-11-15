@@ -1377,9 +1377,9 @@ export default function NegociosPage() {
                         a pílula mostra sai da mesma consulta que o clique aplica. */}
                     <FilterPill
                         label="Alertas"
-                        value={lane ? (DEAL_LANES.find(l => l.id === lane)?.label ?? null) : null}
+                        value={lane ? (DEAL_LANES().find(l => l.id === lane)?.label ?? null) : null}
                         onClear={() => setLane(null)}
-                        options={[{ value: '', label: 'Sem alerta' }, ...DEAL_LANES.map(l => ({ value: l.id, label: laneCounts ? `${l.label} · ${laneCounts[l.id]}` : l.label }))]}
+                        options={[{ value: '', label: 'Sem alerta' }, ...DEAL_LANES().map(l => ({ value: l.id, label: laneCounts ? `${l.label} · ${laneCounts[l.id]}` : l.label }))]}
                         selected={lane ?? ''}
                         onSelect={(v) => setLane(isDealLane(v) ? v : null)}
                     />

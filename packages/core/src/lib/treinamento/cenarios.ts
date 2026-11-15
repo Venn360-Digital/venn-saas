@@ -1,5 +1,7 @@
 import { secionarMarkdown } from '../rag/secoes'
 import { ehSecaoDeExemplos } from './exemplos'
+import { vocab } from '../vocabulario'
+import { comArtigo } from '../concordancia'
 
 /**
  * Os cenários: o oitavo documento de treinamento, e o primeiro de modo
@@ -172,8 +174,8 @@ export function catalogoDeCenarios(cenarios: Cenario[]): string | null {
 
     return (
         '## Cenários disponíveis\n' +
-        'Situações com procedimento próprio. Quando a conversa chegar numa delas, o ' +
-        'procedimento completo aparece em "Procedimento para esta situação" — siga os ' +
+        `Situações com ${vocab().servico} próprio. Quando a conversa chegar numa delas, o ` +
+        `${vocab().servico} completo aparece em "${vocab().Servico} para esta situação" — siga os ` +
         'passos na ordem.\n' +
         linhas
     )
@@ -197,8 +199,8 @@ export function procedimentoParaOPrompt(trechos: { title: string; content: strin
     if (trechos.length === 0) return null
 
     return (
-        '## Procedimento para esta situação\n' +
-        'Siga os passos abaixo nesta ordem. **Não os leia para o paciente** — execute-os.\n\n' +
+        `## ${vocab().Servico} para esta situação\n` +
+        `Siga os passos abaixo nesta ordem. **Não os leia para ${comArtigo(vocab(), 'pessoa')}** — execute-os.\n\n` +
         trechos.map((t) => t.content).join('\n\n')
     )
 }

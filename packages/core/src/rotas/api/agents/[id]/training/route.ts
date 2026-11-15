@@ -73,7 +73,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
          * novo — o rascunho existiria e seria invisível, que é a pior forma de
          * existir.
          */
-        const docs = await Promise.all(DOCUMENTOS.map(async (doc) => {
+        const docs = await Promise.all(DOCUMENTOS().map(async (doc) => {
             const gravado = porSlug.get(doc.slug)
             const publicado = gravado?.content ?? ''
             const rascunho = gravado?.draftContent ?? null

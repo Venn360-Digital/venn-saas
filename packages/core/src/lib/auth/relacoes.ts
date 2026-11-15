@@ -1,4 +1,5 @@
 import prisma from '@venn/db/cliente'
+import { vocab } from '../vocabulario'
 
 /**
  * Confere que **id de relação vindo do navegador** pertence à clínica.
@@ -50,11 +51,19 @@ export type CampoDeRelacao =
     | 'tagIds'
 
 /** O nome que vai na mensagem de erro — o campo, não o modelo. */
-const ROTULO: Record<CampoDeRelacao, string> = {
-    contactId: 'paciente',
+/**
+ * Função memoizada, e não constante: o texto lê o vocabulário, e `BRAND()` é
+ * fail-fast. Constante de módulo é avaliada quando a Cloudflare VALIDA o
+ * script — sem requisição e sem marca registrada —, e a publicação reprova com
+ * `MarcaNaoRegistradaError`. A forma que já reprovou cinco publicações.
+ */
+let rotuloCache: Record<CampoDeRelacao, string> | null = null
+function ROTULO(): Record<CampoDeRelacao, string> {
+    if (rotuloCache === null) rotuloCache = {
+    contactId: `${vocab().pessoa}`,
     dealId: 'negócio',
     userId: 'usuário',
-    professionalId: 'especialista',
+    professionalId: `${vocab().profissional}`,
     productServiceId: 'serviço',
     originId: 'origem',
     mediaId: 'mídia',
@@ -62,6 +71,8 @@ const ROTULO: Record<CampoDeRelacao, string> = {
     outcomeReasonId: 'motivo',
     closedStageId: 'fase de fechamento',
     tagIds: 'etiqueta',
+}
+    return rotuloCache
 }
 
 /**
@@ -155,8 +166,8 @@ export async function conferirRelacoes(
         if (achados !== unicos.length) {
             return {
                 campo,
-                rotulo: ROTULO[campo],
-                mensagem: `${ROTULO[campo]} não encontrado`,
+                rotulo: ROTULO()[campo],
+                mensagem: `${ROTULO()[campo]} não encontrado`,
             }
         }
     }

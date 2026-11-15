@@ -35,6 +35,7 @@ import { buildSystemPrompt } from '@venn/core/trabalhos/servicos/prompt'
 import type { Agent } from '@venn/db'
 import { tipoDoAcervo, ehDeTreinamento, TIPO_DE_CENARIO, TIPO_DE_TREINAMENTO } from '@venn/core/lib/treinamento/indexar'
 import { BRAND } from '@venn/core/marca'
+import { comArtigo } from '@venn/core/lib/concordancia'
 
 let passou = 0
 let falhou = 0
@@ -145,7 +146,11 @@ conferir(
     catalogo.includes('Chame passar_para_equipe') || catalogo.includes('Informe o telefone'),
     false
 )
-conferir('diz ao modelo onde o procedimento aparece', catalogo.includes('Procedimento para esta situação'), true)
+conferir(
+    'diz ao modelo onde o passo a passo aparece',
+    catalogo.includes(`${BRAND().vocabulario.Servico} para esta situação`),
+    true
+)
 conferir('sem cenário válido devolve nulo, para a seção não sair vazia', catalogoDeCenarios([]), null)
 conferir(
     'o catálogo tem teto — ele vai em toda mensagem',
@@ -163,13 +168,13 @@ console.log('\nO procedimento recuperado')
 
 const proc = procedimentoParaOPrompt([{ title: 'cenarios', content: '### Remarcar\nPassos:\n1. a' }])!
 
-conferir('manda EXECUTAR, não ler', proc.includes('Não os leia para o paciente'), true)
+conferir('manda EXECUTAR, não ler', proc.includes(`Não os leia para ${comArtigo(BRAND().vocabulario, 'pessoa')}`), true)
 conferir('traz o corpo', proc.includes('Passos:'), true)
 conferir('sem trecho devolve nulo', procedimentoParaOPrompt([]), null)
 
 console.log('\nO catálogo e o acervo')
 
-conferir('o oitavo documento existe', acharDocumento('cenarios')?.modo, 'procedimento')
+conferir('o oitavo documento existe', acharDocumento('cenarios')?.modo, 'servico')
 conferir(
     'ele é indexado: entra em documentosDoAcervo',
     documentosDoAcervo().map((d) => d.slug).includes('cenarios'),
@@ -185,7 +190,7 @@ conferir(
     documentosDoPrompt().map((d) => d.slug).includes('cenarios'),
     false
 )
-conferir('o trecho dele leva tipo próprio', tipoDoAcervo('procedimento'), TIPO_DE_CENARIO)
+conferir('o trecho dele leva tipo próprio', tipoDoAcervo('servico'), TIPO_DE_CENARIO)
 conferir('o de rag leva o de treinamento', tipoDoAcervo('rag'), TIPO_DE_TREINAMENTO)
 conferir('os dois contam como de treinamento — o Cérebro não os lista nem os apaga', [
     ehDeTreinamento(TIPO_DE_TREINAMENTO),

@@ -3,6 +3,8 @@ import { SCHEDULABLE_CATEGORIES } from '@venn/core/lib/product-categories'
 import { z } from 'zod'
 import prisma from '@venn/db/cliente'
 import { PERMISSION_DENIED, getWorkspaceMember, hasEditorRole } from '@venn/core/lib/auth/workspace'
+import { vocab } from '../../../../../lib/vocabulario'
+import { comArtigo } from '../../../../../lib/concordancia'
 
 /**
  * As faixas de horário em que um especialista atende.
@@ -63,7 +65,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         select: { id: true },
     })
     if (!especialista) {
-        return NextResponse.json({ error: 'Especialista não encontrado' }, { status: 404 })
+        return NextResponse.json({ error: `${vocab().Profissional} não encontrado` }, { status: 404 })
     }
 
     const parsed = corpoSchema.safeParse(await request.json().catch(() => ({})))
@@ -96,7 +98,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         })
         if (validos.length !== pedidos.length) {
             return NextResponse.json(
-                { error: 'Um dos procedimentos não existe ou não é um procedimento.' },
+                { error: `Um dos ${vocab().servicos} não existe ou não é ${comArtigo(vocab(), 'servico', 'um')}.` },
                 { status: 400 }
             )
         }

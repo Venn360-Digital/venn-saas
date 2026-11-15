@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { MANAGER_ROLES, requireRole } from '@venn/core/lib/auth/workspace'
 import { htmlToText, isPrivateHost, pageTitle } from '@venn/core/lib/rag/page-text'
+import { vocab } from '../../../../../lib/vocabulario'
+import { comArtigo } from '../../../../../lib/concordancia'
 
 export const runtime = 'nodejs'
 
@@ -59,7 +61,7 @@ export async function POST(request: NextRequest) {
 
         if (isPrivateHost(target.hostname)) {
             return NextResponse.json(
-                { error: 'Esse endereço não é público. Informe o site da clínica.' },
+                { error: `Esse endereço não é público. Informe o site ${comArtigo(vocab(), 'organizacao', 'de')}.` },
                 { status: 400 }
             )
         }

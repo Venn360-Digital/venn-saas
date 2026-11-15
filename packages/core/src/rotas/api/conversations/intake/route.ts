@@ -5,6 +5,7 @@ import { requireWritable } from '@venn/core/lib/billing'
 import { MANAGER_ROLES, getWorkspaceMember } from '@venn/core/lib/auth/workspace'
 import { connectedWhatsApp, hasWhatsApp, normalizePhone, phoneVariants } from '@venn/core/lib/intake'
 import { contatoCriado } from '@venn/core/lib/funil/disparos'
+import { vocab } from '../../../../lib/vocabulario'
 
 type Mode = 'active' | 'call'
 
@@ -124,7 +125,7 @@ export async function POST(request: NextRequest) {
                 workspaceId,
                 contactId: contact.id,
                 userId,
-                title: `Novo paciente - ${name || canonical}`,
+                title: `Novo ${vocab().pessoa} - ${name || canonical}`,
                 stageId: firstStage.id,
                 status: 'open',
                 originId,

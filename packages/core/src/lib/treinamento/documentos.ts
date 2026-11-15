@@ -34,6 +34,8 @@
  */
 
 import { modeloEscrito } from './modelos'
+import { vocab } from '../vocabulario'
+import { comArtigo } from '../concordancia'
 
 /**
  * Onde o texto do documento chega ao modelo.
@@ -48,7 +50,13 @@ import { modeloEscrito } from './modelos'
  * trecho leva `type: 'cenario'` em vez de `treinamento` — é o que permite ao
  * prompt apresentá-lo como ordem de execução e não como fonte de verdade.
  */
-export type ModoDoDocumento = 'prompt' | 'rag' | 'procedimento'
+/*
+ * Literal de TIPO é identificador, não texto — então neutro e fixo, como o
+ * nome de uma ferramenta do agente. O reescritor de vocabulário o trocou por
+ * interpolação numa primeira passada; tipo não pode ser dinâmico, e o
+ * typecheck pegou na hora.
+ */
+export type ModoDoDocumento = 'prompt' | 'rag' | 'servico'
 
 export interface DocumentoDeTreinamento {
     /**
@@ -104,7 +112,15 @@ export interface DocumentoDeTreinamento {
  */
 export const SECAO_EXEMPLOS = 'Exemplos de resposta'
 
-export const DOCUMENTOS: readonly DocumentoDeTreinamento[] = [
+/**
+ * Função memoizada, e não constante: o texto lê o vocabulário, e `BRAND()` é
+ * fail-fast. Constante de módulo é avaliada quando a Cloudflare VALIDA o
+ * script — sem requisição e sem marca registrada —, e a publicação reprova com
+ * `MarcaNaoRegistradaError`. A forma que já reprovou cinco publicações.
+ */
+let documentosCache: readonly DocumentoDeTreinamento[] | null = null
+export function DOCUMENTOS(): readonly DocumentoDeTreinamento[] {
+    if (documentosCache === null) documentosCache = [
     {
         slug: 'instrucoes-centrais',
         /**
@@ -158,7 +174,7 @@ export const DOCUMENTOS: readonly DocumentoDeTreinamento[] = [
             'Os fatos sobre a empresa: endereço, horário, diferenciais. Vai em toda ' +
             'mensagem — a medição mostrou que a busca não o encontrava de forma ' +
             'confiável (“onde vocês ficam?” vinha raspando o piso). Escreva o ' +
-            'essencial, não a história da clínica.',
+            `essencial, não a história ${comArtigo(vocab(), 'organizacao', 'de')}.`,
     },
     {
         slug: 'servicos',
@@ -271,7 +287,7 @@ export const DOCUMENTOS: readonly DocumentoDeTreinamento[] = [
         slug: 'cenarios',
         titulo: 'Cenários de atendimento',
         item: 'Cenários',
-        modo: 'procedimento',
+        modo: 'servico',
         teto: 50_000,
         /**
          * Precedência 4: depois dos limites, da identidade e do processo, antes
@@ -291,6 +307,8 @@ export const DOCUMENTOS: readonly DocumentoDeTreinamento[] = [
             'chegam quando a conversa entra na situação.',
     },
 ]
+    return documentosCache
+}
 
 /**
  * O teto do rótulo no índice da Tela 03, em caracteres.
@@ -310,12 +328,12 @@ export const DOCUMENTOS: readonly DocumentoDeTreinamento[] = [
 export const LIMITE_DO_ROTULO = 19
 
 export function acharDocumento(slug: string): DocumentoDeTreinamento | undefined {
-    return DOCUMENTOS.find((d) => d.slug === slug)
+    return DOCUMENTOS().find((d) => d.slug === slug)
 }
 
 /** Os que vão no prompt, já na ordem de precedência. */
 export function documentosDoPrompt(): DocumentoDeTreinamento[] {
-    return DOCUMENTOS.filter((d) => d.modo === 'prompt').sort(
+    return DOCUMENTOS().filter((d) => d.modo === 'prompt').sort(
         (a, b) => a.precedencia - b.precedencia
     )
 }
@@ -332,12 +350,12 @@ export function documentosDoPrompt(): DocumentoDeTreinamento[] {
  * `tipoDoAcervo`.
  */
 export function documentosDoAcervo(): DocumentoDeTreinamento[] {
-    return DOCUMENTOS.filter((d) => d.modo === 'rag' || d.modo === 'procedimento')
+    return DOCUMENTOS().filter((d) => d.modo === 'rag' || d.modo === 'servico')
 }
 
 /** Só os de `rag`: os que carregam **fato**, não procedimento. */
 export function documentosDeFato(): DocumentoDeTreinamento[] {
-    return DOCUMENTOS.filter((d) => d.modo === 'rag')
+    return DOCUMENTOS().filter((d) => d.modo === 'rag')
 }
 
 /**
@@ -348,7 +366,7 @@ export function documentosDeFato(): DocumentoDeTreinamento[] {
  * um passo a passo recuperado vira a instrução menos subordinada do conjunto.
  */
 export function documentosDeProcedimento(): DocumentoDeTreinamento[] {
-    return DOCUMENTOS.filter((d) => d.modo === 'procedimento')
+    return DOCUMENTOS().filter((d) => d.modo === 'servico')
 }
 
 /**

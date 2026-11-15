@@ -63,7 +63,7 @@ export function DealLanes({
     if (variant === 'chip') {
         return (
             <div className={cn('flex flex-wrap items-center gap-1.5', className)}>
-                {DEAL_LANES.map((lane) => {
+                {DEAL_LANES().map((lane) => {
                     const look = LOOK[lane.id]
                     const count = counts?.[lane.id]
                     const active = selected === lane.id
@@ -100,7 +100,7 @@ export function DealLanes({
 
     return (
         <div className={cn('grid gap-3 sm:grid-cols-3', className)}>
-            {DEAL_LANES.map((lane) => {
+            {DEAL_LANES().map((lane) => {
                 const look = LOOK[lane.id]
                 const count = counts?.[lane.id]
                 const active = selected === lane.id

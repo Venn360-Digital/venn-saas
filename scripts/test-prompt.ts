@@ -24,6 +24,8 @@ import './lib/marca-de-teste.ts'
 import { buildSystemPrompt, type DocumentoNoPrompt } from '@venn/core/trabalhos/servicos/prompt'
 import { acharDocumento } from '@venn/core/lib/treinamento/documentos'
 import type { Agent } from '@venn/db'
+import { BRAND } from '@venn/core/marca'
+import { comArtigo } from '@venn/core/lib/concordancia'
 
 let passou = 0
 let falhou = 0
@@ -412,12 +414,12 @@ const comProcedimento = buildSystemPrompt(
 
 conferir(
     'trecho de cenário vai para a seção de PROCEDIMENTO, não para a de fato',
-    comProcedimento.includes('## Procedimento para esta situação'),
+    comProcedimento.includes(`## ${BRAND().vocabulario.Servico} para esta situação`),
     true
 )
 conferir(
     'e manda executar, não ler para o paciente',
-    comProcedimento.includes('Não os leia para o paciente'),
+    comProcedimento.includes(`Não os leia para ${comArtigo(BRAND().vocabulario, 'pessoa')}`),
     true
 )
 conferir(
@@ -427,7 +429,7 @@ conferir(
 )
 conferir(
     'PROCEDIMENTO antes de FATO: senão o modelo responde o preço e ignora o passo a passo',
-    comProcedimento.indexOf('## Procedimento para esta situação') <
+    comProcedimento.indexOf(`## ${BRAND().vocabulario.Servico} para esta situação`) <
         comProcedimento.indexOf('## Base de conhecimento'),
     true
 )

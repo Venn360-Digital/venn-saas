@@ -54,7 +54,7 @@ export function ehDeTreinamento(type: string): boolean {
  * como saber de que documento o trecho veio sem uma segunda consulta.
  */
 export function tipoDoAcervo(modo: ModoDoDocumento): RagDocType {
-    return modo === 'procedimento' ? TIPO_DE_CENARIO : TIPO_DE_TREINAMENTO
+    return modo === 'servico' ? TIPO_DE_CENARIO : TIPO_DE_TREINAMENTO
 }
 
 /**

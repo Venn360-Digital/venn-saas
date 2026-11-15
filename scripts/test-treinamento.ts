@@ -66,7 +66,7 @@ console.log('\nOs slugs — chave de gravação, conferida literal')
 
 conferir(
     'os oito slugs, nesta grafia — `cenarios` é o do passo 6',
-    DOCUMENTOS.map((d) => d.slug),
+    DOCUMENTOS().map((d) => d.slug),
     [
         'instrucoes-centrais',
         'empresa',
@@ -79,10 +79,10 @@ conferir(
     ]
 )
 
-conferir('slugs únicos', new Set(DOCUMENTOS.map((d) => d.slug)).size, DOCUMENTOS.length)
+conferir('slugs únicos', new Set(DOCUMENTOS().map((d) => d.slug)).size, DOCUMENTOS().length)
 conferir(
     'slug é seguro para URL e para nome de arquivo',
-    DOCUMENTOS.every((d) => /^[a-z0-9-]+$/.test(d.slug)),
+    DOCUMENTOS().every((d) => /^[a-z0-9-]+$/.test(d.slug)),
     true
 )
 conferir('acharDocumento encontra pelo slug', acharDocumento('faq')?.titulo, 'Sinônimos e FAQ')
@@ -178,13 +178,13 @@ conferir(
 
 conferir(
     'precedências únicas — empate devolve a decisão ao acidente',
-    new Set(DOCUMENTOS.map((d) => d.precedencia)).size,
-    DOCUMENTOS.length
+    new Set(DOCUMENTOS().map((d) => d.precedencia)).size,
+    DOCUMENTOS().length
 )
 
 conferir(
     'Privacidade tem a maior precedência de todas',
-    Math.min(...DOCUMENTOS.map((d) => d.precedencia)),
+    Math.min(...DOCUMENTOS().map((d) => d.precedencia)),
     acharDocumento('privacidade')!.precedencia
 )
 
@@ -306,12 +306,12 @@ console.log('\nA seção reservada')
 
 conferir(
     'todos os sete oferecem a seção de exemplos',
-    DOCUMENTOS.every((d) => d.secoes.includes(SECAO_EXEMPLOS)),
+    DOCUMENTOS().every((d) => d.secoes.includes(SECAO_EXEMPLOS)),
     true
 )
 conferir(
     'e ela é sempre a última, para não se misturar aos fatos',
-    DOCUMENTOS.every((d) => d.secoes.at(-1) === SECAO_EXEMPLOS),
+    DOCUMENTOS().every((d) => d.secoes.at(-1) === SECAO_EXEMPLOS),
     true
 )
 
@@ -494,7 +494,7 @@ console.log('\nO título dos trechos é o slug — e isso é deliberado')
 conferir('tituloDoAcervo devolve o slug, não o título humano', tituloDoAcervo('servicos'), 'servicos')
 conferir(
     'o slug NUNCA é o título da tela — se fosse, um rename orfanaria o acervo',
-    DOCUMENTOS.every((d) => tituloDoAcervo(d.slug) !== d.titulo),
+    DOCUMENTOS().every((d) => tituloDoAcervo(d.slug) !== d.titulo),
     true
 )
 conferir('slugConhecido aceita o do catálogo', slugConhecido('privacidade'), true)

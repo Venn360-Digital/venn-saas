@@ -30,6 +30,8 @@
 
 import { DOCUMENTOS } from '../treinamento/documentos'
 import type { Grupo } from './agrupar'
+import { vocab } from '../vocabulario'
+import { comArtigo } from '../concordancia'
 
 /**
  * Os documentos que podem receber um rascunho: os dois de **conteúdo**, pelo
@@ -48,11 +50,20 @@ import type { Grupo } from './agrupar'
  * branco segue seguro nos dois destinos: tanto o acervo (`indexar.ts`) quanto o
  * prompt (`prompt.ts`) descartam comentário HTML via `semComentarios`.
  */
-export const ALVOS_POSSIVEIS = ['faq', 'servicos'].filter((slug) =>
-    DOCUMENTOS.some((d) => d.slug === slug)
-)
+/**
+ * Memoizada porque depende de `DOCUMENTOS()`, que passou a interpolar o
+ * vocabulário — a dependência se propaga, e uma constante aqui voltaria a ler
+ * a marca na validação do script.
+ */
+let alvosCache: string[] | null = null
+export function ALVOS_POSSIVEIS(): string[] {
+    if (alvosCache === null) {
+        alvosCache = ['faq', 'servicos'].filter((slug) => DOCUMENTOS().some((d) => d.slug === slug))
+    }
+    return alvosCache
+}
 
-export type AlvoDoRascunho = (typeof ALVOS_POSSIVEIS)[number]
+export type AlvoDoRascunho = string
 
 /** O alvo padrão: a FAQ existe exactamente para isto, um `##` por pergunta. */
 export const ALVO_PADRAO = 'faq'
@@ -71,7 +82,7 @@ export function promptDoRascunho(grupo: Grupo, variacoes: string[]): string {
     const lista = variacoes.slice(0, 8).map((v) => `- ${v}`).join('\n')
 
     return [
-        'Você organiza a base de conhecimento de um agente de atendimento de clínica.',
+        `Você organiza a base de conhecimento de um agente de atendimento de ${vocab().organizacao}.`,
         '',
         `${grupo.demanda} pessoa(s) perguntaram isto e o agente não soube responder:`,
         '',
@@ -81,8 +92,8 @@ export function promptDoRascunho(grupo: Grupo, variacoes: string[]): string {
         lista,
         '',
         '## O que fazer',
-        `Escolha o documento de destino entre: ${ALVOS_POSSIVEIS.join(', ')}.`,
-        '`servicos` é para preço, duração e condição de um procedimento. `faq` é para ' +
+        `Escolha o documento de destino entre: ${ALVOS_POSSIVEIS().join(', ')}.`,
+        `\`servicos\` é para preço, duração e condição de ${comArtigo(vocab(), 'servico', 'um')}. \`faq\` é para ` +
             'qualquer outra dúvida recorrente.',
         '',
         'Escreva o cabeçalho da seção **como pergunta**, na forma mais natural, e em ' +
@@ -121,7 +132,7 @@ export interface RascunhoLido {
  */
 export function interpretarRascunho(saida: string): RascunhoLido | null {
     const alvo = saida.match(/^ALVO:\s*(.+)$/m)?.[1]?.trim().toLowerCase()
-    if (!alvo || !ALVOS_POSSIVEIS.includes(alvo)) return null
+    if (!alvo || !ALVOS_POSSIVEIS().includes(alvo)) return null
 
     const secaoCrua = saida.match(/^SECAO:\s*(.+)$/m)?.[1]?.trim()
     if (!secaoCrua) return null
