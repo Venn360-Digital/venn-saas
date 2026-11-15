@@ -17,9 +17,15 @@
  *
  * ## O nome do arquivo e o `app.slug` TÊM de concordar
  *
- * Se `odontobox.json` declarasse `slug: 'stagent'`, o dono derivado do nome e o
- * dono declarado dentro divergiriam — e as regras que escopam por dono passariam
- * a proteger o app errado, caladas. É erro, não aviso.
+ * Se um arquivo declarasse por dentro o slug de um app diferente do nome dele, o
+ * dono derivado do nome e o dono declarado divergiriam — e as regras que escopam
+ * por dono passariam a proteger o app errado, caladas. É erro, não aviso.
+ *
+ * (E este comentário não nomeia o app irmão de propósito: o
+ * `audit:isolation --strict` reprova identificador de outro app em QUALQUER
+ * arquivo, comentário incluído, e é o modo do portão de deploy. A primeira
+ * escrita desta nota usava o nome como exemplo e barrou o build — quinta vez
+ * que o mesmo reflexo me pega.)
  */
 import { readFileSync, readdirSync, existsSync } from 'node:fs'
 import { join } from 'node:path'

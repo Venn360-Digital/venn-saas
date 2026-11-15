@@ -134,8 +134,25 @@ function deepStrings(value, acc = []) {
  *
  * O `walk` fica como reserva para ambiente sem git.
  */
+/**
+ * Os arquivos do repositório — rastreados **e os novos ainda não rastreados**.
+ *
+ * Era só `git ls-files`, e isso abria um falso verde que me pegou em 15/11:
+ * arquivo recém-criado é invisível a `ls-files` até o `git add`, então rodar a
+ * auditoria antes de commitar a aprovava sobre um arquivo que ela **nunca
+ * leu** — e o build reprovou no primeiro arquivo novo do lote, por um
+ * identificador de app irmão num comentário meu.
+ *
+ * `--others --exclude-standard` acrescenta o não rastreado respeitando o
+ * `.gitignore`, que é o que torna o resultado local igual ao do builder (lá
+ * tudo já está commitado). Mesma classe das outras seis formas do defeito de
+ * caminho: a verificação olhava um conjunto diferente do que o portão olha.
+ */
 function arquivosDoGit() {
-  const saida = execSync('git ls-files -z', { cwd: ROOT, maxBuffer: 64 * 1024 * 1024 });
+  const saida = execSync('git ls-files -z --cached --others --exclude-standard', {
+    cwd: ROOT,
+    maxBuffer: 64 * 1024 * 1024,
+  });
   const lista = [];
   for (const rel of saida.toString('utf8').split('\0')) {
     if (!rel) continue;
