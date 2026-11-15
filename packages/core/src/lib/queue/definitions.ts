@@ -146,7 +146,7 @@ export interface AiReplyJob {
  *
  * `cenario` é o do passo 6, e existe para o prompt poder apresentar o trecho
  * como **ordem de execução** em vez de fonte de verdade. Sem a distinção, os
- * passos de um procedimento entrariam em "Base de conhecimento" e o modelo os
+ * passos de um servico entrariam em "Base de conhecimento" e o modelo os
  * leria *para* o paciente em vez de executá-los — que é o defeito mais provável
  * de um cenário recuperado.
  */

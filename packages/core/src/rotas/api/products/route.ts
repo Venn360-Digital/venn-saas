@@ -14,14 +14,14 @@ const productSchema = z.object({
     /**
      * `procedure` é o que a clínica **executa** na cadeira.
      *
-     * Entrou junto com a agenda por especialista: é a categoria que faz o
+     * Entrou junto com a agenda por profissional: é a categoria que faz o
      * seletor do compromisso oferecer avaliação e limpeza, e não creme dental.
      */
     category: z.enum(['product', 'service', 'procedure']),
     price: z.number().optional(),
     group: z.string().optional(),
     /**
-     * Quanto tempo o procedimento ocupa na agenda.
+     * Quanto tempo o servico ocupa na agenda.
      *
      * É daqui que sai o tamanho da reserva — e é o que impede o agente de
      * encaixar uma cirurgia de duas horas no buraco de uma consulta de trinta
@@ -60,7 +60,7 @@ export async function GET(request: NextRequest) {
          * Por categoria, ou pelo que ocupa agenda.
          *
          * `schedulable` existe porque os três lugares que pedem "o que dá para
-         * marcar" — o seletor da agenda, as janelas do especialista e o
+         * marcar" — o seletor da agenda, as janelas do profissional e o
          * diálogo delas — pediam `category=procedure` escrito à mão. Com
          * serviço passando a ocupar agenda também, cada um desses pontos
          * precisaria saber a lista; aqui é um nome só.

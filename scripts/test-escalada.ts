@@ -171,8 +171,8 @@ console.log('\nA área citada na despedida')
 
 conferir(
     'a área entra na frase, com o artigo que o modelo escreveu',
-    despedidaDaEntrega(true, 'o especialista do produto'),
-    'Já passei seu atendimento para o especialista do produto — alguém vai te responder por aqui.'
+    despedidaDaEntrega(true, 'o profissional do produto'),
+    'Já passei seu atendimento para o profissional do produto — alguém vai te responder por aqui.'
 )
 conferir(
     'sem responsável, a área entra na outra variante',
@@ -193,7 +193,7 @@ conferir('"o bot de vendas" é recusada', areaDaDespedida('o bot de vendas'), nu
 
 conferir('"a assistência técnica" passa: "ia" no meio da palavra não conta', areaDaDespedida('a assistência técnica'), 'a assistência técnica')
 conferir('"o setor financeiro" passa', areaDaDespedida('o setor financeiro'), 'o setor financeiro')
-conferir('"o especialista em telas" passa', areaDaDespedida('o especialista em telas'), 'o especialista em telas')
+conferir('"o profissional em telas" passa', areaDaDespedida('o profissional em telas'), 'o profissional em telas')
 
 console.log(`\n${passou} ok, ${falhou} falha(s)\n`)
 process.exit(falhou > 0 ? 1 : 0)

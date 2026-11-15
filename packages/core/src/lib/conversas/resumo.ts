@@ -9,7 +9,7 @@ import { comArtigo } from '../concordancia'
  * ## Por que compactar, e por que não era preciso até agora
  *
  * A janela do prompt leva as últimas N mensagens. Numa conversa longa, o que
- * ficou de fora é justamente o que foi **combinado** — o procedimento escolhido,
+ * ficou de fora é justamente o que foi **combinado** — o servico escolhido,
  * o horário discutido, a restrição que a pessoa contou. O agente passa a
  * responder com a cauda e perde o acordo.
  *

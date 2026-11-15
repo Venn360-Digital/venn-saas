@@ -52,7 +52,7 @@ for (const doc of DOCUMENTOS()) {
      * desde o conserto do indexador **não vira trecho** — contá-la aqui faria o
      * verificador prometer mais trechos do que o acervo recebe.
      */
-    // `!== 'prompt'` e não `=== 'rag'`: Cenários é modo `procedimento` e também
+    // `!== 'prompt'` e não `=== 'rag'`: Cenários é modo `servico` e também
     // é indexado, então conferir a estrutura dele contra o texto cru esconderia
     // o que o corte de fato vai ver. É o mesmo critério da tela — divergir dela
     // faria o verificador e o editor discordarem sobre o mesmo documento.

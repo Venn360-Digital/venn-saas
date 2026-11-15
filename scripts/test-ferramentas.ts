@@ -61,6 +61,18 @@ console.log('\nNenhum NOME carrega palavra do nicho — nome é API, não texto'
  * o nome ser FIXO, e qualquer palavra de nicho num nome indica que alguém o
  * montou com o vocabulário.
  */
+/*
+ * A lista é DADO sobre o nicho, não identificador — e um renomeio em massa de
+ * identificador a tocou em 15/11/2026, trocando `especialista` por
+ * `profissional` e `procedimento` por `servico` **aqui dentro**. A regra passou
+ * a proibir exatamente os termos neutros, e os dois testes de parâmetro
+ * reprovaram apontando `servico, profissional` como se fossem o problema.
+ *
+ * É a sexta forma de "literal que não é o que parece" desta fase: não é texto
+ * que o usuário lê, nem identificador do código — é dado sobre o domínio. Quem
+ * pegou foi o próprio teste, reprovando de um jeito que não fazia sentido, o
+ * que é o melhor desfecho possível.
+ */
 const DO_NICHO = /paciente|clinica|cl[íi]nica|especialista|procedimento|dentista|consultorio|consult[óo]rio/i
 for (const d of defs) {
     ok(`"${d.name}" não cita o nicho`, !DO_NICHO.test(d.name))

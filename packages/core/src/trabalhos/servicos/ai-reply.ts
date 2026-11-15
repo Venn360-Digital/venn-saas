@@ -94,7 +94,7 @@ async function carregarComportamento(agentId: string): Promise<DocumentoNoPrompt
      * Quem separa um do outro é `pecasDoPrompt`, que passa o cenário por um
      * parâmetro próprio: se ele entrasse na lista de comportamento,
      * `blocosDeTreinamento` o emitiria inteiro no bloco estável, que é
-     * exatamente o que o modo `procedimento` existe para evitar.
+     * exatamente o que o modo `servico` existe para evitar.
      */
     const slugs = [...documentosDoPrompt().map((d) => d.slug), SLUG_DOS_CENARIOS]
     return prisma.agentTrainingDoc.findMany({
@@ -103,7 +103,7 @@ async function carregarComportamento(agentId: string): Promise<DocumentoNoPrompt
     })
 }
 
-/** O slug do documento de procedimentos. Ver `lib/treinamento/cenarios.ts`. */
+/** O slug do documento de servicos. Ver `lib/treinamento/cenarios.ts`. */
 const SLUG_DOS_CENARIOS = 'cenarios'
 
 /**
@@ -224,8 +224,8 @@ async function pecasDoPrompt(
      * O cenário sai da lista e vai para um campo próprio.
      *
      * `comportamento` é o que `blocosDeTreinamento` emite **inteiro** no bloco
-     * estável. Deixar Cenários lá dentro poria vinte procedimentos em toda
-     * mensagem, que é o oposto do modo `procedimento`.
+     * estável. Deixar Cenários lá dentro poria vinte servicos em toda
+     * mensagem, que é o oposto do modo `servico`.
      */
     const cenarios = comportamento.find((d) => d.slug === SLUG_DOS_CENARIOS)?.content ?? null
 

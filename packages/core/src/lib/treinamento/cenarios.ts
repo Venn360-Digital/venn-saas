@@ -5,14 +5,14 @@ import { comArtigo } from '../concordancia'
 
 /**
  * Os cenários: o oitavo documento de treinamento, e o primeiro de modo
- * `procedimento`.
+ * `servico`.
  *
  * Parte pura: lê a estrutura, valida e monta o catálogo. Quem indexa é o
  * processador da fila; quem monta o prompt é `prompt.ts`.
  *
  * ## O que um cenário é, e por que não cabe nos sete documentos
  *
- * É um procedimento: *quando* a conversa chega numa situação, *quais passos* o
+ * É um servico: *quando* a conversa chega numa situação, *quais passos* o
  * agente segue. É o que a Intercom chama *Procedures*, a Decagon *AOPs* e o
  * Chatwoot *Scenarios* — e em 2026 virou artefato de primeira classe nos quatro
  * produtos de referência.
@@ -32,11 +32,11 @@ import { comArtigo } from '../concordancia'
  *
  * No bloco **estável** do prompt vai só o catálogo: título e gatilho de cada
  * cenário, uma linha cada (~30 tokens). É divulgação progressiva, o padrão das
- * Agent Skills: o agente sabe que o procedimento existe sem carregá-lo.
+ * Agent Skills: o agente sabe que o servico existe sem carregá-lo.
  *
  * O **corpo** entra no bloco volátil, quando a busca o traz — apresentado como
- * *procedimento a seguir*, não como fato. A distinção importa: um fato recuperado
- * é fonte de verdade para responder; um procedimento é ordem de execução.
+ * *servico a seguir*, não como fato. A distinção importa: um fato recuperado
+ * é fonte de verdade para responder; um servico é ordem de execução.
  */
 
 /** O gatilho e os passos de uma situação. */
@@ -161,7 +161,7 @@ export const MAX_NO_CATALOGO = 20
  *
  * Devolve `null` quando não há cenário válido, para a seção não ser emitida
  * vazia. Seção com cabeçalho e nada embaixo gasta tokens dizendo que não há
- * nada — e o modelo lê isso como "não existem procedimentos", que é verdade e
+ * nada — e o modelo lê isso como "não existem servicos", que é verdade e
  * não precisava de 15 tokens.
  */
 export function catalogoDeCenarios(cenarios: Cenario[]): string | null {
@@ -189,13 +189,13 @@ function primeiraMinuscula(texto: string): string {
 /**
  * O corpo do cenário recuperado, no bloco volátil.
  *
- * Apresentado como **procedimento a seguir**, e não como fato. Um fato
- * recuperado é fonte de verdade para responder; um procedimento é ordem de
+ * Apresentado como **servico a seguir**, e não como fato. Um fato
+ * recuperado é fonte de verdade para responder; um servico é ordem de
  * execução, e o modelo trata os dois de forma diferente quando a seção diz qual
  * é qual. Misturá-lo em "Base de conhecimento" faria o agente *citar* os passos
  * ao paciente em vez de executá-los — que é o defeito mais provável aqui.
  */
-export function procedimentoParaOPrompt(trechos: { title: string; content: string }[]): string | null {
+export function servicoParaOPrompt(trechos: { title: string; content: string }[]): string | null {
     if (trechos.length === 0) return null
 
     return (

@@ -31,7 +31,7 @@ export const CLASSES = {
 
     /**
      * Ainda não classificado. Documento de base de conhecimento entra aqui até
-     * alguém dizer o que ele é: a clínica sobe tanto folheto de procedimento
+     * alguém dizer o que ele é: a clínica sobe tanto folheto de servico
      * quanto laudo.
      *
      * **Bloqueia a gravação.** Não é o mesmo que `CLINICO`: tratar o não

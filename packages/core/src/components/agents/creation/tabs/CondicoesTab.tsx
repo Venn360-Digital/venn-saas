@@ -138,7 +138,7 @@ interface CondicoesTabProps {
  * Dias como botões e não como lista de seleção, porque a escolha é **múltipla** e
  * porque o resumo precisa caber ao lado — "seg, ter, qua, qui, sex 08:00–18:00"
  * é o que explica a regra a quem só passa o olho. O `type="time"` é o mesmo
- * controle que as janelas de especialista já usam.
+ * controle que as janelas de profissional já usam.
  */
 function CampoDeExpediente({
     janela,

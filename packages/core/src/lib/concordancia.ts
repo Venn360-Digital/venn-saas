@@ -26,7 +26,7 @@ import type { Vocabulario } from './vocabulario'
  *
  *     const v = useVocab()
  *     `Não foi possível abrir ${comArtigo(v, 'pessoa')}`      → o paciente
- *     `A agenda ${comArtigo(v, 'profissional', 'de')}`        → do especialista
+ *     `A agenda ${comArtigo(v, 'profissional', 'de')}`        → do profissional
  *     `Enviado ${comArtigo(v, 'pessoas', 'a')}`               → aos pacientes
  *     `${comArtigo(v, 'organizacao', 'este')}`                → esta clínica
  *

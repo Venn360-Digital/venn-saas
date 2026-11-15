@@ -13,7 +13,7 @@ import { comArtigo } from '../concordancia'
  *
  * Isso é decisão, não preguiça. Um texto de partida escrito por nós sairia no
  * nome da clínica, prometendo o que nós não sabemos: preço, prazo, nome de
- * procedimento, condição de pagamento. É o mesmo raciocínio que já está
+ * servico, condição de pagamento. É o mesmo raciocínio que já está
  * registrado na mineração de lacunas — a sugestão traz a pergunta e um branco
  * marcado, porque escrever a resposta seria inventar preço.
  *

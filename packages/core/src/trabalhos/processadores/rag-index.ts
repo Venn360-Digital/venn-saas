@@ -160,7 +160,7 @@ async function indexarDocumentoDeTreinamento(agentId: string, slug: string): Pro
     /**
      * O tipo vem do **modo do documento**, não é fixo.
      *
-     * Documento de `procedimento` (Cenários) é indexado como qualquer outro, mas
+     * Documento de `servico` (Cenários) é indexado como qualquer outro, mas
      * o trecho leva `cenario` — é o que permite ao prompt apresentá-lo como ordem
      * de execução em vez de fonte de verdade. O `deleteMany` usa o mesmo tipo,
      * senão a reindexação apagaria por uma chave e gravaria por outra, deixando

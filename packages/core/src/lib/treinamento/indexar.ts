@@ -22,7 +22,7 @@ import { semExemplos } from './exemplos'
  */
 export const TIPO_DE_TREINAMENTO = 'treinamento'
 
-/** O tipo dos trechos de um documento de **procedimento**. Ver `RagDocType`. */
+/** O tipo dos trechos de um documento de **servico**. Ver `RagDocType`. */
 export const TIPO_DE_CENARIO = 'cenario'
 
 /**
@@ -49,7 +49,7 @@ export function ehDeTreinamento(type: string): boolean {
 /**
  * Qual tipo os trechos deste documento levam.
  *
- * É o que separa fato de procedimento no acervo — e a separação acontece aqui,
+ * É o que separa fato de servico no acervo — e a separação acontece aqui,
  * na indexação, porque o prompt precisa dela **na recuperação**, quando já não há
  * como saber de que documento o trecho veio sem uma segunda consulta.
  */

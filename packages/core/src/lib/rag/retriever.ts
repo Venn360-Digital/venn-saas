@@ -265,13 +265,13 @@ export class DocumentRetriever {
         )
 
         /**
-         * Diversidade primeiro, vaga do procedimento depois — e a ordem importa.
+         * Diversidade primeiro, vaga do servico depois — e a ordem importa.
          *
          * A diversificação decide quem entra pelo mérito da fusão, com teto por
          * documento. A reserva age **sobre o resultado dela**: se nenhum
-         * procedimento entrou e havia um recuperável, ele toma a vaga do último.
+         * servico entrou e havia um recuperável, ele toma a vaga do último.
          *
-         * Invertido, o procedimento entraria antes de o teto por documento ser
+         * Invertido, o servico entraria antes de o teto por documento ser
          * aplicado e poderia ser ele mesmo cortado pela diversificação em
          * seguida — a reserva não valeria nada.
          */

@@ -505,7 +505,7 @@ ok(
  * Nenhum passo de mensagem traz texto pronto.
  *
  * Texto escrito por nós sairia no nome da clínica prometendo o que não sabemos
- * — preço, prazo, nome de procedimento. É a mesma regra da mineração de
+ * — preço, prazo, nome de servico. É a mesma regra da mineração de
  * lacunas: a sugestão traz a pergunta e um branco marcado.
  */
 for (const partida of GALERIA_DE_FUNIS()) {

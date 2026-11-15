@@ -10,10 +10,10 @@ import { feriadosNacionais } from './holidays'
  *
  * A conta, em ordem:
  *
- *   1. as janelas do especialista naquele dia da semana
+ *   1. as janelas do profissional naquele dia da semana
  *   2. menos o que o calendário da clínica bloqueia (feriado, recesso)
- *   3. menos o que já está marcado para aquele especialista
- *   4. fatiado no tamanho do procedimento
+ *   3. menos o que já está marcado para aquele profissional
+ *   4. fatiado no tamanho do servico
  *
  * **Tudo em horário local da clínica.** As faixas são strings "HH:MM" e as datas
  * são "YYYY-MM-DD" — nunca `Date` com fuso, porque "terça das 14h" é 14h no
@@ -29,7 +29,7 @@ export interface Janela {
     procedureIds: string[]
 }
 
-/** Um compromisso que já ocupa a agenda do especialista. */
+/** Um compromisso que já ocupa a agenda do profissional. */
 export interface Ocupado {
     /** "YYYY-MM-DD" */
     date: string
@@ -136,7 +136,7 @@ function cortesDoDia(data: string, excecoes: Excecao[]): Intervalo[] | null {
 }
 
 export interface CalcularVagasInput {
-    /** As janelas do especialista. */
+    /** As janelas do profissional. */
     janelas: Janela[]
     /** O que já está marcado para ele. */
     ocupados: Ocupado[]
@@ -145,11 +145,11 @@ export interface CalcularVagasInput {
     /** De quando até quando procurar, inclusive. "YYYY-MM-DD". */
     de: string
     ate: string
-    /** Quanto tempo o procedimento ocupa. */
+    /** Quanto tempo o servico ocupa. */
     duracaoMinutos: number
     /**
      * Só as janelas liberadas para o agente, e só as que aceitam este
-     * procedimento. Quando ausente, considera todas as janelas — que é a visão
+     * servico. Quando ausente, considera todas as janelas — que é a visão
      * da recepção.
      */
     paraAgente?: { procedureId: string }
@@ -161,7 +161,7 @@ export interface CalcularVagasInput {
     agora?: string
     /**
      * De quanto em quanto tempo as vagas começam. Trinta minutos dá horários
-     * redondos; um procedimento de 50 minutos ainda ocupa 50.
+     * redondos; um servico de 50 minutos ainda ocupa 50.
      */
     passoMinutos?: number
     /** Feriados nacionais que a clínica não decidiu nada a respeito: bloqueiam. */
@@ -212,7 +212,7 @@ export function calcularVagas(input: CalcularVagasInput): Vaga[] {
             if (j.weekday !== diaDaSemana(data)) return false
             if (!paraAgente) return true
             // Para o agente: só janela liberada, e só se ela aceita este
-            // procedimento. Lista vazia significa nenhum, não todos.
+            // servico. Lista vazia significa nenhum, não todos.
             return j.agentCanBook && j.procedureIds.includes(paraAgente.procedureId)
         })
         if (doDia.length === 0) continue

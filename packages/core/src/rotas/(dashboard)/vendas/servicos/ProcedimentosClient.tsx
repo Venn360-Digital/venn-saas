@@ -199,7 +199,7 @@ export function ProcedimentosClient({ inicial }: { inicial: DadosIniciais }) {
                     description: formData.description.trim() || undefined,
                     sku: formData.sku.trim() || undefined,
                     category: formData.category,
-                    // Nulo fora de serviço e procedimento: produto não ocupa
+                    // Nulo fora de serviço e servico: produto não ocupa
                     // cadeira, e um número pendurado nele apareceria na agenda.
                     durationMinutes: isSchedulable(formData.category)
                         ? Number(formData.durationMinutes) || null
@@ -400,7 +400,7 @@ export function ProcedimentosClient({ inicial }: { inicial: DadosIniciais }) {
                             description={
                                 query || activeFilters
                                     ? 'Tente outro termo ou limpe os filtros.'
-                                    : 'Cadastre os procedimentos e materiais que a clínica oferece.'
+                                    : 'Cadastre os servicos e materiais que a clínica oferece.'
                             }
                             action={
                                 canEdit && !query && !activeFilters ? (
