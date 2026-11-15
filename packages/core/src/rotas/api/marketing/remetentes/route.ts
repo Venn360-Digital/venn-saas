@@ -20,8 +20,8 @@ import { APP } from '@venn/core/config/app'
 
 const criarSchema = z.object({
     /**
-     * O domínio. Pode ser o apex (`clinica.com.br`) ou um subdomínio
-     * (`mkt.clinica.com.br`) — o SES trata cada um como identidade própria, e
+     * O domínio. Pode ser o apex (`exemplo.com.br`) ou um subdomínio
+     * (`mkt.exemplo.com.br`) — o SES trata cada um como identidade própria, e
      * subdomínio separa a reputação de marketing da do e-mail que a equipe usa
      * no dia a dia.
      */
@@ -33,7 +33,7 @@ const criarSchema = z.object({
         // A mensagem diz o formato porque "inválido" sozinho não ensina nada.
         .regex(
             /^(?!-)[a-z0-9-]{1,63}(?<!-)(\.(?!-)[a-z0-9-]{1,63}(?<!-))+$/,
-            'Informe só o domínio, como clinica.com.br — sem https:// e sem @'
+            'Informe só o domínio, como exemplo.com.br — sem https:// e sem @'
         ),
     /** A parte antes do @. Junto com o domínio forma o endereço do remetente. */
     fromLocal: z

@@ -16,6 +16,8 @@ import {
     conferirCobranca,
     type CampoDeCobranca,
 } from '../../lib/billing/dados-de-cobranca'
+import { useVocab } from '../../hooks/useVocab'
+import { comArtigo } from '../../lib/concordancia'
 
 /**
  * Os dados de cobrança, pedidos **sem sair da tela de assinatura**.
@@ -102,6 +104,7 @@ export function DadosDeCobrancaDialog({
     onPronto: () => void | Promise<void>
     motivo?: string
 }) {
+    const v = useVocab()
     const [form, setForm] = useState<Formulario>(VAZIO)
     const [buscandoCep, setBuscandoCep] = useState(false)
     const [gravando, setGravando] = useState(false)
@@ -386,7 +389,7 @@ export function DadosDeCobrancaDialog({
 
             <p className="col-span-2 text-[11.5px] leading-snug text-muted-foreground">
                 Este é o endereço de <strong>quem paga</strong> — pode ser diferente do endereço
-                de cada clínica, que fica em Conta da Clínica. Os{' '}
+                de cada {v.organizacao}, que fica em Conta {comArtigo(v, 'organizacao', 'de')}. Os{' '}
                 {CAMPOS_DE_COBRANCA.length} campos são os que a operadora do cartão exige.
             </p>
         </RecordDialog>

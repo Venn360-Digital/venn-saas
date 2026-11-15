@@ -23,6 +23,8 @@ import { usePermissions } from '@venn/core/hooks/usePermissions'
 
 import { useIndiceServidor } from '@venn/core/hooks/useIndiceServidor'
 import type { DadosIniciais, QuickResponseItem } from './dados'
+import { useVocab } from '../../../../hooks/useVocab'
+import { comArtigo } from '../../../../lib/concordancia'
 
 const EMPTY_FORM = { command: '', text: '' }
 
@@ -43,6 +45,7 @@ const EMPTY_FORM = { command: '', text: '' }
 const RECORTE_INTEIRO = 'workspace-inteiro'
 
 export function RespostasRapidasClient({ inicial }: { inicial: DadosIniciais }) {
+    const v = useVocab()
     // Presentation only — the API enforces the same rule. Without this an
     // ATENDENTE would see Edit/Delete controls that answer 403.
     const { canEdit } = usePermissions()
@@ -363,7 +366,7 @@ export function RespostasRapidasClient({ inicial }: { inicial: DadosIniciais }) 
                     <>
                         <span className="font-mono text-xs text-primary-subtle-foreground">{formData.command.trim() || '/atalho'}</span>
                         <div className="max-w-full self-start rounded-2xl rounded-tl-sm bg-card px-3 py-2 text-xs leading-relaxed shadow-xs">
-                            {formData.text.trim() || <span className="text-muted-foreground">O texto que será enviado, como o paciente vai ler.</span>}
+                            {formData.text.trim() || <span className="text-muted-foreground">O texto que será enviado, como {comArtigo(v, 'pessoa')} vai ler.</span>}
                         </div>
                         <p className="text-[11px] leading-relaxed text-muted-foreground">Nasce ativa. Dá para pausar na lista sem apagar.</p>
                     </>

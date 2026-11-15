@@ -12,6 +12,8 @@ import { ENTONACAO_PADRAO, VOZ_PADRAO } from '../lib/voz'
 import { setorPadrao } from '../components/agents/creation/tabs/TrabalhoTab'
 import { useVocab } from './useVocab'
 import { acharDocumento, DOCUMENTOS } from '../lib/treinamento/documentos'
+import { comArtigo } from '../lib/concordancia'
+import type { Vocabulario } from '../lib/vocabulario'
 
 /**
  * A instrução livre com que um agente novo nasce — curta de propósito.
@@ -21,10 +23,13 @@ import { acharDocumento, DOCUMENTOS } from '../lib/treinamento/documentos'
  * que fazia o modelo receber a mesma informação duas vezes: uma em texto corrido
  * vindo deste modelo, outra em seções vindas do worker.
  */
-const PROMPT_INICIAL =
-    'Você é o assistente de atendimento desta clínica. Responda com base nas informações ' +
-    'da empresa e na sua base de conhecimento. Quando não souber, diga que vai verificar ' +
-    'com a equipe em vez de inventar.'
+function promptInicial(v: Vocabulario): string {
+    return (
+        `Você é o assistente de atendimento ${comArtigo(v, 'organizacao', 'este')}. Responda com base nas informações ` +
+        'da empresa e na sua base de conhecimento. Quando não souber, diga que vai verificar ' +
+        'com a equipe em vez de inventar.'
+    )
+}
 
 export function useAgentCreation(workspaceId: string) {
     const v = useVocab()
@@ -269,7 +274,7 @@ export function useAgentCreation(workspaceId: string) {
                         // Agente novo sem instrução escrita nasce com a curta
                         // padrão: o schema exige um prompt, e um texto que
                         // repetisse empresa e tom duplicaria o que o worker monta.
-                        systemPrompt: instrucoes.systemPrompt?.trim() || PROMPT_INICIAL,
+                        systemPrompt: instrucoes.systemPrompt?.trim() || promptInicial(v),
                     }),
                 })
             }

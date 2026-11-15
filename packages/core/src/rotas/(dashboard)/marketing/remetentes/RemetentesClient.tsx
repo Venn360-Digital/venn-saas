@@ -393,7 +393,7 @@ function FichaDoDominio({
                 className="col-span-2"
                 hint={
                     ehNovo
-                        ? 'Só o domínio, sem https:// e sem @. Recomendamos um subdomínio como mkt.clinica.com.br, assim separa a reputação do seu e-mail.'
+                        ? 'Só o domínio, sem https:// e sem @. Recomendamos um subdomínio como mkt.exemplo.com.br, assim separa a reputação do seu e-mail.'
                         : 'O domínio não muda: no provedor de e-mail ele É a identidade, e trocá-lo exigiria publicar outros três registros. Para usar outro, cadastre um novo.'
                 }
             >
@@ -401,7 +401,7 @@ function FichaDoDominio({
                     id="rem-domain"
                     value={form.domain}
                     onChange={(e) => mudar('domain', e.target.value)}
-                    placeholder="clinica.com.br"
+                    placeholder="exemplo.com.br"
                     autoFocus={ehNovo}
                     /**
                      * Travado fora da criação, e a razão está no `hint` acima —
@@ -468,7 +468,7 @@ function FichaDoDominio({
                     type="email"
                     value={form.replyTo}
                     onChange={(e) => mudar('replyTo', e.target.value)}
-                    placeholder="contato@clinica.com.br"
+                    placeholder="contato@exemplo.com.br"
                     disabled={!podeEditar}
                 />
             </FormField>

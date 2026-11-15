@@ -5,7 +5,7 @@ import type { RegistroDeDns } from '@venn/core/lib/marketing/remetentes'
 export interface RemetenteItem {
     id: string
     domain: string
-    /** O endereço completo, já montado: `contato@clinica.com.br`. */
+    /** O endereço completo, já montado: `contato@exemplo.com.br`. */
     from: string
     /**
      * Só a parte antes do @.

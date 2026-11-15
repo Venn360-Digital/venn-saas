@@ -8,6 +8,8 @@ import { normalizePhone } from '@venn/core/lib/intake'
 import { phoneVariants } from '@venn/core/lib/whatsapp/types'
 import { currentMembership, getWorkspaceMember } from '@venn/core/lib/auth/workspace'
 import { consultarPacientes, FILTROS_PADRAO } from '@venn/core/lib/contatos-consulta'
+import { comArtigo } from '../../../lib/concordancia'
+import { vocab } from '../../../lib/vocabulario'
 
 const contactSchema = z.object({
     name: z.string().optional().nullable(),
@@ -100,7 +102,7 @@ export async function POST(request: NextRequest) {
             if (clash) {
                 return NextResponse.json(
                     {
-                        error: `${clash.name || 'Um paciente'} já está cadastrado com este telefone`,
+                        error: `${clash.name || comArtigo(vocab(), 'Pessoa', 'um')} já está cadastrado com este telefone`,
                         contactId: clash.id,
                     },
                     { status: 409 }

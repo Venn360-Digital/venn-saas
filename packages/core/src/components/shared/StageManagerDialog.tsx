@@ -19,6 +19,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { InlineField } from './InlineField'
 import { DEFAULT_ENTITY_COLOR, PICKER_RAMP } from '../../lib/palette'
 import { cn } from '@venn/ui/utils'
+import { useVocab } from '../../hooks/useVocab'
+import { comArtigo } from '../../lib/concordancia'
 
 export interface ManagedStage {
     id: string
@@ -56,6 +58,7 @@ export function StageManagerDialog({
     stages: ManagedStage[]
     onChanged: () => void
 }) {
+    const v = useVocab()
     const [busy, setBusy] = useState<string | null>(null)
     const [newName, setNewName] = useState('')
     const [newColor, setNewColor] = useState(PICKER_RAMP[0] ?? DEFAULT_ENTITY_COLOR)
@@ -186,7 +189,7 @@ export function StageManagerDialog({
                 <DialogHeader>
                     <DialogTitle>Fases do atendimento</DialogTitle>
                     <DialogDescription>
-                        A jornada desta clínica. Vale para o funil, para a lista e para o painel do paciente.
+                        A jornada {comArtigo(v, 'organizacao', 'este')}. Vale para o funil, para a lista e para o painel {comArtigo(v, 'pessoa', 'de')}.
                     </DialogDescription>
                 </DialogHeader>
 
@@ -363,11 +366,11 @@ export function StageManagerDialog({
                         </div>
 
                         <p className="pt-1 text-xs text-muted-foreground">
-                            <strong>Só tarefa</strong> cobra pelo painel, sem falar com o paciente.
+                            <strong>Só tarefa</strong> cobra pelo painel, sem falar com {comArtigo(v, 'pessoa')}.
                             <strong> Ensaio</strong> escreve a mensagem e deixa para alguém aprovar —
                             passe por ele antes de soltar. <strong>Enviar sozinho</strong> manda a
                             quem tem WhatsApp, em horário comercial, no máximo duas vezes por
-                            paciente e nunca em conversa que alguém está atendendo.
+                            {v.pessoa} e nunca em conversa que alguém está atendendo.
                             {canAutoSend === false ? ' Sem WhatsApp conectado, só a tarefa funciona.' : ''}
                         </p>
                         <p className="text-xs text-muted-foreground">

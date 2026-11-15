@@ -10,7 +10,7 @@ import { AwsClient } from 'aws4fetch'
  * outro problema: ela **tem de sair do domínio do cliente**, e na Cloudflare
  * isso não cabe. A documentação exige "you must be using Cloudflare DNS to use
  * Email Service" e o onboarding só oferece domínio da própria conta; adicionar
- * apenas `mkt.clinica.com.br` como zona (*subdomain setup*) é recurso
+ * apenas `mkt.exemplo.com.br` como zona (*subdomain setup*) é recurso
  * Enterprise. O caminho restante seria a clínica apontar os **nameservers** do
  * domínio inteiro para a nossa conta — passaríamos a responder pelo site e pelo
  * MX do Google Workspace dela.
@@ -195,7 +195,7 @@ export interface ResultadoDeEnvio {
 }
 
 export interface EnvioDeCampanha {
-    /** Endereço num domínio já verificado. Ex.: `contato@clinica.com.br`. */
+    /** Endereço num domínio já verificado. Ex.: `contato@exemplo.com.br`. */
     de: string
     /** O nome que aparece na caixa de entrada. */
     nomeDoRemetente: string

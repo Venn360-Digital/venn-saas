@@ -11,8 +11,11 @@ import { Button } from '@venn/ui/button'
 import { Input } from '@venn/ui/input'
 import { Label } from '@venn/ui/label'
 import { Tabs, TabsList, TabsTrigger } from '@venn/ui/tabs'
+import { useVocab } from '../../../hooks/useVocab'
+import { comArtigo } from '../../../lib/concordancia'
 
 function LoginForm() {
+    const v = useVocab()
     /**
      * `?email=` pré-preenche — quem vem do aceite do convite acabou de digitar
      * este endereço, e pedir de novo na tela seguinte é atrito sem razão.
@@ -241,7 +244,7 @@ function LoginForm() {
                     </h2>
                     <p className="mt-4 text-sm leading-relaxed text-brand-navy-muted">
                         Atendimento com IA, qualificação, agendamento, vendas e histórico
-                        do paciente no mesmo lugar. Da recepção ao financeiro.
+                        {comArtigo(v, 'pessoa', 'de')} no mesmo lugar. Da recepção ao financeiro.
                     </p>
                 </div>
 
@@ -310,7 +313,7 @@ function LoginForm() {
                                 <Input
                                     id="email"
                                     type="email"
-                                    placeholder="nome@clinica.com.br"
+                                    placeholder="nome@exemplo.com.br"
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
                                     required

@@ -72,7 +72,7 @@ export function AutomacoesTab() {
         <BandLayout
             footer={
                 <p className="mr-auto text-xs leading-relaxed text-muted-foreground">
-                    Nenhuma destas chaves envia mensagem a paciente. Falar sozinho com quem está em
+                    Nenhuma destas chaves envia mensagem a {v.pessoa}. Falar sozinho com quem está em
                     atendimento é decisão de cada fase, em <strong>Negócios → Fases</strong>.
                     {saving ? ' · salvando…' : ''}
                 </p>

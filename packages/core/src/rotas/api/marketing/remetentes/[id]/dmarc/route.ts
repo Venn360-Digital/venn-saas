@@ -28,7 +28,7 @@ import {
  *
  * ## A herança é consultada, não presumida
  *
- * `_dmarc.mkt.clinica.com.br` primeiro; se não houver, `_dmarc.clinica.com.br`,
+ * `_dmarc.mkt.exemplo.com.br` primeiro; se não houver, `_dmarc.exemplo.com.br`,
  * porque o DMARC do organizacional cobre o subdomínio (RFC 7489 §6.6.3). Sem a
  * segunda consulta a tela pediria um registro que já existe — e publicá-lo
  * poderia *afrouxar* a política da raiz, já que a do subdomínio prevalece.

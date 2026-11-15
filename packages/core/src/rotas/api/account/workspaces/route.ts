@@ -168,7 +168,7 @@ export async function GET() {
             createdAt: u.createdAt,
             suspendedAt: u.suspendedAt,
             usuarios: u._count.users,
-            pacientes: u._count.contacts,
+            contatos: u._count.contacts,
             agentes: u._count.agents,
             conversas: u._count.conversations,
             canais: canaisPorUnidade.get(u.id) ?? 0,

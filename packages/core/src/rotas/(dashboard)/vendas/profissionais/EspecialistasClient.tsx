@@ -26,7 +26,7 @@ import { normalizeSearch } from '@venn/core/lib/search'
 import { PICKER_RAMP } from '@venn/core/lib/palette'
 
 import { useIndiceServidor } from '@venn/core/hooks/useIndiceServidor'
-import { INCLUIR_INATIVOS, type DadosIniciais, type Especialista } from './dados'
+import { INCLUIR_INATIVOS, type DadosIniciais, type Profissional } from './dados'
 
 /**
  * Quem executa os servicos da clínica.
@@ -51,7 +51,7 @@ const CORES = PICKER_RAMP
 
 export function EspecialistasClient({ inicial }: { inicial: DadosIniciais }) {
     // As palavras do nicho vêm da unidade; `comArtigo` monta o determinante
-    // pelo gênero declarado na marca. Frase com particípio ("Especialista
+    // pelo gênero declarado na marca. Frase com particípio ("Profissional
     // atualizado") foi reescrita em forma neutra.
     const v = useVocab()
 
@@ -78,7 +78,7 @@ export function EspecialistasClient({ inicial }: { inicial: DadosIniciais }) {
             toast.error(`Não foi possível carregar ${comArtigo(v, 'profissionais')}`)
             return null
         }
-        const itens = (await res.json()) as Especialista[]
+        const itens = (await res.json()) as Profissional[]
         return { itens, total: itens.length, totalPages: 1 }
     }, [])
 
@@ -94,7 +94,7 @@ export function EspecialistasClient({ inicial }: { inicial: DadosIniciais }) {
         itens,
         carregando: loading,
         recarregar,
-    } = useIndiceServidor<Especialista>({
+    } = useIndiceServidor<Profissional>({
         inicial,
         /**
          * O recorte desta tela é só o `all`: não há paginação nem busca no
@@ -128,7 +128,7 @@ export function EspecialistasClient({ inicial }: { inicial: DadosIniciais }) {
     const [erro, setErro] = useState<string | null>(null)
     const [salvando, setSalvando] = useState(false)
 
-    const [excluindo, setExcluindo] = useState<Especialista | null>(null)
+    const [excluindo, setExcluindo] = useState<Profissional | null>(null)
     const [janelasDe, setJanelasDe] = useState<string | null>(null)
 
     const visiveis = busca.trim()
@@ -144,7 +144,7 @@ export function EspecialistasClient({ inicial }: { inicial: DadosIniciais }) {
         setDialogoAberto(true)
     }
 
-    const abrirEdicao = (e: Especialista) => {
+    const abrirEdicao = (e: Profissional) => {
         setEditandoId(e.id)
         setForm({ name: e.name, specialty: e.specialty ?? '', color: e.color, isActive: e.isActive })
         setErro(null)
@@ -226,7 +226,7 @@ export function EspecialistasClient({ inicial }: { inicial: DadosIniciais }) {
         await recarregar()
     }
 
-    const colunas: Column<Especialista>[] = [
+    const colunas: Column<Profissional>[] = [
         {
             id: 'name',
             header: 'Nome',

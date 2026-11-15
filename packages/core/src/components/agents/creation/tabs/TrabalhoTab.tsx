@@ -121,7 +121,7 @@ export function TrabalhoTab({ data, onChange }: TrabalhoTabProps) {
                         <Input
                             id="companyWebsite"
                             type="url"
-                            placeholder="Ex: https://suaclinica.com.br"
+                            placeholder="Ex: https://suaexemplo.com.br"
                             value={data.companyWebsite || ''}
                             onChange={(e) => onChange({ companyWebsite: e.target.value })}
                         />

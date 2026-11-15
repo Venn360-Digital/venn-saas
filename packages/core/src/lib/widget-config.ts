@@ -92,11 +92,11 @@ function textoOuNulo(v: unknown, teto: number): string | null {
 }
 
 /**
- * `https://WWW.Clinica.com.br:443/precos?x=1` → `www.clinica.com.br`.
+ * `https://WWW.exemplo.com.br:443/precos?x=1` → `www.exemplo.com.br`.
  *
- * Só o host interessa: um widget autorizado em `clinica.com.br` vale em
+ * Só o host interessa: um widget autorizado em `exemplo.com.br` vale em
  * qualquer página dela, e a porta e o esquema não dizem nada sobre de quem é o
- * site. Minúsculas porque host não diferencia caixa e digitar `Clinica.com.br`
+ * site. Minúsculas porque host não diferencia caixa e digitar `exemplo.com.br`
  * não pode recusar o próprio site de quem digitou.
  */
 export function hostDe(valor: string): string | null {
@@ -122,8 +122,8 @@ export function hostDe(valor: string): string | null {
  *    recusa quebraria o widget em navegador que não manda `Origin` em `GET`
  *    sem credencial. O que a lista protege é o uso **em outra página**, e essa
  *    sempre manda `Origin`.
- *  - **subdomínio conta.** Autorizar `clinica.com.br` vale para
- *    `www.clinica.com.br`, que é onde metade dos sites realmente responde.
+ *  - **subdomínio conta.** Autorizar `exemplo.com.br` vale para
+ *    `www.exemplo.com.br`, que é onde metade dos sites realmente responde.
  *    Casar só o host exato faria a clínica cadastrar os dois e descobrir isso
  *    pelo widget sumindo no ar.
  *  - **`localhost` nunca entra sozinho**: se a clínica o cadastrar, vale; não

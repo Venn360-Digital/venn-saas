@@ -74,7 +74,7 @@ conferir(
 
 console.log('\n— o que NÃO é menção —\n')
 
-conferir('e-mail não é menção', idsMencionados('manda para ana@clinica.com.br'), [])
+conferir('e-mail não é menção', idsMencionados('manda para ana@exemplo.com.br'), [])
 conferir('arroba solto não é menção', idsMencionados('@Ana consegue?'), [])
 conferir('colchete sem parêntese', idsMencionados('@[Ana] consegue?'), [])
 conferir('parêntese sem colchete', idsMencionados('@(u1) consegue?'), [])

@@ -23,6 +23,8 @@ import {
 } from '@venn/ui/sidebar'
 import { signOut as encerrarSessao } from '../../lib/auth/cliente'
 import { esquecerUnidades } from '../../hooks/useUnidades'
+import { useVocab } from '../../hooks/useVocab'
+import { comArtigo } from '../../lib/concordancia'
 
 interface Me {
     user: { id: string; email: string; name: string; avatar: string | null; initials: string }
@@ -99,6 +101,7 @@ function Bolinha({ estado }: { estado: string }) {
  * menu you have to open.
  */
 export function NavUser() {
+    const v = useVocab()
     const { isMobile } = useSidebar()
     const [me, setMe] = useState<Me | null>(null)
     const [loading, setLoading] = useState(true)
@@ -326,7 +329,7 @@ export function NavUser() {
                             <DropdownMenuItem asChild>
                                 <Link href="/gerenciamento/conta?tab=empresa">
                                     <Hospital />
-                                    Conta da clínica
+                                    Conta {comArtigo(v, 'organizacao', 'de')}
                                 </Link>
                             </DropdownMenuItem>
                             <DropdownMenuItem asChild>

@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
+import { useVocab } from './useVocab'
 
 interface Conversation {
     id: string
@@ -15,6 +16,7 @@ interface Conversation {
 }
 
 export function useAgentManagement(agentId?: string | null) {
+    const v = useVocab()
     const router = useRouter()
     const [conversations, setConversations] = useState<Conversation[]>([])
     const [isActive, setIsActive] = useState(true)
@@ -122,7 +124,7 @@ export function useAgentManagement(agentId?: string | null) {
             toast.info('Não há conversas para exportar')
             return
         }
-        const header = ['Paciente', 'Canal', 'Status', 'Mensagens', 'Última mensagem']
+        const header = [v.Pessoa, 'Canal', 'Status', 'Mensagens', 'Última mensagem']
         const cell = (value: string | number | null | undefined) => {
             const text = value === null || value === undefined ? '' : String(value)
             return `"${text.replace(/"/g, '""')}"`

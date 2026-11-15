@@ -1300,7 +1300,7 @@ export default function NegociosPage() {
                 <h1 className="text-h3">Negócios</h1>
                 <div className="flex h-96 flex-col items-center justify-center">
                     <h3 className="mb-2 text-lg font-medium">Nenhuma fase cadastrada</h3>
-                    <p className="mb-6 text-muted-foreground">A jornada da clínica começa aqui.</p>
+                    <p className="mb-6 text-muted-foreground">A jornada {comArtigo(v, 'organizacao', 'de')} começa aqui.</p>
                     <Button onClick={createDefaultPipeline} className="gap-2">
                         <Plus className="size-4" />Criar as fases padrão
                     </Button>
