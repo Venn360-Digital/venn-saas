@@ -35,7 +35,7 @@ const conteudoDoPrompt: Record<string, string> = {}
 
 console.log(`\nConferindo ${pasta}\n`)
 
-for (const doc of DOCUMENTOS) {
+for (const doc of DOCUMENTOS()) {
     const caminho = `${pasta}/${doc.slug}.md`
 
     if (!existsSync(caminho)) {

@@ -1,5 +1,7 @@
 import type { Prisma } from '@venn/db'
 import { FUSO_DO_NEGOCIO, diaNoFuso, inicioDoDiaUtc, somarDias } from './fuso'
+import { vocab } from './vocabulario'
+import { comArtigo } from './concordancia'
 
 /**
  * As três perguntas que a clínica faz todo dia ao funil.
@@ -12,11 +14,21 @@ import { FUSO_DO_NEGOCIO, diaNoFuso, inicioDoDiaUtc, somarDias } from './fuso'
  */
 export type DealLane = 'due_soon' | 'stalled' | 'no_activity'
 
-export const DEAL_LANES: { id: DealLane; label: string; hint: string }[] = [
+/**
+ * Função memoizada, e não constante: o texto lê o vocabulário, e `BRAND()` é
+ * fail-fast. Constante de módulo é avaliada quando a Cloudflare VALIDA o
+ * script — sem requisição e sem marca registrada —, e a publicação reprova com
+ * `MarcaNaoRegistradaError`. A forma que já reprovou cinco publicações.
+ */
+let dealLanesCache: { id: DealLane; label: string; hint: string }[] | null = null
+export function DEAL_LANES(): { id: DealLane; label: string; hint: string }[] {
+    if (dealLanesCache === null) dealLanesCache = [
     { id: 'due_soon', label: 'consultas hoje e amanhã', hint: 'Atividade marcada para hoje ou amanhã' },
     { id: 'stalled', label: 'parados há mais de 7 dias', hint: 'Sem mudar de fase há mais de uma semana' },
-    { id: 'no_activity', label: 'sem próxima atividade', hint: 'Nenhuma atividade pendente — ninguém vai voltar a este paciente' },
+    { id: 'no_activity', label: 'sem próxima atividade', hint: `Nenhuma atividade pendente — ninguém vai voltar a ${comArtigo(vocab(), 'pessoa', 'este')}` },
 ]
+    return dealLanesCache
+}
 
 export function isDealLane(value: string | null | undefined): value is DealLane {
     return value === 'due_soon' || value === 'stalled' || value === 'no_activity'

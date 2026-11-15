@@ -1,6 +1,8 @@
 import { getDashboardCharts } from '../../lib/dashboard/charts'
 import { moedaDoWorkspace } from '../../lib/moeda-sessao'
 import { formatarMoedaCompacta, formatarMoedaInteira } from '../../lib/moedas'
+import { vocab } from '../../lib/vocabulario'
+import { comArtigo } from '../../lib/concordancia'
 import {
     BarList,
     ChartCard,
@@ -174,7 +176,7 @@ export async function GraphView({
                 <ChartCard
                     title="Quanto passa de cada fase"
                     hint="De quem entrou na fase, quantos chegaram a alguma fase adiante."
-                    footer="O ponto é a cor que a clínica deu à fase. A barra é sempre a mesma cor — comprimento mede, rótulo identifica."
+                    footer={`O ponto é a cor que ${comArtigo(vocab(), 'organizacao')} deu à fase. A barra é sempre a mesma cor — comprimento mede, rótulo identifica.`}
                 >
                     {funnelRows.some((row) => row.value !== '—') ? (
                         <BarList rows={funnelRows} />
@@ -191,9 +193,9 @@ export async function GraphView({
 
             <div className="grid gap-4 lg:grid-cols-2">
                 <ChartCard
-                    title="Quando o paciente procura"
+                    title={`Quando ${comArtigo(vocab(), 'pessoa')} procura`}
                     hint="Mensagens recebidas por dia da semana e faixa de duas horas."
-                    footer="Para dimensionar o plantão: o pico diz onde colocar gente, e o vazio diz o que a clínica não cobre."
+                    footer={`Para dimensionar o plantão: o pico diz onde colocar gente, e o vazio diz o que ${comArtigo(vocab(), 'organizacao')} não cobre.`}
                 >
                     {data.heatmap.max > 0 ? (
                         <Heatmap
@@ -207,7 +209,7 @@ export async function GraphView({
                 </ChartCard>
 
                 <ChartCard
-                    title="De onde vêm os pacientes novos"
+                    title={`De onde vêm ${comArtigo(vocab(), 'pessoas')} novos`}
                     hint="Cadastros no período, por origem."
                     footer="A variação vem escrita, não numa segunda cor de barra: quem não distingue verde de vermelho continua lendo “a mais” e “a menos”."
                 >

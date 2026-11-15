@@ -1,3 +1,5 @@
+import { vocab } from '../vocabulario'
+import { comArtigo } from '../concordancia'
 /**
  * O juiz do Andar 2: a rubrica, o prompt e a leitura do veredito.
  *
@@ -123,10 +125,10 @@ export function promptDoJuiz(caso: CasoDourado, respostaA: string, respostaB: st
     const rubrica = CRITERIOS.map((c, i) => `${i + 1}. **${c.titulo}** — ${c.pergunta}`).join('\n')
 
     return [
-        'Você avalia respostas de um agente de atendimento de clínica no WhatsApp.',
+        `Você avalia respostas de um agente de atendimento de ${vocab().organizacao} no WhatsApp.`,
         'Duas respostas, A e B, para a mesma pergunta. Diga qual é melhor.',
         '',
-        '## Pergunta do paciente',
+        `## Pergunta ${comArtigo(vocab(), 'pessoa', 'de')}`,
         caso.pergunta,
         '',
         '## O que o agente tinha em mão',

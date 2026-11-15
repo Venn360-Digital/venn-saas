@@ -25,13 +25,13 @@ export async function GET() {
     const fuso = await fusoDaUnidade(auth.member.workspaceId)
 
     const counts = await Promise.all(
-        DEAL_LANES.map((lane) =>
+        DEAL_LANES().map((lane) =>
             prisma.deal.count({ where: { ...base, ...laneWhere(lane.id, now, fuso) } })
         )
     )
 
     return NextResponse.json({
-        lanes: DEAL_LANES.map((lane, i) => ({ id: lane.id, count: counts[i] })),
+        lanes: DEAL_LANES().map((lane, i) => ({ id: lane.id, count: counts[i] })),
         open: await prisma.deal.count({ where: base }),
         // O item "Finalizados" do trilho precisa do seu número como os outros.
         closed: await prisma.deal.count({

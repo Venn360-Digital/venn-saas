@@ -7,7 +7,7 @@ import { z } from 'zod'
 import { normalizePhone } from '@venn/core/lib/intake'
 import { phoneVariants } from '@venn/core/lib/whatsapp/types'
 import { currentMembership, getWorkspaceMember } from '@venn/core/lib/auth/workspace'
-import { consultarPacientes, FILTROS_PADRAO } from '@venn/core/lib/pacientes-consulta'
+import { consultarPacientes, FILTROS_PADRAO } from '@venn/core/lib/contatos-consulta'
 
 const contactSchema = z.object({
     name: z.string().optional().nullable(),
@@ -21,7 +21,7 @@ const contactSchema = z.object({
 // GET - List contacts with pagination + advanced filters
 //
 // A consulta não mora aqui: ela é a mesma que a casca de servidor da tela usa
-// para a primeira pintura (`lib/pacientes-consulta.ts`). Se as duas fossem
+// para a primeira pintura (`lib/contatos-consulta.ts`). Se as duas fossem
 // cópias, divergiriam na primeira manutenção — e divergir significa a tela
 // abrir com uma lista e a releitura trocar por outra.
 export async function GET(request: NextRequest) {

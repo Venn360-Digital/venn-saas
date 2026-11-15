@@ -60,7 +60,7 @@ export function Step5Terms({
                 onScrollCapture={aoRolar}
             >
                 <div className="space-y-4 p-4">
-                    {TERMS.map((section) => (
+                    {TERMS().map((section) => (
                         <section key={section.title}>
                             <h2 className="text-sm font-semibold">{section.title}</h2>
                             {section.body.map((paragraph) => (

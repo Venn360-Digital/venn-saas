@@ -1,4 +1,6 @@
 import prisma from '@venn/db/cliente'
+import { vocab } from './vocabulario'
+import { comArtigo } from './concordancia'
 
 /**
  * The courtesy messages the product sends to a patient when the clinic cannot
@@ -15,15 +17,25 @@ import prisma from '@venn/db/cliente'
 
 export type NoticeKind = 'out_of_credits' | 'read_only' | 'interaction_limit'
 
-const TEXT: Record<NoticeKind, string> = {
+/**
+ * Função memoizada, e não constante: o texto lê o vocabulário, e `BRAND()` é
+ * fail-fast. Constante de módulo é avaliada quando a Cloudflare VALIDA o
+ * script — sem requisição e sem marca registrada —, e a publicação reprova com
+ * `MarcaNaoRegistradaError`. A forma que já reprovou cinco publicações.
+ */
+let textCache: Record<NoticeKind, string> | null = null
+function TEXT(): Record<NoticeKind, string> {
+    if (textCache === null) textCache = {
     out_of_credits: 'Vamos continuar seu atendimento em instantes.',
     read_only:
-        'No momento não conseguimos responder por aqui. Por favor, entre em contato com a clínica por telefone.',
+        `No momento não conseguimos responder por aqui. Por favor, entre em contato com ${comArtigo(vocab(), 'organizacao')} por telefone.`,
     // O agente atingiu o limite de interações do atendimento. Quem continua é
     // uma pessoa, e o paciente precisa saber disso — senão a conversa
     // simplesmente emudece no meio.
     interaction_limit:
         'Vou passar seu atendimento para alguém da nossa equipe, que continua com você por aqui.',
+}
+    return textCache
 }
 
 /**
@@ -49,9 +61,9 @@ export async function claimAutoNotice(
         data: { autoNoticeAt: new Date(), autoNoticeKind: kind },
     })
 
-    return TEXT[kind]
+    return TEXT()[kind]
 }
 
 export function noticeText(kind: NoticeKind): string {
-    return TEXT[kind]
+    return TEXT()[kind]
 }

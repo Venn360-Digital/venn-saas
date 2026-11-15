@@ -95,7 +95,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
          * Cenários estava em branco" e deixaria o texto de hoje no ar.
          */
         const porSlug = new Map(gravados.map((d) => [d.slug, d]))
-        const docs: DocumentoComRascunho[] = DOCUMENTOS.map((d) => ({
+        const docs: DocumentoComRascunho[] = DOCUMENTOS().map((d) => ({
             slug: d.slug,
             content: porSlug.get(d.slug)?.content ?? '',
             draftContent: porSlug.get(d.slug)?.draftContent ?? null,
@@ -113,7 +113,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         const noAr = new Map(instantaneo.map((d) => [d.slug, d.content]))
 
         const acervo: AcervoDoDocumento[] = await Promise.all(
-            DOCUMENTOS.map(async (d) => ({
+            DOCUMENTOS().map(async (d) => ({
                 slug: d.slug,
                 ehAcervo: d.modo !== 'prompt',
                 indexado: porSlug.get(d.slug)?.indexedHash ?? null,
@@ -228,7 +228,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
          */
         const motivos = new Set([...mudaram, ...desatualizados])
 
-        for (const doc of DOCUMENTOS) {
+        for (const doc of DOCUMENTOS()) {
             const slug = doc.slug
             const texto = instantaneo.find((d) => d.slug === slug)?.content ?? ''
 

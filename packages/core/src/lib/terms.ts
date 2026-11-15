@@ -1,3 +1,5 @@
+import { vocab } from './vocabulario'
+import { comArtigo } from './concordancia'
 /**
  * The agreement shown on the last step of onboarding.
  *
@@ -12,7 +14,15 @@ export interface TermsSection {
     body: string[]
 }
 
-export const TERMS: TermsSection[] = [
+/**
+ * Função memoizada, e não constante: o texto lê o vocabulário, e `BRAND()` é
+ * fail-fast. Constante de módulo é avaliada quando a Cloudflare VALIDA o
+ * script — sem requisição e sem marca registrada —, e a publicação reprova com
+ * `MarcaNaoRegistradaError`. A forma que já reprovou cinco publicações.
+ */
+let termsCache: TermsSection[] | null = null
+export function TERMS(): TermsSection[] {
+    if (termsCache === null) termsCache = [
     {
         title: 'Período de avaliação',
         body: [
@@ -23,7 +33,7 @@ export const TERMS: TermsSection[] = [
     {
         title: 'Créditos de IA',
         body: [
-            'Um crédito corresponde ao custo real de processamento do modelo de linguagem. Quando os créditos acabam, o agente para de responder automaticamente e avisa o paciente de que o atendimento continuará em instantes — as mensagens seguem chegando e a equipe continua respondendo normalmente.',
+            `Um crédito corresponde ao custo real de processamento do modelo de linguagem. Quando os créditos acabam, o agente para de responder automaticamente e avisa ${comArtigo(vocab(), 'pessoa')} de que o atendimento continuará em instantes — as mensagens seguem chegando e a equipe continua respondendo normalmente.`,
             'Os créditos do plano são renovados a cada 30 dias contados da contratação e não se acumulam de um período para o outro. Créditos avulsos, quando adquiridos, valem 90 dias a partir da compra ou até se esgotarem.',
             'A compra de créditos avulsos exige um plano ativo e estar fora do período de avaliação.',
         ],
@@ -45,9 +55,11 @@ export const TERMS: TermsSection[] = [
     {
         title: 'Seus dados',
         body: [
-            'A clínica é a controladora dos dados dos seus pacientes; o OdontoBox360 atua como operador, nos termos da LGPD.',
+            `${comArtigo(vocab(), 'Organizacao')} é a controladora dos dados dos seus ${vocab().pessoas}; o OdontoBox360 atua como operador, nos termos da LGPD.`,
             'Encerrada a avaliação sem contratação, os dados ficam disponíveis para consulta e exportação por 90 dias. Você recebe aviso 60 dias antes e novamente 7 dias antes da exclusão definitiva.',
             'A exportação está disponível a qualquer momento, inclusive durante o período de somente-leitura.',
         ],
     },
 ]
+    return termsCache
+}

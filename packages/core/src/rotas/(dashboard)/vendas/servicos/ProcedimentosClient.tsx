@@ -36,7 +36,14 @@ import { usePermissions } from '@venn/core/hooks/usePermissions'
 import { useIndiceServidor } from '@venn/core/hooks/useIndiceServidor'
 import { CATEGORIA_PADRAO, LIMITE_PADRAO, type DadosIniciais, type ProductItem } from './dados'
 
-const CATEGORIES = PRODUCT_CATEGORIES.map((c) => ({ id: c.id as string, label: c.label }))
+/** Memoizado: `PRODUCT_CATEGORIES()` lê o vocabulário no rótulo. */
+let categoriasCache: { id: string; label: string }[] | null = null
+function CATEGORIES(): { id: string; label: string }[] {
+    if (categoriasCache === null) {
+        categoriasCache = PRODUCT_CATEGORIES().map((c) => ({ id: c.id as string, label: c.label }))
+    }
+    return categoriasCache
+}
 
 const CATEGORY_TONES = {
     // O que ocupa agenda leva cor; o que é mercadoria fica neutro.
@@ -310,7 +317,7 @@ export function ProcedimentosClient({ inicial }: { inicial: DadosIniciais }) {
                     <ProductPanel
                         key={openItem.id}
                         item={openItem}
-                        categories={CATEGORIES}
+                        categories={CATEGORIES()}
                         canEdit={canEdit}
                         onClose={() => setOpenId(null)}
                         {...panelNeighbours(openId, rowIds, setOpenId)}
@@ -339,9 +346,9 @@ export function ProcedimentosClient({ inicial }: { inicial: DadosIniciais }) {
                 filters={
                     <FilterPill
                         label="Categoria"
-                        value={categoryFilter === 'all' ? null : (CATEGORIES.find((c) => c.id === categoryFilter)?.label ?? categoryFilter)}
+                        value={categoryFilter === 'all' ? null : (CATEGORIES().find((c) => c.id === categoryFilter)?.label ?? categoryFilter)}
                         onClear={() => { setCategoryFilter('all'); setPage(1) }}
-                        options={[{ value: 'all', label: 'Todas' }, ...CATEGORIES.map((c) => ({ value: c.id, label: c.label }))]}
+                        options={[{ value: 'all', label: 'Todas' }, ...CATEGORIES().map((c) => ({ value: c.id, label: c.label }))]}
                         selected={categoryFilter}
                         onSelect={(v) => { setCategoryFilter(v); setPage(1) }}
                     />
@@ -466,7 +473,7 @@ export function ProcedimentosClient({ inicial }: { inicial: DadosIniciais }) {
                             <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                            {CATEGORIES.map((c) => (
+                            {CATEGORIES().map((c) => (
                                 <SelectItem key={c.id} value={c.id}>{c.label}</SelectItem>
                             ))}
                         </SelectContent>

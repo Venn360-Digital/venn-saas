@@ -36,12 +36,12 @@ export function useAgentCreation(workspaceId: string) {
         voiceTone: PADROES_DO_AGENTE.voiceTone,
         language: PADROES_DO_AGENTE.language,
         timezone: PADROES_DO_AGENTE.timezone,
-        initialMessage: MODELOS_DE_TEXTO.initialMessage,
+        initialMessage: MODELOS_DE_TEXTO().initialMessage,
     })
 
     const [trabalho, setTrabalho] = useState<TrabalhoData>({
-        jobDescription: MODELOS_DE_TEXTO.jobDescription,
-        companyDescription: MODELOS_DE_TEXTO.companyDescription,
+        jobDescription: MODELOS_DE_TEXTO().jobDescription,
+        companyDescription: MODELOS_DE_TEXTO().companyDescription,
     })
 
     const [cerebro, setCerebro] = useState<CerebroData>({
@@ -73,7 +73,7 @@ export function useAgentCreation(workspaceId: string) {
      */
     const [documentos, setDocumentos] = useState<Record<string, DocumentoGravado>>(() =>
         Object.fromEntries(
-            DOCUMENTOS.map((doc) => [
+            DOCUMENTOS().map((doc) => [
                 doc.slug,
                 { content: '', indexedAt: null, indexedChunks: null, desatualizado: false },
             ])
@@ -174,7 +174,7 @@ export function useAgentCreation(workspaceId: string) {
     const [instrucoes, setInstrucoes] = useState<InstrucoesData>({
         llmModel: PADROES_DO_AGENTE.llmModel,
         temperature: PADROES_DO_AGENTE.temperature,
-        systemPrompt: MODELOS_DE_TEXTO.systemPrompt,
+        systemPrompt: MODELOS_DE_TEXTO().systemPrompt,
     })
 
     const handleSave = async (agentId?: string | null) => {

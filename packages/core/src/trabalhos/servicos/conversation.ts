@@ -4,6 +4,7 @@ import { darDono } from '../../lib/conversas/dono'
 import { phoneVariants } from '../../lib/whatsapp/types'
 import { withLock } from '../trava'
 import { createLogger } from '../registro'
+import { vocab } from '../../lib/vocabulario'
 
 const log = createLogger('CONVERSATION')
 
@@ -231,7 +232,7 @@ async function ensureOpenDeal(
             contactId: contact.id,
             // Sem o `instagramId` no fim, um paciente do Direct viraria
             // "Novo paciente - null": lá o telefone não existe.
-            title: `Novo paciente - ${contact.name || contact.phone || contact.instagramId}`,
+            title: `Novo ${vocab().pessoa} - ${contact.name || contact.phone || contact.instagramId}`,
             stageId: firstStage.id,
             originId: contact.originId,
             /**

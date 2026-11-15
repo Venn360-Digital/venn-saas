@@ -4,6 +4,8 @@ import { GRAPH } from '../meta/graph'
 import { MetaOnboardingError } from '../meta/onboarding'
 import { getPlatformCredentials } from '../platform-credentials'
 import { META_PROVIDER } from '../meta/webhook'
+import { vocab } from '../vocabulario'
+import { comArtigo } from '../concordancia'
 
 /**
  * Ligar o Instagram de uma clínica, do clique dela até o Direct funcionando.
@@ -199,7 +201,7 @@ export async function contasDisponiveis(tokenDeUsuario: string): Promise<ContaDe
     )
     url.searchParams.set('limit', '100')
 
-    const corpo = await graph('páginas da clínica', url.toString(), {
+    const corpo = await graph(`páginas ${comArtigo(vocab(), 'organizacao', 'de')}`, url.toString(), {
         headers: { Authorization: `Bearer ${tokenDeUsuario}` },
     })
 
@@ -350,12 +352,22 @@ export function faltaPermissaoDeMensagens(escopos: string[]): boolean {
  * Fora da lista: `pages_messaging` é do Messenger, que não está no escopo, e
  * `instagram_manage_comments` é do produto de conteúdo, não do atendimento.
  */
-export const PERMISSOES_NECESSARIAS: Record<string, string> = {
+/**
+ * Função memoizada, e não constante: o texto lê o vocabulário, e `BRAND()` é
+ * fail-fast. Constante de módulo é avaliada quando a Cloudflare VALIDA o
+ * script — sem requisição e sem marca registrada —, e a publicação reprova com
+ * `MarcaNaoRegistradaError`. A forma que já reprovou cinco publicações.
+ */
+let permissoesNecessariasCache: Record<string, string> | null = null
+export function PERMISSOES_NECESSARIAS(): Record<string, string> {
+    if (permissoesNecessariasCache === null) permissoesNecessariasCache = {
     instagram_basic: 'descobrir qual conta de Instagram está ligada à Página',
     instagram_manage_messages: 'receber e responder o Direct',
     pages_manage_metadata: 'assinar a Página ao aplicativo, que é o que faz o evento chegar',
-    pages_show_list: 'listar as Páginas da clínica para achar a certa',
+    pages_show_list: `listar as Páginas ${comArtigo(vocab(), 'organizacao', 'de')} para achar a certa`,
     pages_read_engagement: 'dependência declarada de instagram_manage_messages',
+}
+    return permissoesNecessariasCache
 }
 
 /**
@@ -396,7 +408,7 @@ async function permissoesFaltando(tokenDeUsuario: string): Promise<string[]> {
         const concedidas = new Set(
             lista.filter((p) => p.status === 'granted').map((p) => p.permission)
         )
-        return Object.keys(PERMISSOES_NECESSARIAS).filter((p) => !concedidas.has(p))
+        return Object.keys(PERMISSOES_NECESSARIAS()).filter((p) => !concedidas.has(p))
     } catch {
         // A consulta é diagnóstico: falhar aqui não pode trocar a mensagem da
         // clínica por um erro sobre a consulta em si.
@@ -446,11 +458,11 @@ export async function explicarListaVazia(tokenDeUsuario: string): Promise<string
 
     if (faltando.length > 0) {
         const detalhe = faltando
-            .map((p) => `${p} (${PERMISSOES_NECESSARIAS[p]})`)
+            .map((p) => `${p} (${PERMISSOES_NECESSARIAS()[p]})`)
             .join('; ')
         return (
             'A conexão foi autorizada, mas sem as permissões necessárias: ' +
-            `${detalhe}. Isto é configuração do aplicativo na Meta, não da clínica — ` +
+            `${detalhe}. Isto é configuração do aplicativo na Meta, não ${comArtigo(vocab(), 'organizacao', 'de')} — ` +
             'acrescente-as à configuração do Login do Facebook para Empresas e tente de novo.'
         )
     }

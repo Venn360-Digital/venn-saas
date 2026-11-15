@@ -445,7 +445,7 @@ export function buildSystemPrompt(
      * o modelo. É o resultado típico de duas instruções em disputa — o modelo não
      * desobedeceu, ele escolheu uma delas.
      *
-     * A tabela de precedência do catálogo (`DOCUMENTOS[].precedencia`) ordena os
+     * A tabela de precedência do catálogo (`DOCUMENTOS()[].precedencia`) ordena os
      * oito documentos entre si e **não** alcança as seções que o produto escreve.
      * Então a precedência contra a empresa tem de ser dita aqui, onde a seção
      * mora.
