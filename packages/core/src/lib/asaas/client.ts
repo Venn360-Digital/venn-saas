@@ -1,4 +1,5 @@
 import { getPlatformCredentials, ambienteDaChave } from '../platform-credentials'
+import { BRAND } from '../../marca'
 
 /**
  * O cliente do Asaas: fino de propósito.
@@ -32,7 +33,9 @@ const BASE = {
  * Não é formalidade: quando duas integrações do mesmo cliente se comportam
  * diferente, é por ele que o suporte do Asaas separa uma da outra.
  */
-const USER_AGENT = 'OdontoBox360/1.0 (Next.js)'
+/** Função: `BRAND()` lança se a marca não foi registrada, e constante de módulo
+ * é avaliada na validação do script. */
+const userAgent = () => `${BRAND().name}/1.0 (Next.js)`
 
 export interface AsaasConfig {
     chave: string
@@ -91,7 +94,7 @@ export async function asaas<T>(
         method: init.method ?? 'GET',
         headers: {
             'Content-Type': 'application/json',
-            'User-Agent': USER_AGENT,
+            'User-Agent': userAgent(),
             access_token: cfg.chave,
         },
         body: init.body === undefined ? undefined : JSON.stringify(init.body),

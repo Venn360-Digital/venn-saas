@@ -10,6 +10,7 @@ import { ConfirmDialog } from '../../shared/ConfirmDialog'
 import { SettingsRow } from '../../shared/TabsFrame'
 import { useVocab } from '../../../hooks/useVocab'
 import { comArtigo } from '../../../lib/concordancia'
+import { useMarca } from '../../../marca-contexto'
 
 /**
  * O cartão que liga o Instagram da clínica — botão e orientação juntos.
@@ -75,6 +76,7 @@ interface Props {
  * enfeite.
  */
 function Preparos() {
+    const marca = useMarca()
     const v = useVocab()
     return (
         <div className="rounded-md border border-border bg-muted/40 p-3.5">
@@ -98,7 +100,7 @@ function Preparos() {
                         Configurações e atividade → Mensagens e respostas de story → Controles de
                         mensagens → Ferramentas conectadas → Permitir acesso a mensagens
                     </Caminho>
-                    Autorizar aqui no OdontoBox360{' '}
+                    Autorizar aqui no {marca.name}{' '}
                     <strong className="font-semibold text-foreground">não</strong> liga essa
                     chave. Com ela desligada, a conexão aparece como ligada e nenhuma mensagem é
                     enviada.

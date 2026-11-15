@@ -2,6 +2,7 @@ import prisma from '@venn/db/cliente'
 import { usuarioDaSessao } from './auth/sessao'
 import { platformSecretName, readVaultSecret, vaultSecretOrigin } from './vault'
 import { nomeDeAmbiente } from './secrets/ambiente'
+import { BRAND } from '../marca'
 
 /**
  * The OAuth application's own credentials, registered once for every clinic.
@@ -52,14 +53,21 @@ export interface OAuthAppCredentials {
     clientSecret: string
 }
 
-export const PLATFORM_PROVIDERS = [
+/**
+ * Função memoizada, e não constante: o texto lê o vocabulário, e `BRAND()` é
+ * fail-fast. Constante de módulo é avaliada quando a Cloudflare VALIDA o
+ * script — sem requisição e sem marca registrada —, e a publicação reprova com
+ * `MarcaNaoRegistradaError`. A forma que já reprovou cinco publicações.
+ */
+function montarPlatformProviders() {
+    return [
     { provider: 'google_calendar', label: 'Google Calendar', help: 'Projeto no Google Cloud com a Calendar API ativa.' },
     { provider: 'google_ads', label: 'Google Ads', help: 'Mesmo projeto do Google, com a Ads API ativa.' },
     { provider: 'meta_ads', label: 'Meta Ads', help: 'App no Meta for Developers.' },
     {
         provider: 'meta_messaging',
         label: 'WhatsApp API Oficial (Meta)',
-        help: 'App OdontoBox360 no portfólio Venn360, em Configurações → Básico.',
+        help: `App ${BRAND().name} no portfólio ${BRAND().vendor}, em Configurações → Básico.`,
         idLabel: 'ID do aplicativo',
         secretLabel: 'Chave secreta do aplicativo',
     },
@@ -108,8 +116,14 @@ export const PLATFORM_PROVIDERS = [
         segredoDuplo: true,
     },
 ] as const
+}
+let platformProvidersCache: ReturnType<typeof montarPlatformProviders> | null = null
+export function PLATFORM_PROVIDERS(): ReturnType<typeof montarPlatformProviders> {
+    if (platformProvidersCache === null) platformProvidersCache = montarPlatformProviders()
+    return platformProvidersCache
+}
 
-export type PlatformProvider = (typeof PLATFORM_PROVIDERS)[number]['provider']
+export type PlatformProvider = ReturnType<typeof PLATFORM_PROVIDERS>[number]['provider']
 
 /**
  * Sandbox ou produção, lido do prefixo da chave do Asaas.
@@ -127,7 +141,7 @@ export function ambienteDaChave(chave: string): 'sandbox' | 'producao' | 'descon
 
 /** Se as duas metades deste provedor são segredo. Ver o descritor do Asaas. */
 export function temSegredoDuplo(provider: string): boolean {
-    const p = PLATFORM_PROVIDERS.find((x) => x.provider === provider)
+    const p = PLATFORM_PROVIDERS().find((x) => x.provider === provider)
     return Boolean(p && 'segredoDuplo' in p && p.segredoDuplo)
 }
 

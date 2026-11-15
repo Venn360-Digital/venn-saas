@@ -1383,7 +1383,7 @@ export function PlanoTab() {
                         <p className="font-semibold">Concluindo o pagamento na janela do Asaas.</p>
                         <p className="mt-0.5 text-xs">
                             O cartão é informado na página segura do Asaas — ele não passa pelo
-                            OdontoBox360. Assim que você terminar, esta tela se atualiza sozinha.
+                            {marca.name}. Assim que você terminar, esta tela se atualiza sozinha.
                         </p>
                     </div>
                     <Button

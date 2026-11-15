@@ -13,6 +13,7 @@
  */
 
 import { CONTATO } from './layout'
+import { BRAND } from '../../marca'
 
 /**
  * O recorte do binding que este módulo usa.
@@ -100,7 +101,7 @@ export async function sendEmail(input: {
 /** De `"OdontoBox360 <conta@dominio>"` para `["conta@dominio", "OdontoBox360"]`. */
 function separarRemetente(valor: string): [string, string] {
     const encontrado = valor.match(/^(.+?)\s*<(.+?)>$/)
-    return encontrado ? [encontrado[2], encontrado[1]] : [valor, 'OdontoBox360']
+    return encontrado ? [encontrado[2], encontrado[1]] : [valor, BRAND().name]
 }
 
 function emTextoSimples(html: string): string {

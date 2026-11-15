@@ -1,8 +1,15 @@
 import { redirect } from 'next/navigation'
 
 import { NovaSenhaForm } from './form'
+import { BRAND } from '../../../marca'
 
-export const metadata = { title: 'Nova senha — OdontoBox360' }
+/*
+ * Função, não constante: `BRAND()` lança sem marca registrada, e uma constante
+ * é avaliada quando a Cloudflare VALIDA o script. Sexta forma desta fase.
+ */
+export function generateMetadata() {
+    return { title: `Nova senha — ${BRAND().name}` }
+}
 
 /**
  * Onde o link de recuperação chega.
