@@ -114,7 +114,7 @@ O slug curto também é usado em `APP_SLUG`, na sentinela e no `cookiePrefix`. O
 
 | Recurso | Padrão | Exemplo (Stagent360) |
 |---|---|---|
-| Repositório | `venn360/{repo}` | `venn360/stagent360` |
+| Repositório | `Venn360-Digital/{repo}` | `Venn360-Digital/stagent360` |
 | Ambientes wrangler / GitHub | `production` / `stg` | `wrangler deploy --env stg` |
 | Worker | `{slug}-{env}` | `stagent-prod` / `stagent-stg` |
 | Projeto Neon | `{slug}` | `stagent` |

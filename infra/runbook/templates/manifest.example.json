@@ -1,7 +1,7 @@
 {
   "$comment": "Fonte única de verdade dos recursos DESTE app. IDs vazios são preenchidos nas Fases 06-09. Nunca coloque senhas ou secrets aqui.",
   "app": {
-    "repo": "venn360/stagent360",
+    "repo": "Venn360-Digital/stagent360",
     "name": "Stagent360",
     "slug": "stagent",
     "segment": "none",

@@ -11,7 +11,7 @@ Pacote de prompts para o **Claude Code**: cada fase é um arquivo e termina em u
 | 02 | `03-fase-02-saneamento-odontobox.md` | repo Odontobox | staging da Odontobox; produção só com "OK produção" |
 | 03 | `04-fase-03-parametrizacao-identidade.md` | repo Odontobox | código (identidade + travas); produção só com "OK produção" |
 | 04 | `05-fase-04-evolution-go-odontobox.md` | repo Odontobox + VPS | condicional: migra/limpa Evolution API → Go |
-| 05 | `06-fase-05-clonagem-rebranding.md` | repo novo | cria `venn360/stagent360` |
+| 05 | `06-fase-05-clonagem-rebranding.md` | repo novo | cria `Venn360-Digital/stagent360` |
 | 06 | `07-fase-06-neon.md` | repo novo | projeto Neon novo |
 | 07 | `08-fase-07-cloudflare.md` | repo novo | recursos Cloudflare novos |
 | 08 | `09-fase-08-vps-evolution-go.md` | VPS existente | 2 containers novos |
