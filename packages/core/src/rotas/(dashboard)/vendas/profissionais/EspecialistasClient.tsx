@@ -29,7 +29,7 @@ import { useIndiceServidor } from '@venn/core/hooks/useIndiceServidor'
 import { INCLUIR_INATIVOS, type DadosIniciais, type Especialista } from './dados'
 
 /**
- * Quem executa os procedimentos da clínica.
+ * Quem executa os servicos da clínica.
  *
  * Cadastro irmão de Departamentos e Itens — e **não** a lista de usuários:
  * `Activity.userId` já significa "Responsável", quem da equipe cuida da tarefa.
@@ -44,7 +44,7 @@ import { INCLUIR_INATIVOS, type DadosIniciais, type Especialista } from './dados
  *
  * `PICKER_RAMP` existe em `palette.ts` para isto, e é o único lugar do `src/`
  * onde cor literal é permitida — o verificador de cores recusa hex solto em
- * qualquer outro arquivo. Reusá-la também faz o especialista combinar com a
+ * qualquer outro arquivo. Reusá-la também faz o profissional combinar com a
  * etiqueta e a fase do funil, em vez de inventar uma sexta paleta.
  */
 const CORES = PICKER_RAMP
@@ -261,7 +261,7 @@ export function EspecialistasClient({ inicial }: { inicial: DadosIniciais }) {
                 e.windowCount > 0 ? (
                     <span className="num text-muted-foreground">{e.windowCount}</span>
                 ) : (
-                    // Sem janela o especialista não aparece como disponível em
+                    // Sem janela o profissional não aparece como disponível em
                     // lugar nenhum — vale dizer, não deixar em branco.
                     <span className="text-warning-subtle-foreground">sem horário</span>
                 ),

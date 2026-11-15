@@ -5,12 +5,12 @@
  *
  * Duas propriedades valem mais que as outras:
  *
- *   - **o catálogo vai no prompt, o corpo não.** Vinte procedimentos num prompt
+ *   - **o catálogo vai no prompt, o corpo não.** Vinte servicos num prompt
  *     que vai em toda mensagem seriam milhares de tokens para um agente que usa
  *     dois por dia. O que o teste protege é que `catalogoDeCenarios` devolve
  *     título e gatilho, e **nunca** os passos.
- *   - **procedimento não é fato.** Um fato recuperado é fonte de verdade para
- *     responder; um procedimento é ordem de execução. Sem a distinção o modelo
+ *   - **servico não é fato.** Um fato recuperado é fonte de verdade para
+ *     responder; um servico é ordem de execução. Sem a distinção o modelo
  *     leria os passos *para* o paciente em vez de executá-los.
  */
 // PRIMEIRO de todos: registra uma marca fictícia, porque este script roda
@@ -21,7 +21,7 @@ import {
     MAX_NO_CATALOGO,
     catalogoDeCenarios,
     lerCenarios,
-    procedimentoParaOPrompt,
+    servicoParaOPrompt,
 } from '@venn/core/lib/treinamento/cenarios'
 import {
     COMPACTAR_A_PARTIR_DE,
@@ -142,7 +142,7 @@ const catalogo = catalogoDeCenarios(cenarios)!
 conferir('traz os títulos', catalogo.includes('**Paciente quer remarcar**'), true)
 conferir('traz o gatilho, em minúscula depois de "quando"', catalogo.includes('— quando o paciente pede'), true)
 conferir(
-    'NUNCA traz os passos — é o ponto do modo procedimento',
+    'NUNCA traz os passos — é o ponto do modo servico',
     catalogo.includes('Chame passar_para_equipe') || catalogo.includes('Informe o telefone'),
     false
 )
@@ -164,13 +164,13 @@ conferir(
     MAX_NO_CATALOGO
 )
 
-console.log('\nO procedimento recuperado')
+console.log('\nO servico recuperado')
 
-const proc = procedimentoParaOPrompt([{ title: 'cenarios', content: '### Remarcar\nPassos:\n1. a' }])!
+const proc = servicoParaOPrompt([{ title: 'cenarios', content: '### Remarcar\nPassos:\n1. a' }])!
 
 conferir('manda EXECUTAR, não ler', proc.includes(`Não os leia para ${comArtigo(BRAND().vocabulario, 'pessoa')}`), true)
 conferir('traz o corpo', proc.includes('Passos:'), true)
-conferir('sem trecho devolve nulo', procedimentoParaOPrompt([]), null)
+conferir('sem trecho devolve nulo', servicoParaOPrompt([]), null)
 
 console.log('\nO catálogo e o acervo')
 
@@ -251,9 +251,9 @@ console.log('\nCenários entra na precedência escrita')
 
 /**
  * A lista saía de `documentosDoPrompt()`, que filtra modo `prompt`. Cenários é
- * `procedimento`, então não aparecia em posição nenhuma — enquanto o corpo dele
+ * `servico`, então não aparecia em posição nenhuma — enquanto o corpo dele
  * chega no bloco volátil, na posição de maior recência, dizendo "execute os
- * passos". Um procedimento pré-escrito era a instrução menos subordinada do
+ * passos". Um servico pré-escrito era a instrução menos subordinada do
  * conjunto.
  */
 const comPrecedencia = buildSystemPrompt(

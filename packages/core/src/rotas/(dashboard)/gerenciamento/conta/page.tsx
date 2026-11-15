@@ -35,8 +35,8 @@ const TABS: FrameTab[] = [
      */
     { id: 'empresa', label: 'Conta da Clínica', icon: Hospital },
     { id: 'usuarios', label: 'Usuários', icon: Users },
-    // Vale para todos os especialistas e sobrepõe as janelas deles — por isso
-    // mora na Conta, e não na ficha de um especialista.
+    // Vale para todos os profissionais e sobrepõe as janelas deles — por isso
+    // mora na Conta, e não na ficha de um profissional.
     { id: 'agenda', label: 'Agenda da clínica', icon: CalendarOff },
     { id: 'integracoes', label: 'Integrações', icon: Plug },
     { id: 'automacoes', label: 'Automações', icon: Zap },

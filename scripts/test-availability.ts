@@ -46,11 +46,11 @@ conferir('14–17 em fatias de 30 dá 6 vagas',
     calcularVagas(base).map((v) => v.startTime),
     ['14:00', '14:30', '15:00', '15:30', '16:00', '16:30'])
 
-conferir('procedimento de 60 min dá 5 começos, e o último termina às 17h',
+conferir('servico de 60 min dá 5 começos, e o último termina às 17h',
     calcularVagas({ ...base, duracaoMinutos: 60 }).map((v) => `${v.startTime}-${v.endTime}`),
     ['14:00-15:00', '14:30-15:30', '15:00-16:00', '15:30-16:30', '16:00-17:00'])
 
-conferir('procedimento que não cabe não gera vaga',
+conferir('servico que não cabe não gera vaga',
     calcularVagas({ ...base, duracaoMinutos: 240 }), [])
 
 console.log('\n── o que já está marcado ──')
@@ -101,11 +101,11 @@ console.log('\n── o recorte do agente ──')
 const soRecepcao: Janela = { ...terca, agentCanBook: false }
 conferir('janela não liberada: a recepção vê, o agente não',
     calcularVagas({ ...base, janelas: [soRecepcao], paraAgente: { procedureId: 'avaliacao' } }), [])
-conferir('janela liberada mas sem o procedimento na lista: o agente não marca',
+conferir('janela liberada mas sem o servico na lista: o agente não marca',
     calcularVagas({ ...base, paraAgente: { procedureId: 'implante' } }), [])
-conferir('janela liberada com o procedimento: o agente marca',
+conferir('janela liberada com o servico: o agente marca',
     calcularVagas({ ...base, paraAgente: { procedureId: 'avaliacao' } }).length, 6)
-conferir('lista de procedimentos vazia significa nenhum, não todos',
+conferir('lista de servicos vazia significa nenhum, não todos',
     calcularVagas({ ...base, janelas: [{ ...terca, procedureIds: [] }], paraAgente: { procedureId: 'avaliacao' } }), [])
 
 console.log('\n── o passado ──')

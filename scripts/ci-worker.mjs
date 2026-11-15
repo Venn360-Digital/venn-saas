@@ -214,6 +214,7 @@ const PROVAS = [
     'test:vocabulario',
     'test:concordancia',
     'test:ferramentas',
+    'test:redirects',
     'test:distribuicao',
     'test:marcacao',
     'test:mencoes',

@@ -131,7 +131,7 @@ export function DocumentoDeTreinamento({
      * está.
      */
     const acervo = textoParaAcervo(valor)
-    // `!== 'prompt'` e não `=== 'rag'`: o de procedimento também é indexado,
+    // `!== 'prompt'` e não `=== 'rag'`: o de servico também é indexado,
     // e conferir a estrutura dele contra o texto cru esconderia o que o corte
     // de fato vai ver.
     const paraConferir = doc.modo !== 'prompt' ? acervo.texto : semComentarios(valor)

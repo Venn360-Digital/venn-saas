@@ -118,7 +118,7 @@ export interface Brand {
         pessoas: string
         Pessoas: string
         /**
-         * Quem presta o serviço: especialista, consultor, atendente.
+         * Quem presta o serviço: profissional, consultor, atendente.
          *
          * É o rótulo de `/vendas/profissionais` — a rota é neutra desde
          * 2026-11-11, e só o rótulo é do nicho.
@@ -128,7 +128,7 @@ export interface Brand {
         profissionais: string
         Profissionais: string
         /**
-         * O que a organização vende: procedimento, pacote, serviço.
+         * O que a organização vende: servico, pacote, serviço.
          *
          * Rótulo de `/vendas/servicos`, pela mesma razão.
          */

@@ -174,12 +174,17 @@ function segmentLabels(v: Vocabulario): Record<string, string> {
     contatos: v.Pessoas,
     agenda: "Agenda",
     profissionais: v.Profissionais,
-    // `especialistas` foi o slug até 2026-11-11; fica mapeado pela mesma razão.
+    /*
+     * Os SLUGS ANTIGOS ficam como estavam: `especialistas` e `procedimentos`
+     * são endereços, não identificadores nossos.
+     *
+     * Um renomeio em massa de identificador os trocou por `profissionais` e
+     * `servicos` e criou chave duplicada — o typecheck pegou. A lição é a
+     * mesma das cinco formas de "literal que não é texto": slug de URL é
+     * contrato com quem guardou o link, e a trilha não deve mostrar slug cru
+     * quando o rewrite ainda resolve.
+     */
     especialistas: v.Profissionais,
-    // A rota foi `servicos` até 2026-10-20, virou `procedimentos`, e voltou a
-    // `servicos` em 2026-11-11 como segmento neutro entre os produtos. O rótulo
-    // segue sendo o do nicho, e o slug intermediário fica mapeado porque um
-    // link guardado ainda resolve (via rewrite) e a trilha não mostra slug cru.
     servicos: v.Servicos,
     procedimentos: v.Servicos,
     departamentos: "Departamentos",

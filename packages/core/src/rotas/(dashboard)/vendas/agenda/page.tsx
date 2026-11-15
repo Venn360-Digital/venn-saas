@@ -50,7 +50,7 @@ interface Activity {
     user: { id: string; name: string | null } | null
     /** Quem executa — distinto de `user`, que é quem cuida da tarefa. */
     professional: { id: string; name: string; color: string } | null
-    /** O procedimento do catálogo; é dele que vem a duração. */
+    /** O servico do catálogo; é dele que vem a duração. */
     productService: { id: string; name: string; durationMinutes: number | null } | null
     reminderMinutes: number | null
     recurrenceType: string | null
@@ -491,7 +491,7 @@ export default function AgendaPage() {
     // ─── Tela 02 ─────────────────────────────────────────────────────
     /** A busca é da tela: a API já recorta por data, tipo, pessoa e situação. */
     const needle = search.trim().toLowerCase()
-    // O recorte por especialista é da tela também — a API já devolve o período
+    // O recorte por profissional é da tela também — a API já devolve o período
     // inteiro, e filtrar aqui evita uma ida ao servidor a cada troca de pílula.
     const porProfissional = specialistFilter
         ? activities.filter((a) => a.professional?.id === specialistFilter)
@@ -642,7 +642,7 @@ export default function AgendaPage() {
                     <span className="flex items-center gap-2">
                         {/* As janelas se editam daqui porque é aqui que a pergunta
                             nasce — "por que a terça não aparece livre?". O mesmo
-                            diálogo abre pela ficha do especialista, em Vendas →
+                            diálogo abre pela ficha do profissional, em Vendas →
                             Especialistas: um editor só, duas portas. */}
                         {canEdit ? (
                             <Button
@@ -684,7 +684,7 @@ export default function AgendaPage() {
                             selected={typeFilter}
                             onSelect={setTypeFilter}
                         />
-                        {/* Por quem atende. Só aparece quando há especialista
+                        {/* Por quem atende. Só aparece quando há profissional
                             cadastrado: numa clínica que não usa, um filtro de
                             uma opção só não filtra nada. */}
                         {profissionais.length > 0 ? (
@@ -971,7 +971,7 @@ export default function AgendaPage() {
                 </FormField>
 
                 {/* Quem atende e o que se faz. Só aparecem quando a clínica
-                    cadastrou especialista — numa clínica que não usa, dois
+                    cadastrou profissional — numa clínica que não usa, dois
                     seletores vazios só ocupariam o formulário. */}
                 {profissionais.length > 0 ? (
                     <div className="grid grid-cols-2 gap-3.5">
@@ -1010,7 +1010,7 @@ export default function AgendaPage() {
                                     setFormData((f) => ({
                                         ...f,
                                         productServiceId: v === 'none' ? '' : v,
-                                        // O título segue o procedimento enquanto
+                                        // O título segue o servico enquanto
                                         // ninguém o tiver escrito à mão.
                                         title: !f.title || servicos.some((p) => p.name === f.title)
                                             ? proc?.name ?? f.title
@@ -1148,7 +1148,7 @@ export default function AgendaPage() {
                 }}
             />
 
-            {/* Sem especialista escolhido, o diálogo pergunta de quem é a grade. */}
+            {/* Sem profissional escolhido, o diálogo pergunta de quem é a grade. */}
             <JanelasDialog open={janelasAbertas} onOpenChange={setJanelasAbertas} />
         </>
     )

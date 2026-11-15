@@ -18,7 +18,7 @@ import { usePermissions } from '../../hooks/usePermissions'
 /**
  * O calendário da clínica: quando ela não atende.
  *
- * Vale para **todos** os especialistas e ganha das janelas deles — é a camada
+ * Vale para **todos** os profissionais e ganha das janelas deles — é a camada
  * que sobrepõe a agenda.
  *
  * Duas listas, e a diferença importa. Os **feriados nacionais** já vêm: a lista
@@ -189,7 +189,7 @@ export function AgendaDaUnidadeTab() {
             <SettingsBand
                 className="flex min-h-0 flex-1 flex-col"
                 title="Feriados nacionais"
-                description="Já vêm prontos e bloqueiam a agenda de todos os especialistas. Desligue os que a clínica atende."
+                description="Já vêm prontos e bloqueiam a agenda de todos os profissionais. Desligue os que a clínica atende."
                 aside={
                     <span className="flex items-center gap-1">
                         <Button variant="ghost" size="sm" onClick={() => setAno((a) => a - 1)}>
@@ -308,7 +308,7 @@ export function AgendaDaUnidadeTab() {
                 open={dialogo}
                 onOpenChange={setDialogo}
                 title="Novo fechamento"
-                description="Vale para todos os especialistas e sobrepõe as janelas deles."
+                description="Vale para todos os profissionais e sobrepõe as janelas deles."
                 submitLabel="Criar fechamento"
                 hideAgain
                 submitting={salvando}

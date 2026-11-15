@@ -195,7 +195,7 @@ conferir(
     'uma | duas | tres'
 )
 
-console.log('\nA vaga do procedimento')
+console.log('\nA vaga do servico')
 
 const CENARIO = 'cenario'
 
@@ -210,13 +210,13 @@ const afogado = [
 ]
 
 conferir(
-    'nenhum procedimento entrou: ele toma a vaga do ÚLTIMO colocado',
+    'nenhum servico entrou: ele toma a vaga do ÚLTIMO colocado',
     ids(reservarVagaParaProcedimento(afogado.slice(0, 5), afogado, 5, CENARIO)),
     ['s1', 's2', 's3', 's4', 'c1']
 )
 
 conferir(
-    'o primeiro colocado nunca é trocado — seria entregar procedimento no lugar do melhor fato',
+    'o primeiro colocado nunca é trocado — seria entregar servico no lugar do melhor fato',
     reservarVagaParaProcedimento(afogado.slice(0, 5), afogado, 5, CENARIO)[0].id,
     's1'
 )
@@ -226,7 +226,7 @@ const jaTem = [
     { id: 's1', titulo: 'Home | site', tipo: 'website' },
 ]
 conferir(
-    'procedimento já entre os escolhidos: nada muda, e é o caso comum',
+    'servico já entre os escolhidos: nada muda, e é o caso comum',
     ids(reservarVagaParaProcedimento(jaTem, jaTem, 5, CENARIO)),
     ['c1', 's1']
 )
@@ -236,13 +236,13 @@ const semCenario = [
     { id: 't1', titulo: 'servicos', tipo: 'treinamento' },
 ]
 conferir(
-    'a busca não achou procedimento nenhum: não há o que reservar',
+    'a busca não achou servico nenhum: não há o que reservar',
     ids(reservarVagaParaProcedimento(semCenario, semCenario, 5, CENARIO)),
     ['s1', 't1']
 )
 
 /**
- * Sobrou vaga: o procedimento entra **sem tirar ninguém**. É o acervo pequeno,
+ * Sobrou vaga: o servico entra **sem tirar ninguém**. É o acervo pequeno,
  * em que a diversificação devolveu menos que o limite.
  */
 const comVaga = [
@@ -251,13 +251,13 @@ const comVaga = [
     { id: 'c1', titulo: 'cenarios', tipo: CENARIO },
 ]
 conferir(
-    'com vaga livre, o procedimento entra sem custar nada a ninguém',
+    'com vaga livre, o servico entra sem custar nada a ninguém',
     ids(reservarVagaParaProcedimento(comVaga.slice(0, 2), comVaga, 5, CENARIO)),
     ['s1', 's2', 'c1']
 )
 
 conferir(
-    'o melhor procedimento é o escolhido, não qualquer um',
+    'o melhor servico é o escolhido, não qualquer um',
     ids(
         reservarVagaParaProcedimento(
             [{ id: 's1', titulo: 'site', tipo: 'website' }],
@@ -276,7 +276,7 @@ conferir(
 conferir('limite zero não inventa vaga', reservarVagaParaProcedimento(afogado.slice(0, 5), afogado, 0, CENARIO).length, 5)
 
 /**
- * Trecho **sem** `tipo` não pode ser confundido com procedimento.
+ * Trecho **sem** `tipo` não pode ser confundido com servico.
  *
  * O genérico é anotado à mão aqui, e isso não é estilo: sem a anotação o
  * `T` é inferido do primeiro argumento, cujos literais não declaram `tipo`, e o
@@ -292,7 +292,7 @@ const semTipo: CandidatoDeTeste[] = [
 ]
 
 conferir(
-    'trecho sem tipo nunca é confundido com procedimento',
+    'trecho sem tipo nunca é confundido com servico',
     ids(reservarVagaParaProcedimento(semTipo.slice(0, 1), semTipo, 2, CENARIO)),
     ['a']
 )

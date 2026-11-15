@@ -21,7 +21,7 @@ import { useVocab } from '../../hooks/useVocab'
 import { comArtigo } from '../../lib/concordancia'
 
 /**
- * A grade de horários de um especialista.
+ * A grade de horários de um profissional.
  *
  * **Uma lista só, e a permissão do agente é um campo dela.** A tentação era
  * separar "horário de trabalho" de "janela liberada para a IA"; aí os dois
@@ -61,7 +61,7 @@ export function JanelasDialog({
 }: {
     open: boolean
     onOpenChange: (open: boolean) => void
-    /** Quando vem nulo, o diálogo pede o especialista — é a entrada pela Agenda. */
+    /** Quando vem nulo, o diálogo pede o profissional — é a entrada pela Agenda. */
     professionalId?: string | null
     onSaved?: () => void
 }) {

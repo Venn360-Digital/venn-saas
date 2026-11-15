@@ -110,14 +110,14 @@ console.log('\nModo e precedência')
  * **Sete no prompt, um no acervo, e nenhum documento de fato é recuperado.**
  *
  * `servicos` e `faq` saíram do acervo em 2026-11-12, por decisão do Andre. Sobra
- * `cenarios`, de modo `procedimento`: ele é indexado (o corpo chega por busca),
+ * `cenarios`, de modo `servico`: ele é indexado (o corpo chega por busca),
  * mas não é fonte de verdade — é ordem de execução. Por isso `documentosDoAcervo`
  * o inclui e `documentosDeFato` não, e é essa distinção que o prompt usa para pôr
  * os passos numa seção própria em vez de em "Base de conhecimento".
  *
  * `documentosDeFato()` vazio é o estado **correto** agora, não um defeito: todo
  * fato que a empresa escreve viaja no prompt. A função fica porque a distinção
- * fato/procedimento continua valendo — é ela que decide a seção do prompt.
+ * fato/servico continua valendo — é ela que decide a seção do prompt.
  */
 conferir(
     'sete no prompt, um no acervo, e nenhum de fato é recuperado',
@@ -140,7 +140,7 @@ conferir(
 )
 
 conferir(
-    'no acervo sobrou só o procedimento; de fato, nenhum',
+    'no acervo sobrou só o servico; de fato, nenhum',
     [documentosDeFato().map((d) => d.slug), documentosDoAcervo().map((d) => d.slug)],
     [[], ['cenarios']]
 )
@@ -212,7 +212,7 @@ const orc = (chars: Record<string, number>) =>
     )
 
 conferir(
-    'soma só os documentos de modo prompt — cenarios é procedimento e fica fora',
+    'soma só os documentos de modo prompt — cenarios é servico e fica fora',
     orc({ 'instrucoes-centrais': 100, privacidade: 50, cenarios: 99999 }).usado,
     150
 )

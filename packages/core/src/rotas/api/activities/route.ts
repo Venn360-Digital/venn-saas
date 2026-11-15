@@ -22,7 +22,7 @@ const activitySchema = z.object({
     userId: z.string().optional(),
     /** Quem executa — o profissional, não o responsável pela tarefa. */
     professionalId: z.string().nullable().optional(),
-    /** O procedimento do catálogo de Itens; é dele que vem a duração. */
+    /** O servico do catálogo de Itens; é dele que vem a duração. */
     productServiceId: z.string().nullable().optional(),
     reminderMinutes: z.number().nullable().optional(),
     recurrenceType: z.enum(['daily', 'weekly', 'monthly', 'yearly']).nullable().optional(),

@@ -33,14 +33,14 @@ export type ProductCategory = ReturnType<typeof PRODUCT_CATEGORIES>[number]['id'
 /**
  * O que ocupa tempo na agenda — e, por isso, tem duração.
  *
- * **Serviço entra junto com procedimento.** Antes só `procedure` carregava
+ * **Serviço entra junto com servico.** Antes só `procedure` carregava
  * `durationMinutes`, e as duas rotas zeravam a duração de serviço mesmo que
  * alguém a mandasse. Só que limpeza e clareamento ocupam cadeira igual a um
- * implante: a distinção entre serviço e procedimento é de catálogo, não de
+ * implante: a distinção entre serviço e servico é de catálogo, não de
  * agenda.
  *
  * Esta lista é a fonte de "é agendável" em todo lugar — o seletor da agenda, as
- * janelas do especialista, a consulta de disponibilidade e as ferramentas do
+ * janelas do profissional, a consulta de disponibilidade e as ferramentas do
  * agente. Sete lugares comparavam com `'procedure'` escrito à mão; com um item
  * fora desta lista, o campo de duração existiria na tela e a agenda o ignoraria
  * em silêncio.

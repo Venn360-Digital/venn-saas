@@ -108,16 +108,16 @@ const FAQ: {
         ],
     },
     {
-        grupo: 'Agenda e procedimentos',
+        grupo: 'Agenda e servicos',
         resumo:
             'De onde sai a duração, feriado, recesso, e por que um item não aparece.',
         icone: CalendarPlus,
         itens: [
             { p: 'De onde sai a duração de um compromisso?', r: 'Do item cadastrado em Vendas → Procedimentos. Avaliação 30 minutos, implante 120 — e é isso que impede o agente de encaixar uma cirurgia no buraco de uma consulta.' },
-            { p: 'Como marco que a clínica atende num feriado?', r: 'Conta → Agenda da clínica. Os feriados nacionais já vêm bloqueando; desligue o que a clínica atende. A decisão vale para todos os especialistas.' },
+            { p: 'Como marco que a clínica atende num feriado?', r: 'Conta → Agenda da clínica. Os feriados nacionais já vêm bloqueando; desligue o que a clínica atende. A decisão vale para todos os profissionais.' },
             { p: 'Como cadastro um recesso ou fechamento?', r: 'Na mesma tela, em Novo fechamento: nome, data de início e fim. Pode ser o dia todo ou só um pedaço — dedetização das 14h às 18h, por exemplo.' },
-            { p: 'Qual a diferença entre serviço, procedimento e produto?', r: 'Serviço e procedimento ocupam cadeira e por isso têm duração; produto é mercadoria e não entra na agenda. A diferença entre serviço e procedimento é de catálogo, para a clínica se organizar.' },
-            { p: 'Por que meu serviço não aparece na agenda?', r: 'Verifique se ele está cadastrado como serviço ou procedimento (produto não aparece) e se o especialista tem esse item liberado na janela de atendimento dele.' },
+            { p: 'Qual a diferença entre serviço, servico e produto?', r: 'Serviço e servico ocupam cadeira e por isso têm duração; produto é mercadoria e não entra na agenda. A diferença entre serviço e servico é de catálogo, para a clínica se organizar.' },
+            { p: 'Por que meu serviço não aparece na agenda?', r: 'Verifique se ele está cadastrado como serviço ou servico (produto não aparece) e se o profissional tem esse item liberado na janela de atendimento dele.' },
         ],
     },
     {

@@ -98,7 +98,8 @@
         "test:vocabulario": "tsx scripts/test-vocabulario.ts",
         "test:concordancia": "tsx scripts/test-concordancia.ts",
         "lint:vocabulario": "node scripts/lint-vocabulario.mjs",
-        "test:ferramentas": "tsx scripts/test-ferramentas.ts"
+        "test:ferramentas": "tsx scripts/test-ferramentas.ts",
+        "test:redirects": "tsx scripts/test-redirects.mts"
     },
     "dependencies": {
         "@dnd-kit/core": "^6.3.1",

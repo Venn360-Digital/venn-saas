@@ -18,9 +18,9 @@ export interface EspecialistaPanelItem {
 }
 
 /**
- * A ficha do especialista — a terceira coluna que esta tela não tinha.
+ * A ficha do profissional — a terceira coluna que esta tela não tinha.
  *
- * A tela de especialistas nasceu com índice e diálogo, e pulou a ficha: clicar
+ * A tela de profissionais nasceu com índice e diálogo, e pulou a ficha: clicar
  * na linha abria direto a grade de horários, que é outra coisa. O Andre
  * apontou em 2026-10-20, e a Tela 01 (DESIGN.md §5) é explícita — clicar na
  * linha abre a ficha, o diálogo fica para o Novo e para o lápis.
@@ -63,7 +63,7 @@ export function EspecialistaPanel({
 
     return (
         <RecordPanel
-            label={`Ficha do especialista ${e.name}`}
+            label={`Ficha do profissional ${e.name}`}
             title={e.name || 'Sem nome'}
             avatar={
                 <span

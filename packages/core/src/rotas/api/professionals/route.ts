@@ -5,7 +5,7 @@ import { PERMISSION_DENIED, getWorkspaceMember, hasEditorRole } from '@venn/core
 import { vocab } from '../../../lib/vocabulario'
 
 /**
- * Os profissionais que executam procedimentos.
+ * Os profissionais que executam servicos.
  *
  * Cadastro, como Departamentos e Itens — e por isso a mesma régua: ler é de
  * qualquer membro ativo, mexer é de quem edita configuração do workspace.
@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
     // quem já saiu da clínica.
     const incluirInativos = searchParams.get('all') === 'true'
 
-    const especialistas = await prisma.professional.findMany({
+    const profissionais = await prisma.professional.findMany({
         where: {
             workspaceId: auth.member.workspaceId,
             ...(incluirInativos ? {} : { isActive: true }),
@@ -60,7 +60,7 @@ export async function GET(request: NextRequest) {
     })
 
     return NextResponse.json(
-        especialistas.map((e) => ({
+        profissionais.map((e) => ({
             id: e.id,
             name: e.name,
             specialty: e.specialty,
