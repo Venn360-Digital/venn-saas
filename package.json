@@ -99,7 +99,9 @@
         "test:concordancia": "tsx scripts/test-concordancia.ts",
         "lint:vocabulario": "node scripts/lint-vocabulario.mjs",
         "test:ferramentas": "tsx scripts/test-ferramentas.ts",
-        "test:redirects": "tsx scripts/test-redirects.mts"
+        "test:redirects": "tsx scripts/test-redirects.mts",
+        "test:cookies": "tsx scripts/test-cookies.ts",
+        "test:instancia": "tsx scripts/test-instancia.ts"
     },
     "dependencies": {
         "@dnd-kit/core": "^6.3.1",

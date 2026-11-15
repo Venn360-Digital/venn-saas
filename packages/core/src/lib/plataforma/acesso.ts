@@ -4,7 +4,7 @@ import { cookies } from 'next/headers'
 
 import prisma from '@venn/db/cliente'
 import { getPlatformAdmin } from '../platform-credentials'
-import { COOKIE_ASSUMIR } from '../auth/cookies'
+import { cookieAssumir } from '../auth/cookies'
 
 /**
  * Entrar na conta de um cliente — e o que impede isso de ser uma porta dos
@@ -51,12 +51,12 @@ import { COOKIE_ASSUMIR } from '../auth/cookies'
 /**
  * O nome do cookie vem de `auth/cookies.ts`, que não importa nada.
  *
- * Ele era derivado de `WORKSPACE_COOKIE` importado de `auth/workspace.ts` — e
+ * Ele era derivado de `workspaceCookie()` importado de `auth/workspace.ts` — e
  * esse arquivo importa **este**, para chamar `contaAssumida()`. O ciclo fez o
  * `const` cair em TDZ no primeiro import em tempo de execução, com o `tsc`
  * verde. Reexportado aqui porque o resto do módulo o usa.
  */
-export { COOKIE_ASSUMIR }
+export { cookieAssumir }
 
 /** Uma hora. O cookie expira sozinho, e a leitura confere de novo. */
 export const DURACAO_MS = 60 * 60_000
@@ -117,7 +117,7 @@ export function escreverCookie(a: ContaAssumida): string {
  * requisição só para quem tem o cookie: quem não tem sai no primeiro `if`.
  */
 export async function contaAssumida(): Promise<ContaAssumida | null> {
-    const bruto = (await cookies()).get(COOKIE_ASSUMIR)?.value
+    const bruto = (await cookies()).get(cookieAssumir())?.value
     if (!bruto) return null
 
     const escolha = lerCookie(bruto)

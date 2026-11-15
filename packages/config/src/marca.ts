@@ -19,6 +19,21 @@
  */
 
 export interface Brand {
+    /**
+     * O identificador curto do produto — `odontobox`, e não `OdontoBox360`.
+     *
+     * É o que prefixa **nome de cookie** e **chave de armazenamento no
+     * navegador**, e por isso é identidade de marca e não de ambiente.
+     * `APP().slug` existe e vem do env: ele serve à trava de runtime, que
+     * compara o que o Worker diz com o que o manifesto declara, para pegar
+     * deploy cruzado. Dois propósitos, duas fontes — e `check:identidade`
+     * afirma que concordam.
+     *
+     * Usado em lugar de `APP().slug` aqui porque o default daquele é string
+     * **vazia**: um env não gravado daria o cookie `.workspace`, que não é o de
+     * ninguém. `BRAND()` é fail-fast e não tem default.
+     */
+    slug: string
     /** Nome comercial, como aparece em aba, e-mail e UI. */
     name: string
     /** Descrição curta (meta description, rodapé). */

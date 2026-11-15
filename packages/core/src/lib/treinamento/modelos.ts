@@ -1,4 +1,4 @@
-import { vocab } from '../vocabulario'
+import type { Vocabulario } from '../vocabulario'
 import { comArtigo } from '../concordancia'
 /**
  * Os modelos de cada documento — o que o botão "Inserir modelo" escreve.
@@ -85,14 +85,20 @@ function aviso(): string {
  * `npm run test:treinamento` reprova a divergência.
  */
 /**
- * Função memoizada: os modelos interpolam o vocabulário, e `BRAND()` é
- * fail-fast. Constante de módulo é avaliada na validação do script, sem marca
- * registrada — a forma que já reprovou cinco publicações nesta fase.
+ * O vocabulário entra por PARÂMETRO, e é obrigatório.
+ *
+ * Este módulo é alcançado pelo bundle do CLIENTE, e no navegador ninguém
+ * registrou a marca: ler `vocab()` por dentro lançava
+ * `MarcaNaoRegistradaError` na hidratação — depois de compilar, buildar e
+ * publicar sem uma reclamação. Medido em 15/11/2026, e era defeito em
+ * produção. No cliente as palavras vêm de `useVocab()`; no servidor, de
+ * `vocab(settings)`. Na assinatura, a cobrança é do compilador.
+ *
+ * A memoização de módulo saiu junto: o resultado depende do argumento, e um
+ * cache global devolveria a palavra da primeira unidade a todas as outras.
  */
-let modelosCache: Readonly<Record<string, string>> | null = null
-export function MODELOS(): Readonly<Record<string, string>> {
-    if (modelosCache !== null) return modelosCache
-    modelosCache = {
+export function MODELOS(v: Vocabulario): Readonly<Record<string, string>> {
+    return {
     'instrucoes-centrais': `# Instruções gerais
 
 ${aviso()}
@@ -106,7 +112,7 @@ ${aviso()}
 
   Exemplo de forma:
   "Você é <NOME>, atendente virtual da <EMPRESA>. Fala por WhatsApp com quem
-  procura ${comArtigo(vocab(), 'organizacao')} pela primeira vez. Você não substitui a
+  procura ${comArtigo(v, 'organizacao')} pela primeira vez. Você não substitui a
   avaliação de um profissional."
 -->
 
@@ -177,7 +183,7 @@ ${aviso()}
   Nome como a empresa é conhecida, e o que ela é em uma linha.
 
   Exemplo de forma:
-  "<EMPRESA> — ${vocab().organizacao} odontológica especializada em <ESPECIALIDADE>."
+  "<EMPRESA> — ${v.organizacao} odontológica especializada em <ESPECIALIDADE>."
 -->
 
 ## Endereço
@@ -222,7 +228,7 @@ ${aviso()}
   resposta pronta, de três a quatro linhas — não a história institucional.
 
   Exemplo de forma:
-  "Somos ${comArtigo(vocab(), 'organizacao', 'um')} em <BAIRRO>, com foco em <ESPECIALIDADE>. Atendemos por
+  "Somos ${comArtigo(v, 'organizacao', 'um')} em <BAIRRO>, com foco em <ESPECIALIDADE>. Atendemos por
   agendamento, e a primeira conversa é uma avaliação para entender seu caso."
 -->
 
@@ -267,7 +273,7 @@ ${aviso()}
   "- Não informe valor, parcela, desconto nem estimativa. O valor sai da
      avaliação, e quem passa é a equipe.
    - Não prometa prazo de tratamento: depende do caso.
-   - Não indique ${vocab().servico} nem diga que a pessoa 'precisa' de algo. Quem
+   - Não indique ${v.servico} nem diga que a pessoa 'precisa' de algo. Quem
      indica é o profissional, na avaliação."
 -->
 
@@ -304,7 +310,7 @@ ${aviso()}
   Exemplo de forma:
   "- <TECNOLOGIA OU TÉCNICA> em todos os casos de <SERVIÇO>.
    - <O QUE ESTÁ INCLUÍDO> sem custo adicional.
-   - Acompanhamento por <PERÍODO> após ${comArtigo(vocab(), 'servico')}."
+   - Acompanhamento por <PERÍODO> após ${comArtigo(v, 'servico')}."
 -->
 
 ## Exemplos de resposta
@@ -449,7 +455,7 @@ ${aviso()}
   não.
 
   Exemplo de forma:
-  "- 'O que te fez procurar ${comArtigo(vocab(), 'organizacao')} agora?'
+  "- 'O que te fez procurar ${comArtigo(v, 'organizacao')} agora?'
    - 'Isso te atrapalha no dia a dia de que jeito?'
    - 'Você já tentou resolver antes? Como foi?'
    Ouça a resposta antes da próxima pergunta. Não encadeie duas."
@@ -479,7 +485,7 @@ ${aviso()}
   ### Tenho medo
 
   Reconheça o medo, não minimize. Diga o que acontece na avaliação — que é
-  conversa e exame, sem ${vocab().servico}.
+  conversa e exame, sem ${v.servico}.
 
   ### Vi mais barato em outro lugar
 
@@ -515,7 +521,7 @@ ${aviso()}
   precisa achar o assunto pelo nome popular, não pelo nome técnico.
 
   Escreva uma linha por termo: o jeito que a pessoa fala, seguido do termo que a
-  ${vocab().organizacao} usa.
+  ${v.organizacao} usa.
 
   Exemplo de forma:
   "- 'dente de porcelana', 'capa' -> <TERMO TÉCNICO>
@@ -586,7 +592,7 @@ ${aviso()}
   ganha.
 
   Exemplo de forma:
-  "- Não diagnostique, não dê opinião ${vocab().organizacao}, não sugira tratamento.
+  "- Não diagnostique, não dê opinião ${v.organizacao}, não sugira tratamento.
    - Não prescreva nem recomende medicamento, nem analgésico comum.
    - Não interprete exame, foto ou sintoma que a pessoa descrever.
    - Não prometa resultado, nem diga que 'costuma dar certo'.
@@ -597,13 +603,13 @@ ${aviso()}
 ## Pós-venda
 
 <!--
-  O que fazer quando quem escreve já é ${vocab().pessoa} — queixa, dúvida depois do
-  ${vocab().servico}, retorno. Costuma ser o caso mais delicado.
+  O que fazer quando quem escreve já é ${v.pessoa} — queixa, dúvida depois do
+  ${v.servico}, retorno. Costuma ser o caso mais delicado.
 
   Exemplo de forma:
   "- Não avalie a queixa e não diga se é normal ou não.
    - Acolha, registre o que a pessoa relatou com as palavras dela, e passe para a
-     equipe ${vocab().organizacao}.
+     equipe ${v.organizacao}.
    - Se houver qualquer sinal de urgência, passe na hora."
 -->
 
@@ -616,7 +622,7 @@ ${aviso()}
   Exemplo de forma:
   "- Não peça CPF, RG, cartão, endereço completo nem data de nascimento.
    - Não peça foto da boca, exame nem documento.
-   - Não repita dado de outro ${vocab().pessoa}, em nenhuma hipótese.
+   - Não repita dado de outro ${v.pessoa}, em nenhuma hipótese.
    - Se a pessoa pedir para apagar os dados dela, confirme o pedido e passe para
      a equipe — você não apaga nada.
    - Dado coletado serve ao atendimento e nada mais."
@@ -648,7 +654,7 @@ ${aviso()}
   agora. Já estou passando seu contato como urgente."
 
   Pessoa: "Me manda uma foto de um caso parecido com o meu."
-  Agente: "Não posso compartilhar imagem nem informação de outro ${vocab().pessoa}. Mas
+  Agente: "Não posso compartilhar imagem nem informação de outro ${v.pessoa}. Mas
   posso te encaminhar uma avaliação para você ver o seu caso com a equipe."
 -->
 `,
@@ -709,11 +715,11 @@ ${aviso()}
 
   ### Pede serviço que a empresa não faz
 
-  Quando: a pessoa pergunta por ${vocab().servico} fora do que ${comArtigo(vocab(), 'organizacao')} oferece.
+  Quando: a pessoa pergunta por ${v.servico} fora do que ${comArtigo(v, 'organizacao')} oferece.
   Passos:
-  1. Diga com clareza que ${comArtigo(vocab(), 'organizacao')} não faz, sem rodeio.
+  1. Diga com clareza que ${comArtigo(v, 'organizacao')} não faz, sem rodeio.
   2. Não indique concorrente e não sugira onde procurar.
-  3. Ofereça o que ${comArtigo(vocab(), 'organizacao')} faz, se houver relação com o caso.
+  3. Ofereça o que ${comArtigo(v, 'organizacao')} faz, se houver relação com o caso.
 
   ### Pede para apagar os dados
 
@@ -735,10 +741,9 @@ ${aviso()}
   momento."
 -->
 `,
-}
-    return modelosCache
+    }
 }
 
-export function modeloEscrito(slug: string): string | undefined {
-    return MODELOS()[slug]
+export function modeloEscrito(slug: string, v: Vocabulario): string | undefined {
+    return MODELOS(v)[slug]
 }

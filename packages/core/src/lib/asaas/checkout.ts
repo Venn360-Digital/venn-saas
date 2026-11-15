@@ -3,6 +3,7 @@ import { asaas } from './client'
 import { plans, type PlanId } from '../plans'
 import { UNIDADE_ADICIONAL } from '../plans'
 import { CICLOS, TREINAMENTO, valorDaFatura, type BillingCycle } from '../plan-limits'
+import { vocab } from '../vocabulario'
 
 /**
  * O checkout hospedado do Asaas: a página onde o cliente paga.
@@ -21,7 +22,7 @@ import { CICLOS, TREINAMENTO, valorDaFatura, type BillingCycle } from '../plan-l
 
 /** Quanto o plano custa por mês, somadas as unidades adicionais já contratadas. */
 export function mensalidadeDoPlano(plan: PlanId, adicionais: number): number {
-    return plans()[plan].price + adicionais * UNIDADE_ADICIONAL.price
+    return plans(vocab())[plan].price + adicionais * UNIDADE_ADICIONAL.price
 }
 
 /**
@@ -161,7 +162,7 @@ export async function criarCheckoutDePlano(opcoes: {
 
     const proporcional = valorProporcional !== undefined
     const valor = proporcional ? valorProporcional : valorDaFatura(plan, adicionais, ciclo)
-    const planConfig = plans()[plan]
+    const planConfig = plans(vocab())[plan]
     const anual = ciclo === 'annual'
 
     /**

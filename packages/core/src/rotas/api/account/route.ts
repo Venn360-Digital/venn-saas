@@ -6,6 +6,7 @@ import { getWorkspaceMember } from '@venn/core/lib/auth/workspace'
 import { contaDoMaster, unidadesDaConta } from '@venn/core/lib/account'
 import { planFor } from '@venn/core/lib/plans'
 import { CODIGOS_DE_MOEDA, MOEDA_PADRAO } from '@venn/core/lib/moedas'
+import { vocab } from '@venn/core/lib/vocabulario'
 
 /**
  * A conta — quem assina, paga e abriga as unidades.
@@ -140,7 +141,7 @@ export async function GET() {
         ...daConta,
         /** Se quem pergunta é o MASTER — a tela esconde o que ele não pode fazer. */
         souMaster: workspace.account.ownerUserId === auth.member.userId,
-        plano: subscription ? planFor(subscription.plan).name : null,
+        plano: subscription ? planFor(subscription.plan, vocab()).name : null,
         unidades,
     })
 }

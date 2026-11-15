@@ -4,7 +4,7 @@ import { cookies } from 'next/headers'
 import prisma from '@venn/db/cliente'
 import { getPlatformAdmin } from '@venn/core/lib/platform-credentials'
 import {
-    COOKIE_ASSUMIR,
+    cookieAssumir,
     DURACAO_MS,
     abrirRegistro,
     escreverCookie,
@@ -78,7 +78,7 @@ export async function POST(request: NextRequest) {
     const expiraEm = new Date(Date.now() + DURACAO_MS)
 
     const jar = await cookies()
-    jar.set(COOKIE_ASSUMIR, escreverCookie({ workspaceId, modo, expiraEm, registroId }), {
+    jar.set(cookieAssumir(), escreverCookie({ workspaceId, modo, expiraEm, registroId }), {
         httpOnly: true,
         sameSite: 'lax',
         secure: process.env.NODE_ENV === 'production',
@@ -92,9 +92,9 @@ export async function POST(request: NextRequest) {
 /** Sair. Sempre permitido — inclusive quando o registro não pôde ser fechado. */
 export async function DELETE() {
     const jar = await cookies()
-    const atual = lerCookie(jar.get(COOKIE_ASSUMIR)?.value)
+    const atual = lerCookie(jar.get(cookieAssumir())?.value)
 
-    jar.delete(COOKIE_ASSUMIR)
+    jar.delete(cookieAssumir())
 
     if (atual) await fecharRegistro(atual.registroId)
 

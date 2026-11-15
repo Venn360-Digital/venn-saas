@@ -18,6 +18,7 @@ import type { Prisma } from '@venn/db'
 import { sendEmail } from '@venn/core/lib/email/send'
 import { TEMPLATES } from '@venn/core/lib/email/templates'
 import { sendBillingEmail } from '@venn/core/lib/email/billing'
+import { vocab } from '@venn/core/lib/vocabulario'
 
 /**
  * O primeiro agente da clínica, com as preferências **gravadas**.
@@ -408,7 +409,7 @@ export async function POST(request: NextRequest) {
             // without a subscription row and the account screen fell back to a
             // hardcoded "Pro". The limits written here are the ones enforced
             // when agents and WhatsApp numbers are created.
-            const chosen = planFor(plan)
+            const chosen = planFor(plan, vocab())
             // The window is counted from the owner's signup, not from finishing
             // onboarding — someone who signs up and completes the wizard a day
             // later should not get an extra day. It closes at 23:59 São Paulo on

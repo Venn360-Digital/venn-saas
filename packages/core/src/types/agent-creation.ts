@@ -28,10 +28,10 @@
  * script — sem requisição e sem marca registrada —, e a publicação reprova com
  * `MarcaNaoRegistradaError`. A forma que já reprovou cinco publicações.
  */
-function montarModelosDeTexto() {
+function montarModelosDeTexto(v: Vocabulario) {
     return {
     initialMessage:
-        `Olá! Sou o assistente virtual ${comArtigo(vocab(), 'organizacao', 'de')}. 😊\n\n` +
+        `Olá! Sou o assistente virtual ${comArtigo(v, 'organizacao', 'de')}. 😊\n\n` +
         'Posso tirar dúvidas sobre tratamentos, valores e convênios, e também ' +
         'agendar sua avaliação.\n\n' +
         'Como posso ajudar você hoje?',
@@ -39,16 +39,16 @@ function montarModelosDeTexto() {
     jobDescription:
         'Atender quem chega pelo WhatsApp, entender o que a pessoa precisa e ' +
         'conduzi-la até o agendamento de uma avaliação.\n\n' +
-        `- Responder dúvidas sobre os tratamentos que ${comArtigo(vocab(), 'organizacao')} oferece\n` +
+        `- Responder dúvidas sobre os tratamentos que ${comArtigo(v, 'organizacao')} oferece\n` +
         '- Informar valores e formas de pagamento quando constarem na base de conhecimento\n' +
-        `- Confirmar se ${comArtigo(vocab(), 'organizacao')} atende o convênio da pessoa\n` +
+        `- Confirmar se ${comArtigo(v, 'organizacao')} atende o convênio da pessoa\n` +
         '- Oferecer horários e registrar o interesse em agendar\n' +
         '- Encaminhar para a equipe quando o assunto for clínico ou uma reclamação',
 
     companyDescription:
-        `${vocab().Organizacao} odontológica que atende [especialidades: ortodontia, implante, ` +
-        `${vocab().organizacao} geral]. Atendemos de [dia] a [dia], das [hora] às [hora].\n\n` +
-        `Nosso diferencial é [o que ${comArtigo(vocab(), 'organizacao')} faz melhor que as outras].`,
+        `${v.Organizacao} odontológica que atende [especialidades: ortodontia, implante, ` +
+        `${v.organizacao} geral]. Atendemos de [dia] a [dia], das [hora] às [hora].\n\n` +
+        `Nosso diferencial é [o que ${comArtigo(v, 'organizacao')} faz melhor que as outras].`,
 
     systemPrompt:
         'Fale com acolhimento e vá direto ao ponto.\n\n' +
@@ -60,10 +60,21 @@ function montarModelosDeTexto() {
         '- Reclamação ou assunto clínico vai para a equipe, sem tentar resolver sozinho',
 }
 }
-let modelosDeTextoCache: ReturnType<typeof montarModelosDeTexto> | null = null
-export function MODELOS_DE_TEXTO(): ReturnType<typeof montarModelosDeTexto> {
-    if (modelosDeTextoCache === null) modelosDeTextoCache = montarModelosDeTexto()
-    return modelosDeTextoCache
+/**
+ * O vocabulário entra por PARÂMETRO, e é obrigatório.
+ *
+ * Este módulo é alcançado pelo bundle do CLIENTE, e no navegador ninguém
+ * registrou a marca: ler `vocab()` por dentro lançava
+ * `MarcaNaoRegistradaError` na hidratação — depois de compilar, buildar e
+ * publicar sem uma reclamação. Medido em 15/11/2026, e era defeito em
+ * produção. No cliente as palavras vêm de `useVocab()`; no servidor, de
+ * `vocab(settings)`. Na assinatura, a cobrança é do compilador.
+ *
+ * A memoização de módulo saiu junto: o resultado depende do argumento, e um
+ * cache global devolveria a palavra da primeira unidade a todas as outras.
+ */
+export function MODELOS_DE_TEXTO(v: Vocabulario) {
+    return montarModelosDeTexto(v)
 }
 
 export const PADROES_DO_AGENTE = {
@@ -261,7 +272,7 @@ export interface KnowledgeDocument {
  */
 export type { RuleCondition, RuleAction } from './rules'
 import type { RuleCondition, RuleAction } from './rules'
-import { vocab } from '../lib/vocabulario'
+import type { Vocabulario } from '../lib/vocabulario'
 import { comArtigo } from '../lib/concordancia'
 
 export interface RuleData {

@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation'
 
 import { Logo } from '@venn/core/components/brand/Logo'
 import { useMarca } from '../../../marca-contexto'
+import { tipoDaMensagemDePagamento } from '@venn/core/lib/pagamento-janela'
 
 /**
  * Para onde o Asaas devolve o pagador — uma página de uma frase.
@@ -44,7 +45,10 @@ function Conteudo() {
              * restringir é uma palavra.
              */
             try {
-                origem.postMessage({ tipo: 'odontobox:pagamento', status }, window.location.origin)
+                origem.postMessage(
+                    { tipo: tipoDaMensagemDePagamento(marca.slug), status },
+                    window.location.origin
+                )
             } catch {
                 // Origem fechada ou inacessível: cai no aviso de fechar à mão.
             }
@@ -63,7 +67,7 @@ function Conteudo() {
         // Sem janela de origem: o pop-up foi bloqueado e isto aqui é a aba
         // principal. Volta para onde a pessoa estava.
         window.location.replace(`/gerenciamento/conta?tab=plano&pagamento=${status}`)
-    }, [status])
+    }, [status, marca.slug])
 
     const frase =
         status === 'processando'

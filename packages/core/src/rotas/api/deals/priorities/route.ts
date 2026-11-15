@@ -4,6 +4,7 @@ import prisma from '@venn/db/cliente'
 import { getWorkspaceMember } from '@venn/core/lib/auth/workspace'
 import { DEAL_LANES, laneWhere } from '@venn/core/lib/deal-lanes'
 import { fusoDaUnidade } from '@venn/core/lib/fuso-da-unidade'
+import { vocab } from '@venn/core/lib/vocabulario'
 
 /**
  * Os três números da faixa de prioridades.
@@ -25,13 +26,13 @@ export async function GET() {
     const fuso = await fusoDaUnidade(auth.member.workspaceId)
 
     const counts = await Promise.all(
-        DEAL_LANES().map((lane) =>
+        DEAL_LANES(vocab()).map((lane) =>
             prisma.deal.count({ where: { ...base, ...laneWhere(lane.id, now, fuso) } })
         )
     )
 
     return NextResponse.json({
-        lanes: DEAL_LANES().map((lane, i) => ({ id: lane.id, count: counts[i] })),
+        lanes: DEAL_LANES(vocab()).map((lane, i) => ({ id: lane.id, count: counts[i] })),
         open: await prisma.deal.count({ where: base }),
         // O item "Finalizados" do trilho precisa do seu número como os outros.
         closed: await prisma.deal.count({

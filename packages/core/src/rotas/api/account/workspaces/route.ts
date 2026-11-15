@@ -159,7 +159,7 @@ export async function GET() {
         aberta: auth.member.workspaceId,
         unidades,
         /** O nome do plano, para a tela poder explicar de onde vem o teto. */
-        plano: subscription ? planFor(subscription.plan).name : null,
+        plano: subscription ? planFor(subscription.plan, vocab()).name : null,
         lista: lista.map((u) => ({
             id: u.id,
             name: u.name,

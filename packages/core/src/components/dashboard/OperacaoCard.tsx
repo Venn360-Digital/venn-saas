@@ -7,6 +7,7 @@ import { apelidoDaLinha } from '../../lib/linha'
 import { isPlanId } from '../../lib/plan-limits'
 import { redesDoPlanoTodas, redesDoPlano } from '../../lib/plans'
 import { cn } from '@venn/ui/utils'
+import { vocab } from '../../lib/vocabulario'
 
 /**
  * O que está de pé agora: agentes e canais.
@@ -92,7 +93,7 @@ export async function lerOperacao(workspaceId: string): Promise<Operacao> {
 
     /** As redes que **este** plano vende, para separá-las das que ele não tem. */
     const plano = isPlanId(limites.planId) ? limites.planId : 'flow'
-    const doPlano = new Set(redesDoPlano(plano).map((r) => r.id))
+    const doPlano = new Set(redesDoPlano(plano, vocab()).map((r) => r.id))
 
     /**
      * **Uma linha da lista por número, não por canal.**
@@ -105,7 +106,7 @@ export async function lerOperacao(workspaceId: string): Promise<Operacao> {
      * `WhatsApp · Unidade Centro`, com o apelido da linha e, na falta dele, o
      * número.
      */
-    const canais = redesDoPlanoTodas().flatMap((rede): Linha[] => {
+    const canais = redesDoPlanoTodas(vocab()).flatMap((rede): Linha[] => {
         const colunas = CANAL_NO_BANCO[rede.id] ?? []
         const registros = integracoes.filter((i) => colunas.includes(i.channel))
         const conectadas = registros.filter((i) => i.status === 'connected').length

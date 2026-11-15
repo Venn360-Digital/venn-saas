@@ -60,6 +60,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@venn/db/cliente'
 import { contaDoMaster, accountIdOf, adicionaisCobraveis, adicionaisVivos, assinaturaDaUnidade, daContaDaUnidade, unidadesDaConta } from '@venn/core/lib/account'
 import { usuarioDaSessao } from '@venn/core/lib/auth/sessao'
+import { vocab } from '@venn/core/lib/vocabulario'
 
 
 /**
@@ -76,7 +77,7 @@ import { usuarioDaSessao } from '@venn/core/lib/auth/sessao'
  */
 function montarPlanosJson() {
     return Object.fromEntries(
-    planList().map((p) => [
+    planList(vocab()).map((p) => [
         p.id,
         {
             name: p.name,
@@ -263,7 +264,7 @@ export async function GET() {
             })
         }
 
-        const planConfig = planFor(subscription.plan)
+        const planConfig = planFor(subscription.plan, vocab())
 
         return NextResponse.json({
             plan: subscription.plan,
@@ -2113,7 +2114,7 @@ export async function POST(request: NextRequest) {
                 return NextResponse.json({
                     success: true,
                     message:
-                        `Cancelamento desfeito: o ${planFor(planoVigente).name} continua ativo e a ` +
+                        `Cancelamento desfeito: o ${planFor(planoVigente, vocab()).name} continua ativo e a ` +
                         `próxima cobrança volta para ` +
                         `${ate.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}.` +
                         (unidades.adicionais > 0

@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { marcarSujo } from '../components/agents/creation/unsaved'
@@ -33,6 +33,14 @@ function promptInicial(v: Vocabulario): string {
 
 export function useAgentCreation(workspaceId: string) {
     const v = useVocab()
+    /**
+     * Uma vez por vocabulário, e não quatro vezes por render: os inicializadores
+     * de `useState` são avaliados a cada render mesmo sem redefinir o estado, e
+     * `MODELOS_DE_TEXTO` perdeu a memoização de módulo quando passou a depender
+     * do argumento (um cache global devolveria a palavra da primeira unidade a
+     * todas as outras).
+     */
+    const modelos = useMemo(() => MODELOS_DE_TEXTO(v), [v])
     const router = useRouter()
     const [isSaving, setIsSaving] = useState(false)
 
@@ -43,12 +51,12 @@ export function useAgentCreation(workspaceId: string) {
         voiceTone: PADROES_DO_AGENTE.voiceTone,
         language: PADROES_DO_AGENTE.language,
         timezone: PADROES_DO_AGENTE.timezone,
-        initialMessage: MODELOS_DE_TEXTO().initialMessage,
+        initialMessage: modelos.initialMessage,
     })
 
     const [trabalho, setTrabalho] = useState<TrabalhoData>({
-        jobDescription: MODELOS_DE_TEXTO().jobDescription,
-        companyDescription: MODELOS_DE_TEXTO().companyDescription,
+        jobDescription: modelos.jobDescription,
+        companyDescription: modelos.companyDescription,
     })
 
     const [cerebro, setCerebro] = useState<CerebroData>({
@@ -181,7 +189,7 @@ export function useAgentCreation(workspaceId: string) {
     const [instrucoes, setInstrucoes] = useState<InstrucoesData>({
         llmModel: PADROES_DO_AGENTE.llmModel,
         temperature: PADROES_DO_AGENTE.temperature,
-        systemPrompt: MODELOS_DE_TEXTO().systemPrompt,
+        systemPrompt: modelos.systemPrompt,
     })
 
     const handleSave = async (agentId?: string | null) => {

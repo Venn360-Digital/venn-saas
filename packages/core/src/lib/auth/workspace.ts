@@ -13,8 +13,8 @@ import { contaAssumida } from '../plataforma/acesso'
  * porque é daqui que ele é **lido**. A mudança de casa foi por ciclo de import:
  * `plataforma/acesso.ts` precisa do nome, e este arquivo importa `acesso.ts`.
  */
-export { WORKSPACE_COOKIE } from './cookies'
-import { WORKSPACE_COOKIE } from './cookies'
+export { workspaceCookie } from './cookies'
+import { workspaceCookie } from './cookies'
 
 /**
  * Workspace authorisation for API routes.
@@ -219,7 +219,7 @@ export const getWorkspaceMember = cache(async (): Promise<AuthResult> => {
      * trocada no mesmo navegador —, não volta linha nenhuma e a escolha é
      * ignorada. Não existe caminho em que o cookie decida sozinho.
      */
-    const escolhido = (await cookies()).get(WORKSPACE_COOKIE)?.value
+    const escolhido = (await cookies()).get(workspaceCookie())?.value
 
     /**
      * Unidade suspensa não é escolhível — nem pelo cookie, nem por omissão.

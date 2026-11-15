@@ -16,6 +16,7 @@ import type { Brand } from '@venn/config/marca'
 export type { Brand }
 
 export const BRAND: Brand = {
+    slug: 'odontobox',
     name: 'OdontoBox360',
     tagline: 'Atendimento, agenda e CRM para clínicas odontológicas',
     vendor: 'Venn360',
