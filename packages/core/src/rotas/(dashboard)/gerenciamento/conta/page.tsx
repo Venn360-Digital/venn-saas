@@ -6,10 +6,10 @@ import { CalendarOff, CreditCard, Hospital, Plug, Plus, User, Users, Zap } from 
 
 import { Button } from '@venn/ui/button'
 import { TabsFrame, type FrameTab } from '@venn/core/components/shared/TabsFrame'
-import { AgendaClinicaTab } from '@venn/core/components/management/AgendaClinicaTab'
+import { AgendaDaUnidadeTab } from '@venn/core/components/management/AgendaDaUnidadeTab'
 import { AutomacoesTab } from '@venn/core/components/account/AutomacoesTab'
 import { PerfilTab } from '@venn/core/components/account/PerfilTab'
-import { ContaClinicaTab } from '@venn/core/components/account/ContaClinicaTab'
+import { ContaDaUnidadeTab } from '@venn/core/components/account/ContaDaUnidadeTab'
 import { PlanoTab } from '@venn/core/components/account/PlanoTab'
 import { UsersPanel, type UsersPanelHandle } from '@venn/core/components/management/UsersPanel'
 import { IntegrationsPanel } from '@venn/core/components/management/IntegrationsPanel'
@@ -124,9 +124,9 @@ function ContaContent() {
                 dados próprios, e carregá-los sempre tornaria a tela de perfil
                 responsável por três requisições que ninguém pediu. */}
             {activeTab === 'perfil' ? <PerfilTab formId="perfil-form" /> : null}
-            {activeTab === 'empresa' ? <ContaClinicaTab formId="empresa-form" /> : null}
+            {activeTab === 'empresa' ? <ContaDaUnidadeTab formId="empresa-form" /> : null}
             {activeTab === 'usuarios' && podeVerUsuarios ? <UsersPanel ref={users} /> : null}
-            {activeTab === 'agenda' ? <AgendaClinicaTab /> : null}
+            {activeTab === 'agenda' ? <AgendaDaUnidadeTab /> : null}
             {activeTab === 'integracoes' ? <IntegrationsPanel /> : null}
             {activeTab === 'automacoes' ? <AutomacoesTab /> : null}
             {activeTab === 'plano' ? <PlanoTab /> : null}
