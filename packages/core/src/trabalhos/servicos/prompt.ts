@@ -9,6 +9,8 @@ import { semComentarios } from '../../lib/rag/secoes'
 import { documentosDeProcedimento, documentosDoPrompt } from '../../lib/treinamento/documentos'
 import { catalogoDeCenarios, lerCenarios, procedimentoParaOPrompt } from '../../lib/treinamento/cenarios'
 import { resumoParaOPrompt } from '../../lib/conversas/resumo'
+import { vocab } from '../../lib/vocabulario'
+import { comArtigo } from '../../lib/concordancia'
 
 export interface KnowledgeChunk {
     title: string
@@ -54,7 +56,11 @@ export function readPreferences(agent: Agent): AgentPreferences {
  * clínica espera que fosse — a diferença entre um agente que qualifica e agenda
  * e um que resolve e não empurra venda.
  */
-const POSTURA: Record<string, string> = {
+/** Memoizado: um dos textos lê o vocabulário, e `BRAND()` é fail-fast. */
+let posturaCache: Record<string, string> | null = null
+function POSTURA(): Record<string, string> {
+    if (posturaCache !== null) return posturaCache
+    posturaCache = {
     sdr_atendimento:
         'Seu objetivo é entender o que a pessoa precisa e levá-la a agendar uma avaliação. ' +
         'Faça uma pergunta de cada vez, confirme o que entendeu e proponha horário quando fizer sentido.',
@@ -62,8 +68,10 @@ const POSTURA: Record<string, string> = {
         'Seu objetivo é esclarecer dúvidas sobre tratamentos, valores e formas de pagamento, e fechar o agendamento. ' +
         'Seja direto sobre preço quando souber a informação, e nunca invente valor que não esteja na sua base.',
     suporte:
-        'Seu objetivo é resolver a dúvida ou o problema de quem já é paciente. ' +
+        `Seu objetivo é resolver a dúvida ou o problema de quem já é ${vocab().pessoa}. ` +
         'Não force venda: se a pessoa só precisa de uma informação, entregue a informação.',
+}
+    return posturaCache
 }
 
 /**
@@ -270,7 +278,7 @@ export function buildSystemPrompt(
     }
 
     const atribuicoes = [
-        agent.agentFunction && POSTURA[agent.agentFunction],
+        agent.agentFunction && POSTURA()[agent.agentFunction],
         agent.jobDescription,
     ].filter(Boolean)
 
@@ -322,7 +330,7 @@ export function buildSystemPrompt(
             '## O que você pode fazer\n' +
             'Você tem ferramentas. Use-as quando a conversa pedir, e nunca invente o ' +
             'resultado delas.\n' +
-            `As fases do funil desta clínica são, em ordem: ${context.stages.join(' → ')}. ` +
+            `As fases do funil ${comArtigo(vocab(), 'organizacao', 'este')} são, em ordem: ${context.stages.join(' → ')}. ` +
             'Ao mover o negócio, use o nome exato de uma delas.\n' +
             'Você consegue **consultar** compromissos já marcados.'
         )
@@ -376,11 +384,11 @@ export function buildSystemPrompt(
     estaveis.push(
         '## Quando a conversa passa de você\n' +
         'Use `passar_para_equipe` para entregar o atendimento a uma pessoa. Faça isso ' +
-        'quando o paciente pedir para falar com alguém, quando houver dor ou urgência, ' +
+        `quando ${comArtigo(vocab(), 'pessoa')} pedir para falar com alguém, quando houver dor ou urgência, ` +
         'quando for reclamação, e quando você já prometeu confirmar algo e não tem como. ' +
         '**Depois de chamar, você não responde mais nesta conversa** — então diga a frase ' +
         'que a ferramenta devolve e pare.\n' +
-        'Quando o procedimento desta situação disser para quem passar — a recepção, a coordenação, o especialista —, ' +
+        `Quando ${comArtigo(vocab(), 'servico')} desta situação disser para quem passar — a recepção, a coordenação, ${comArtigo(vocab(), 'profissional')} —, ` +
         'informe isso em `area`: a frase de despedida passa a citar essa área em vez de ' +
         'dizer "a nossa equipe".\n' +
         'Use `nao_encontrei` quando a base de conhecimento desta conversa trouxe material ' +
@@ -408,15 +416,15 @@ export function buildSystemPrompt(
                 `Você pode marcar: ${procedimentos.join(', ')}.\n` +
                 `Com: ${especialistas.join(', ')}.\n` +
                 'Sempre consulte os horários livres antes de oferecer qualquer data, e marque ' +
-                'só depois de o paciente confirmar qual horário quer. **Nunca invente horário** ' +
+                `só depois de ${comArtigo(vocab(), 'pessoa')} confirmar qual horário quer. **Nunca invente horário** ` +
                 'e nunca ofereça data que não tenha aparecido na consulta.\n' +
-                'Para qualquer outro procedimento, ou qualquer pedido de remarcar ou cancelar, ' +
+                `Para qualquer outro ${vocab().servico}, ou qualquer pedido de remarcar ou cancelar, ` +
                 'diga que vai passar para a equipe — você não faz isso.'
             )
         } else {
             estaveis.push(
                 '## Agendamento\n' +
-                'Você **não** marca, remarca nem cancela horário. Quando o paciente quiser um ' +
+                `Você **não** marca, remarca nem cancela horário. Quando ${comArtigo(vocab(), 'pessoa')} quiser um ` +
                 'horário, diga que vai passar para a equipe e não prometa data nenhuma.'
             )
         }
@@ -481,8 +489,8 @@ export function buildSystemPrompt(
         'responda por dedução.\n' +
         'Nunca invente valor, horário, prazo ou condição de pagamento. É melhor ' +
         'prometer confirmação do que acertar por sorte.\n' +
-        'Se o paciente pedir para falar com uma pessoa, **chame `passar_para_equipe`** ' +
-        'em vez de só dizer que vai passar. Dizer sem chamar deixa o paciente esperando ' +
+        `Se ${comArtigo(vocab(), 'pessoa')} pedir para falar com uma pessoa, **chame \`passar_para_equipe\`** ` +
+        `em vez de só dizer que vai passar. Dizer sem chamar deixa ${comArtigo(vocab(), 'pessoa')} esperando ` +
         'alguém que não foi avisado.'
     )
 
@@ -511,7 +519,7 @@ export function buildSystemPrompt(
         }
 
         if (context.dealStage) {
-            linhas.push(`No funil da clínica, este atendimento está na fase "${context.dealStage}".`)
+            linhas.push(`No funil ${comArtigo(vocab(), 'organizacao', 'de')}, este atendimento está na fase "${context.dealStage}".`)
         }
 
         if (context.upcoming.length > 0) {

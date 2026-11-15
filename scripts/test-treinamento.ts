@@ -339,7 +339,7 @@ console.log('\nOs modelos fornecidos — cabeçalhos têm de casar com o catálo
 
 conferir(
     'nenhum modelo escrito divergiu das seções do catálogo',
-    Object.entries(MODELOS)
+    Object.entries(MODELOS())
         .map(([slug, texto]) => {
             const doc = acharDocumento(slug)
             if (!doc) return `${slug}: slug não existe no catálogo`
@@ -356,7 +356,7 @@ conferir(
 
 conferir(
     'e todo modelo escrito abre com o título do catálogo',
-    Object.entries(MODELOS)
+    Object.entries(MODELOS())
         .filter(([slug, texto]) => !texto.startsWith(`# ${acharDocumento(slug)?.titulo}`))
         .map(([slug]) => slug),
     []
@@ -394,7 +394,7 @@ conferir(
  */
 conferir(
     'nenhum modelo produz corpo: depois de semComentarios sobram só cabeçalhos',
-    Object.entries(MODELOS)
+    Object.entries(MODELOS())
         .map(([slug, texto]) => {
             const comConteudo = secionarMarkdown(semComentarios(texto)).filter(
                 (sec) => sec.corpo.trim() !== ''
@@ -419,7 +419,7 @@ conferir(
  */
 conferir(
     'todo modelo escrito traz orientação em comentário, uma por seção',
-    Object.entries(MODELOS)
+    Object.entries(MODELOS())
         .map(([slug, texto]) => {
             const doc = acharDocumento(slug)!
             const comentarios = (texto.match(/<!--/g) ?? []).length

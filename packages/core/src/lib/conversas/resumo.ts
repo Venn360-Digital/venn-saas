@@ -1,3 +1,5 @@
+import { vocab } from '../vocabulario'
+import { comArtigo } from '../concordancia'
 /**
  * A compactação da conversa: quando resumir, e com que prompt.
  *
@@ -87,15 +89,26 @@ export const JANELA_DO_RESUMO = 120
  * As quatro seções com rótulo fixo não são formatação: é o que permite o passado
  * da conversa entrar no prompt do agente como estado, em vez de prosa.
  */
-export const SYSTEM_DO_RESUMO = `Você resume conversas de atendimento de uma clínica odontológica para a própria equipe.
+export /**
+ * Função memoizada, e não constante: o texto lê o vocabulário, e `BRAND()` é
+ * fail-fast. Constante de módulo é avaliada quando a Cloudflare VALIDA o
+ * script — sem requisição e sem marca registrada — e a publicação reprova com
+ * `MarcaNaoRegistradaError`. O `check:marca-tardia` apontou este arquivo no
+ * instante em que o vocabulário entrou no prompt.
+ */
+let systemDoResumoCache: string | null = null
+export function systemDoResumo(): string {
+    if (systemDoResumoCache === null) systemDoResumoCache = `Você resume conversas de atendimento de ${comArtigo(vocab(), 'organizacao', 'um')} odontológica para a própria equipe.
 Escreva em português do Brasil, direto, sem saudação e sem repetir o que o atendente já sabe.
 Responda exatamente nestas quatro seções, cada uma começando pelo rótulo seguido de ":".
-Resumo: dois a três períodos sobre o que o paciente quer e onde o atendimento parou.
+Resumo: dois a três períodos sobre o que ${comArtigo(vocab(), 'pessoa')} quer e onde o atendimento parou.
 Pendências: tópicos com "- ", o que falta fazer. Escreva "- Nenhuma" se não houver.
-Combinados: tópicos com "- ", datas, valores e procedimentos acordados. Escreva "- Nenhum" se não houver.
-Tom: uma linha sobre o estado do paciente (apressado, inseguro, satisfeito, irritado).
-Não invente datas, valores ou procedimentos que não estejam na conversa.
+Combinados: tópicos com "- ", datas, valores e ${vocab().servicos} acordados. Escreva "- Nenhum" se não houver.
+Tom: uma linha sobre o estado ${comArtigo(vocab(), 'pessoa', 'de')} (apressado, inseguro, satisfeito, irritado).
+Não invente datas, valores ou ${vocab().servicos} que não estejam na conversa.
 Os agendamentos já marcados chegam prontos na primeira linha da entrada: use-os para não listar como pendência algo que já está marcado, e não os repita em "Combinados".`
+    return systemDoResumoCache
+}
 
 export interface MensagemParaTranscrever {
     direction: string
@@ -114,7 +127,7 @@ export interface MensagemParaTranscrever {
 export function transcrever(mensagens: MensagemParaTranscrever[]): string {
     return mensagens
         .map((m) => {
-            const quem = m.direction === 'inbound' ? 'Paciente' : 'Clínica'
+            const quem = m.direction === 'inbound' ? `${vocab().Pessoa}` : `${vocab().Organizacao}`
             const corpo = m.transcript?.trim() || m.content?.trim() || `[${m.contentType}]`
             const quando = m.createdAt.toISOString().slice(0, 10)
             return `${quando} ${quem}: ${corpo}`

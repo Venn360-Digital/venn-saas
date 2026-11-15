@@ -213,6 +213,7 @@ const PROVAS = [
     'test:fuso-unidade',
     'test:vocabulario',
     'test:concordancia',
+    'test:ferramentas',
     'test:distribuicao',
     'test:marcacao',
     'test:mencoes',
