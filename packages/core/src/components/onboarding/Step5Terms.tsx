@@ -6,6 +6,8 @@ import { Checkbox } from '@venn/ui/checkbox'
 import { Label } from '@venn/ui/label'
 import { ScrollArea } from '@venn/ui/scroll-area'
 import { TERMS, TERMS_VERSION } from '../../lib/terms'
+import { useVocab } from '../../hooks/useVocab'
+import { useMarca } from '../../marca-contexto'
 
 /**
  * O acordo, antes de o workspace existir.
@@ -31,6 +33,9 @@ export function Step5Terms({
     aceito: boolean
     onAceitoChange: (aceito: boolean) => void
 }) {
+    // Pelo contexto, não pelo registro: no navegador ninguém registrou a marca.
+    const v = useVocab()
+    const marca = useMarca()
     const [chegouAoFim, setChegouAoFim] = useState(false)
 
     function aoRolar(e: React.UIEvent<HTMLDivElement>) {
@@ -60,7 +65,7 @@ export function Step5Terms({
                 onScrollCapture={aoRolar}
             >
                 <div className="space-y-4 p-4">
-                    {TERMS().map((section) => (
+                    {TERMS(v, marca.name).map((section) => (
                         <section key={section.title}>
                             <h2 className="text-sm font-semibold">{section.title}</h2>
                             {section.body.map((paragraph) => (

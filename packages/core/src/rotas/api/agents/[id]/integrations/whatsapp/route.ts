@@ -16,6 +16,7 @@ import {
     webhookUrlFor,
 } from '@venn/core/lib/whatsapp'
 import type { ConnectionState } from '@venn/core/lib/whatsapp/types'
+import { nomeDaInstancia } from '@venn/core/lib/whatsapp/instancia'
 
 /**
  * As linhas de WhatsApp de um agente, servidas por Evolution Go (whatsmeow).
@@ -46,7 +47,7 @@ const CHANNEL = 'whatsapp_qr'
  * só nomeia linha nova.
  */
 function instanceNameFor(integrationId: string): string {
-    return `odontobox_${integrationId}`
+    return nomeDaInstancia(integrationId)
 }
 
 async function persistConfig(

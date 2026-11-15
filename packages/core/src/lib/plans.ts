@@ -25,7 +25,7 @@ import {
 } from './plan-limits'
 import { InstagramIcon, WhatsAppIcon } from '../components/shared/BrandIcons'
 import { Globe } from 'lucide-react'
-import { vocab } from './vocabulario'
+import type { Vocabulario } from './vocabulario'
 import { comArtigo } from './concordancia'
 
 // Reexportados para quem já importava daqui — a definição mora em
@@ -107,28 +107,42 @@ export interface RedeDoPlano {
  * voltar.
  */
 /**
- * Função memoizada, e não constante — `vocab()` lê a marca.
+ * Função, e não constante: os rótulos leem o vocabulário do nicho.
  *
- * `BRAND()` é fail-fast, e uma constante de nível de módulo é avaliada quando a
- * Cloudflare VALIDA o script: ali não há requisição nem marca registrada, e a
- * publicação reprova com `MarcaNaoRegistradaError`. Foi o que aconteceu cinco
- * vezes nesta fase — e uma sexta aqui, quando o vocabulário entrou nos rótulos
- * deste arquivo. O `check:marca-tardia` pegou antes do build.
+ * Uma constante de nível de módulo é avaliada quando a Cloudflare VALIDA o
+ * script — sem requisição e sem marca registrada —, e a publicação reprova com
+ * `MarcaNaoRegistradaError`. Aconteceu cinco vezes nesta fase, e uma sexta
+ * aqui, quando o vocabulário entrou nestes rótulos.
+ *
+ * ## E por que o vocabulário entra por PARÂMETRO
+ *
+ * `plans`, `planList` e `redesDoPlano` são lidas por componentes `'use
+ * client'` — o passo 2 do onboarding e a guia Plano. No navegador **ninguém
+ * registrou a marca**: chamar `vocab()` por dentro lançava
+ * `MarcaNaoRegistradaError` na hidratação, depois de compilar, buildar e
+ * publicar sem uma reclamação. Medido em 15/11/2026, e era defeito em
+ * produção.
+ *
+ * No cliente as palavras vêm de `useVocab()`; no servidor, de
+ * `vocab(settings)`. Obrigatórias na assinatura, a cobrança é do compilador.
+ *
+ * **A memoização de módulo saiu junto, e tinha de sair**: o resultado agora
+ * depende do argumento, e um cache global devolveria a palavra da primeira
+ * unidade a todas as outras — que é precisamente o que a camada de override
+ * por unidade existe para não acontecer.
  */
-let redesCache: RedeDoPlano[] | null = null
-export function redesDoPlanoTodas(): RedeDoPlano[] {
-    if (redesCache === null) redesCache = [
-        { id: 'site', label: `Site ${comArtigo(vocab(), 'organizacao', 'de')}`, icon: Globe, planos: ['pro', 'advanced'] },
+export function redesDoPlanoTodas(v: Vocabulario): RedeDoPlano[] {
+    return [
+        { id: 'site', label: `Site ${comArtigo(v, 'organizacao', 'de')}`, icon: Globe, planos: ['pro', 'advanced'] },
         { id: 'whatsapp', label: 'WhatsApp', icon: WhatsAppIcon },
         { id: 'whatsapp_api', label: 'WhatsApp API Oficial', icon: WhatsAppIcon, marca: 'API', emBreve: true },
         { id: 'instagram', label: 'Instagram Direct', icon: InstagramIcon, emBreve: true },
     ]
-    return redesCache
 }
 
 /** As conexões que este plano anuncia, na ordem da fileira. */
-export function redesDoPlano(planId: PlanId): RedeDoPlano[] {
-    return redesDoPlanoTodas().filter((rede) => !rede.planos || rede.planos.includes(planId))
+export function redesDoPlano(planId: PlanId, v: Vocabulario): RedeDoPlano[] {
+    return redesDoPlanoTodas(v).filter((rede) => !rede.planos || rede.planos.includes(planId))
 }
 
 export interface Plan {
@@ -182,87 +196,82 @@ export interface Plan {
     features: PlanFeature[]
 }
 
-/** Memoizado pela mesma razão de `redesDoPlanoTodas`: as descrições leem a marca. */
-let plansCache: Record<PlanId, Plan> | null = null
-export function plans(): Record<PlanId, Plan> {
-    if (plansCache !== null) return plansCache
-    plansCache = {
-    flow: {
-        id: 'flow',
-        icon: '/planos/digital.png',
-        iconDark: '/planos/digital-escuro.png',
-        name: PLAN_NAMES.flow,
-        description:
-            `Para ${vocab().organizacoes} que precisam conectar ${vocab().pessoas}, WhatsApp e atendimento em um só lugar.`,
-        price: PLAN_PRICES.flow,
-        limits: PLAN_LIMITS.flow,
-        features: [
-            { text: `1 unidade (${vocab().organizacao})`, strong: true },
-            { text: '1 agente de atendimento IA' },
-            { text: '1 número de WhatsApp' },
-            { text: `CRM para ${vocab().organizacoes} com funil de vendas` },
-            { text: 'Usuários ilimitados' },
-            { text: 'Dashboard inteligente' },
-            { text: 'Agenda integrada com Google Calendar' },
-            { text: '10.000 créditos de IA por mês', strong: true },
-        ],
-    },
-    pro: {
-        id: 'pro',
-        icon: '/planos/prime.png',
-        iconDark: '/planos/prime-escuro.png',
-        name: PLAN_NAMES.pro,
-        description:
-            `Para ${vocab().organizacoes} que precisam distribuir conversas, ampliar o atendimento e administrar mais canais.`,
-        price: PLAN_PRICES.pro,
-        badge: 'Mais escolhido',
-        limits: PLAN_LIMITS.pro,
-        features: [
-            { text: `1 unidade (${vocab().organizacao})`, strong: true },
-            { text: '2 agentes de atendimento IA' },
-            { text: '4 números de WhatsApp' },
-            { text: `CRM para ${vocab().organizacoes} com funil de vendas` },
-            { text: 'Usuários ilimitados' },
-            { text: 'Dashboard inteligente' },
-            { text: `Agente de IA no site ${comArtigo(vocab(), 'organizacao', 'de')}` },
-            { text: 'Agenda integrada com Google Calendar' },
-            { text: 'Integração com CliniCorp' },
-            { text: '20.000 créditos de IA por mês', strong: true },
-        ],
-    },
-    advanced: {
-        id: 'advanced',
-        icon: '/planos/multiclinica.png',
-        iconDark: '/planos/multiclinica-escuro.png',
-        name: PLAN_NAMES.advanced,
-        description:
-            `Para ${vocab().organizacoes} com operações maiores, múltiplas unidades e maior fluxo de ${vocab().pessoas}.`,
-        price: PLAN_PRICES.advanced,
-        limits: PLAN_LIMITS.advanced,
-        features: [
-            { text: `3 unidades (${vocab().organizacoes})`, strong: true },
-            { text: '3 agentes de atendimento IA' },
-            { text: '6 números de WhatsApp' },
-            { text: `CRM para ${vocab().organizacoes} com funil de vendas` },
-            { text: 'Usuários ilimitados' },
-            { text: 'Dashboard inteligente' },
-            { text: `Agente de IA no site ${comArtigo(vocab(), 'organizacao', 'de')}` },
-            { text: 'Agenda integrada com Google Calendar' },
-            { text: 'Integração com CliniCorp' },
-            { text: 'Diagnóstico de LGPD (proteção de dados)', strong: true },
-            { text: '30.000 créditos de IA por mês', strong: true },
-        ],
-    },
+/** Pela mesma razão de `redesDoPlanoTodas`: as descrições leem o vocabulário. */
+export function plans(v: Vocabulario): Record<PlanId, Plan> {
+    return {
+        flow: {
+            id: 'flow',
+            icon: '/planos/digital.png',
+            iconDark: '/planos/digital-escuro.png',
+            name: PLAN_NAMES.flow,
+            description:
+                `Para ${v.organizacoes} que precisam conectar ${v.pessoas}, WhatsApp e atendimento em um só lugar.`,
+            price: PLAN_PRICES.flow,
+            limits: PLAN_LIMITS.flow,
+            features: [
+                { text: `1 unidade (${v.organizacao})`, strong: true },
+                { text: '1 agente de atendimento IA' },
+                { text: '1 número de WhatsApp' },
+                { text: `CRM para ${v.organizacoes} com funil de vendas` },
+                { text: 'Usuários ilimitados' },
+                { text: 'Dashboard inteligente' },
+                { text: 'Agenda integrada com Google Calendar' },
+                { text: '10.000 créditos de IA por mês', strong: true },
+            ],
+        },
+        pro: {
+            id: 'pro',
+            icon: '/planos/prime.png',
+            iconDark: '/planos/prime-escuro.png',
+            name: PLAN_NAMES.pro,
+            description:
+                `Para ${v.organizacoes} que precisam distribuir conversas, ampliar o atendimento e administrar mais canais.`,
+            price: PLAN_PRICES.pro,
+            badge: 'Mais escolhido',
+            limits: PLAN_LIMITS.pro,
+            features: [
+                { text: `1 unidade (${v.organizacao})`, strong: true },
+                { text: '2 agentes de atendimento IA' },
+                { text: '4 números de WhatsApp' },
+                { text: `CRM para ${v.organizacoes} com funil de vendas` },
+                { text: 'Usuários ilimitados' },
+                { text: 'Dashboard inteligente' },
+                { text: `Agente de IA no site ${comArtigo(v, 'organizacao', 'de')}` },
+                { text: 'Agenda integrada com Google Calendar' },
+                { text: 'Integração com CliniCorp' },
+                { text: '20.000 créditos de IA por mês', strong: true },
+            ],
+        },
+        advanced: {
+            id: 'advanced',
+            icon: '/planos/multiclinica.png',
+            iconDark: '/planos/multiclinica-escuro.png',
+            name: PLAN_NAMES.advanced,
+            description:
+                `Para ${v.organizacoes} com operações maiores, múltiplas unidades e maior fluxo de ${v.pessoas}.`,
+            price: PLAN_PRICES.advanced,
+            limits: PLAN_LIMITS.advanced,
+            features: [
+                { text: `3 unidades (${v.organizacoes})`, strong: true },
+                { text: '3 agentes de atendimento IA' },
+                { text: '6 números de WhatsApp' },
+                { text: `CRM para ${v.organizacoes} com funil de vendas` },
+                { text: 'Usuários ilimitados' },
+                { text: 'Dashboard inteligente' },
+                { text: `Agente de IA no site ${comArtigo(v, 'organizacao', 'de')}` },
+                { text: 'Agenda integrada com Google Calendar' },
+                { text: 'Integração com CliniCorp' },
+                { text: 'Diagnóstico de LGPD (proteção de dados)', strong: true },
+                { text: '30.000 créditos de IA por mês', strong: true },
+            ],
+        },
+    }
 }
 
-    return plansCache
-}
-
-/** Memoizado: deriva de `plans()`. */
-let listaCache: Plan[] | null = null
-export function planList(): Plan[] {
-    if (listaCache === null) listaCache = [plans().flow, plans().pro, plans().advanced]
-    return listaCache
+/** Os três planos na ordem em que a tela os mostra. */
+export function planList(v: Vocabulario): Plan[] {
+    const todos = plans(v)
+    return [todos.flow, todos.pro, todos.advanced]
 }
 
 /**
@@ -408,7 +417,18 @@ export function formatPrice(value: number): string {
 }
 
 
-/** Falls back to the entry plan rather than throwing on unknown stored values. */
-export function planFor(id: string | null | undefined): Plan {
-    return id && id in plans ? plans()[id as PlanId] : plans().flow
+/**
+ * Falls back to the entry plan rather than throwing on unknown stored values.
+ *
+ * ⚠️ `id in plans()`, com os parênteses — e eles são o conserto de um defeito
+ * que esteve em produção. Quando `plans` era uma constante, `id in plans`
+ * perguntava pelas chaves do objeto. Virando função, passou a perguntar pelas
+ * propriedades da FUNÇÃO (`name`, `length`), e `'pro' in plans` é `false`:
+ * **toda assinatura passou a ser reportada como o plano de entrada**. O
+ * TypeScript aceita `in` sobre função sem reclamar, e nenhum teste comparava o
+ * nome devolvido com o plano guardado. Medido em 15/11/2026.
+ */
+export function planFor(id: string | null | undefined, v: Vocabulario): Plan {
+    const todos = plans(v)
+    return id && id in todos ? todos[id as PlanId] : todos.flow
 }

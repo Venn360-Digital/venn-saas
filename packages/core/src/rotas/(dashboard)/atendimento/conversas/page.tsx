@@ -1,6 +1,7 @@
 'use client'
 
 import { useRouter, useSearchParams } from 'next/navigation'
+import { useArmazenamento } from '@venn/core/hooks/useArmazenamento'
 
 import { apelidoDaLinha } from '@venn/core/lib/linha'
 import { formatPhone } from '@venn/core/lib/phone'
@@ -821,19 +822,28 @@ export default function ConversasPage() {
             .catch(() => setQuickRepliesLoaded(true))
     }, [quickRepliesLoaded])
 
+    const armazenamento = useArmazenamento()
     const audioContextRef = useRef<AudioContext | null>(null)
 
-    // Sound preference listener
+    /*
+     * A preferência de som, pela mesma chave e evento do `useSoundEnabled`.
+     *
+     * Os nomes vêm de `lib/armazenamento`, prefixados pela marca, e a leitura é
+     * dupla: na primeira vez depois do deploy o valor migra da chave antiga.
+     * Os dois lados têm de usar os MESMOS nomes — se divergirem, o toggle do
+     * cabeçalho deixa de afetar o som desta tela, e nada reclama.
+     */
     useEffect(() => {
-        const stored = localStorage.getItem('odontobox360-sound-enabled')
+        const stored = armazenamento.ler('som', ['odontobox360-sound-enabled'])
         if (stored !== null) soundEnabledRef.current = stored === 'true'
 
         const handler = (e: Event) => {
             soundEnabledRef.current = (e as CustomEvent).detail
         }
-        window.addEventListener('odontobox360-sound-change', handler)
-        return () => window.removeEventListener('odontobox360-sound-change', handler)
-    }, [])
+        const nome = armazenamento.evento('som-mudou')
+        window.addEventListener(nome, handler)
+        return () => window.removeEventListener(nome, handler)
+    }, [armazenamento])
 
     /**
      * Aviso sonoro de mensagem nova.

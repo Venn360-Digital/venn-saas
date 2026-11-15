@@ -215,6 +215,8 @@ const PROVAS = [
     'test:concordancia',
     'test:ferramentas',
     'test:redirects',
+    'test:cookies',
+    'test:instancia',
     'test:distribuicao',
     'test:marcacao',
     'test:mencoes',

@@ -21,6 +21,7 @@ import { ContactPicker, type PickedContact } from '@venn/core/components/shared/
 import { frasedoGatilho, SITUACAO_DO_FUNIL } from '@venn/core/lib/funil/apresentacao'
 import { lerGatilho } from '@venn/core/lib/funil/gatilho'
 import { GALERIA_DE_FUNIS } from '@venn/core/lib/funil/galeria'
+import { useVocab } from '@venn/core/hooks/useVocab'
 
 import type { DadosIniciais, FunilItem } from './dados'
 
@@ -38,6 +39,9 @@ function ehManual(f: FunilItem): boolean {
 }
 
 export function FunisClient({ inicial }: { inicial: DadosIniciais }) {
+    // Pelo contexto: a galeria interpola o vocabulário, e no navegador
+    // `BRAND()` lança.
+    const v = useVocab()
     const { canEdit } = usePermissions()
     const router = useRouter()
 
@@ -78,7 +82,7 @@ export function FunisClient({ inicial }: { inicial: DadosIniciais }) {
         }
         setCriando(true)
         try {
-            const partida = GALERIA_DE_FUNIS().find((g) => g.id === modelo)
+            const partida = GALERIA_DE_FUNIS(v).find((g) => g.id === modelo)
             const res = await fetch('/api/marketing/funis', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -286,7 +290,7 @@ export function FunisClient({ inicial }: { inicial: DadosIniciais }) {
                         className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
                     >
                         <option value="vazio">Começar do zero</option>
-                        {GALERIA_DE_FUNIS().map((g) => (
+                        {GALERIA_DE_FUNIS(v).map((g) => (
                             <option key={g.id} value={g.id}>
                                 {g.nome}
                             </option>

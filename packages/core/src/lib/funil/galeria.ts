@@ -1,5 +1,5 @@
 import type { Gatilho } from './gatilho'
-import { vocab } from '../vocabulario'
+import type { Vocabulario } from '../vocabulario'
 import { comArtigo } from '../concordancia'
 
 /**
@@ -73,18 +73,24 @@ const espera = (id: string, order: number, dias: number, proximo?: string): Pass
 })
 
 /**
- * Função memoizada, e não constante: o texto lê o vocabulário, e `BRAND()` é
- * fail-fast. Constante de módulo é avaliada quando a Cloudflare VALIDA o
- * script — sem requisição e sem marca registrada —, e a publicação reprova com
- * `MarcaNaoRegistradaError`. A forma que já reprovou cinco publicações.
+ * O vocabulário entra por PARÂMETRO, e é obrigatório.
+ *
+ * Este módulo é alcançado pelo bundle do CLIENTE, e no navegador ninguém
+ * registrou a marca: ler `vocab()` por dentro lançava
+ * `MarcaNaoRegistradaError` na hidratação — depois de compilar, buildar e
+ * publicar sem uma reclamação. Medido em 15/11/2026, e era defeito em
+ * produção. No cliente as palavras vêm de `useVocab()`; no servidor, de
+ * `vocab(settings)`. Na assinatura, a cobrança é do compilador.
+ *
+ * A memoização de módulo saiu junto: o resultado depende do argumento, e um
+ * cache global devolveria a palavra da primeira unidade a todas as outras.
  */
-let galeriaDeFunisCache: FunilDePartida[] | null = null
-export function GALERIA_DE_FUNIS(): FunilDePartida[] {
-    if (galeriaDeFunisCache === null) galeriaDeFunisCache = [
+export function GALERIA_DE_FUNIS(v: Vocabulario): FunilDePartida[] {
+    return [
     {
         id: 'boas-vindas',
         nome: 'Boas-vindas em três tempos',
-        descricao: `Apresenta ${comArtigo(vocab(), 'organizacao')} a quem acabou de chegar, sem pressa.`,
+        descricao: `Apresenta ${comArtigo(v, 'organizacao')} a quem acabou de chegar, sem pressa.`,
         trigger: { tipo: 'contato_criado' },
         maxAtivos: null,
         passos: [
@@ -177,6 +183,5 @@ export function GALERIA_DE_FUNIS(): FunilDePartida[] {
             },
         ],
     },
-]
-    return galeriaDeFunisCache
+    ]
 }

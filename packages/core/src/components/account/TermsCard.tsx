@@ -49,6 +49,8 @@ function BandFrame({
     )
 }
 import { TERMS, TERMS_VERSION } from '../../lib/terms'
+import { useVocab } from '../../hooks/useVocab'
+import { useMarca } from '../../marca-contexto'
 
 interface TermsState {
     acceptedTerms: boolean
@@ -258,6 +260,14 @@ export function TermsCard({ band = false }: { band?: boolean }) {
 }
 
 function TermsText({ onReachEnd, className }: { onReachEnd?: () => void; className?: string }) {
+    /**
+     * As palavras e o nome vêm do CONTEXTO, não do registro de marca: este é um
+     * componente de cliente, e no navegador ninguém registrou a marca. Antes
+     * `TERMS()` as lia por dentro e lançava na hidratação.
+     */
+    const v = useVocab()
+    const { name } = useMarca()
+
     return (
         <ScrollArea
             className={cn('h-72 rounded-lg border border-border', className)}
@@ -270,7 +280,7 @@ function TermsText({ onReachEnd, className }: { onReachEnd?: () => void; classNa
             {/* A leitura num quadro largo: duas colunas de texto cansam menos
                 que uma linha de 1000px. */}
             <div className="columns-1 gap-8 space-y-5 p-5 lg:columns-2">
-                {TERMS().map((section) => (
+                {TERMS(v, name).map((section) => (
                     <section key={section.title} className="break-inside-avoid">
                         <h3 className="text-h4">{section.title}</h3>
                         {section.body.map((paragraph) => (

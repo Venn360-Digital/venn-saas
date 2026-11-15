@@ -3,6 +3,7 @@
 import { CalendarClock, Clock, TriangleAlert } from 'lucide-react'
 
 import { DEAL_LANES, type DealLane } from '../../lib/deal-lanes'
+import { useVocab } from '../../hooks/useVocab'
 import { cn } from '@venn/ui/utils'
 
 /** Ícone e tinta por faixa. Três tons, na ordem em que a urgência cresce. */
@@ -60,10 +61,17 @@ export function DealLanes({
     variant?: 'card' | 'chip'
     className?: string
 }) {
+    /**
+     * ANTES do `if`, e isso não é estilo: a forma de pastilha retorna cedo, e
+     * um hook chamado depois de um retorno condicional viola a ordem de hooks
+     * — foi o único erro de lint desta fase, na mesma classe de troca.
+     */
+    const v = useVocab()
+
     if (variant === 'chip') {
         return (
             <div className={cn('flex flex-wrap items-center gap-1.5', className)}>
-                {DEAL_LANES().map((lane) => {
+                {DEAL_LANES(v).map((lane) => {
                     const look = LOOK[lane.id]
                     const count = counts?.[lane.id]
                     const active = selected === lane.id
@@ -100,7 +108,7 @@ export function DealLanes({
 
     return (
         <div className={cn('grid gap-3 sm:grid-cols-3', className)}>
-            {DEAL_LANES().map((lane) => {
+            {DEAL_LANES(v).map((lane) => {
                 const look = LOOK[lane.id]
                 const count = counts?.[lane.id]
                 const active = selected === lane.id

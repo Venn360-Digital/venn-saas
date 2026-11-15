@@ -1,4 +1,4 @@
-import { vocab } from './vocabulario'
+import type { Vocabulario } from './vocabulario'
 /**
  * As três categorias de item da clínica, e quais delas ocupam a agenda.
  *
@@ -10,22 +10,24 @@ import { vocab } from './vocabulario'
  * mercadoria por último.
  */
 /**
- * Função memoizada, e não constante: o texto lê o vocabulário, e `BRAND()` é
- * fail-fast. Constante de módulo é avaliada quando a Cloudflare VALIDA o
- * script — sem requisição e sem marca registrada —, e a publicação reprova com
- * `MarcaNaoRegistradaError`. A forma que já reprovou cinco publicações.
+ * O vocabulário entra por PARÂMETRO, e é obrigatório.
+ *
+ * Este módulo é alcançado pelo bundle do CLIENTE, e no navegador ninguém
+ * registrou a marca: ler `vocab()` por dentro lançava
+ * `MarcaNaoRegistradaError` na hidratação — depois de compilar, buildar e
+ * publicar sem uma reclamação. Medido em 15/11/2026, e era defeito em
+ * produção. No cliente as palavras vêm de `useVocab()`; no servidor, de
+ * `vocab(settings)`. Na assinatura, a cobrança é do compilador.
+ *
+ * A memoização de módulo saiu junto: o resultado depende do argumento, e um
+ * cache global devolveria a palavra da primeira unidade a todas as outras.
  */
-function montarProductCategories() {
+export function PRODUCT_CATEGORIES(v: Vocabulario) {
     return [
-    { id: 'service', label: 'Serviço' },
-    { id: 'procedure', label: `${vocab().Servico}` },
-    { id: 'product', label: 'Produto' },
-] as const
-}
-let productCategoriesCache: ReturnType<typeof montarProductCategories> | null = null
-export function PRODUCT_CATEGORIES(): ReturnType<typeof montarProductCategories> {
-    if (productCategoriesCache === null) productCategoriesCache = montarProductCategories()
-    return productCategoriesCache
+        { id: 'service', label: 'Serviço' },
+        { id: 'procedure', label: v.Servico },
+        { id: 'product', label: 'Produto' },
+    ] as const
 }
 
 export type ProductCategory = ReturnType<typeof PRODUCT_CATEGORIES>[number]['id']
@@ -53,6 +55,6 @@ export function isSchedulable(category: string | null | undefined): boolean {
 }
 
 /** O rótulo da categoria, para a tela. */
-export function categoryLabel(category: string | null | undefined): string {
-    return PRODUCT_CATEGORIES().find((c) => c.id === category)?.label ?? 'Item'
+export function categoryLabel(category: string | null | undefined, v: Vocabulario): string {
+    return PRODUCT_CATEGORIES(v).find((c) => c.id === category)?.label ?? 'Item'
 }

@@ -4,6 +4,7 @@ import { readAutomations } from '../../../lib/automations'
 import { createLogger } from '../../registro'
 import { horaNoFuso, inicioDoDiaDe } from '../../../lib/fuso'
 import { lerFusoDasConfiguracoes } from '../../../lib/fuso-da-unidade'
+import { vocab } from '../../../lib/vocabulario'
 
 const log = createLogger('CRON:BRIEFING')
 
@@ -60,7 +61,7 @@ export async function runDailyBriefing(): Promise<void> {
         const base = { workspaceId: workspace.id, status: 'open' }
 
         const counts = await Promise.all(
-            DEAL_LANES().map((lane) => prisma.deal.count({ where: { ...base, ...laneWhere(lane.id, now, fuso) } }))
+            DEAL_LANES(vocab()).map((lane) => prisma.deal.count({ where: { ...base, ...laneWhere(lane.id, now, fuso) } }))
         )
         const total = counts.reduce((sum, n) => sum + n, 0)
         if (total === 0) continue

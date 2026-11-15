@@ -17,6 +17,7 @@ import './lib/marca-de-teste.ts'
 import { redesDoPlanoTodas, redesDoPlano } from '@venn/core/lib/plans'
 import { isPlanId, type PlanId } from '@venn/core/lib/plan-limits'
 import { apelidoDaLinha } from '@venn/core/lib/linha'
+import { vocab } from '@venn/core/lib/vocabulario'
 
 interface Integracao {
     id: string
@@ -45,9 +46,9 @@ const CANAL_NO_BANCO: Record<string, string[]> = {
 /** Cópia fiel do cálculo de `lerOperacao`, sem o Prisma. */
 function canaisDe(integracoes: Integracao[], planId: string | null) {
     const plano: PlanId = isPlanId(planId) ? planId : 'flow'
-    const doPlano = new Set(redesDoPlano(plano).map((r) => r.id))
+    const doPlano = new Set(redesDoPlano(plano, vocab()).map((r) => r.id))
 
-    const canais = redesDoPlanoTodas().flatMap((rede): Linha[] => {
+    const canais = redesDoPlanoTodas(vocab()).flatMap((rede): Linha[] => {
         const colunas = CANAL_NO_BANCO[rede.id] ?? []
         const registros = integracoes.filter((i) => colunas.includes(i.channel))
         const conectadas = registros.filter((i) => i.status === 'connected').length

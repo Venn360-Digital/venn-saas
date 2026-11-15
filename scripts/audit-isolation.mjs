@@ -38,6 +38,13 @@ const IGNORE_DIRS = new Set([
 const IGNORE_PREFIXES = [
   'infra/runbook/', 'infra/fingerprints/', 'infra/inventory/', 'infra/reports/',
   'scripts/audit-isolation.mjs',
+  /*
+   * Migração APLICADA é imutável: editar o arquivo muda o checksum e o
+   * `prisma migrate deploy` passa a recusar o ambiente onde ela já rodou. A de
+   * `app_identity` grava o slug do app como sentinela — é o dado que o smoke de
+   * identidade compara, e ele existe justamente para ser o nome deste app.
+   */
+  'packages/db/prisma/migrations/',
 ];
 const BINARY_EXT = new Set([
   '.png', '.jpg', '.jpeg', '.gif', '.webp', '.avif', '.ico', '.pdf', '.woff', '.woff2',
@@ -272,26 +279,71 @@ for (const { rel, binary } of files) {
 
 /* ----------  2b. identidade de app dentro do código compartilhado  ----------
  *
- * O nível seguinte da regra 1, ainda como AVISO contado e não como erro.
+ * Agora ERRO, e não mais aviso contado.
  *
- * O alvo final é: `packages/**` não contém identificador de app NENHUM — é o
- * que força texto novo a nascer pelo vocabulário em vez de pelo nome do
- * primeiro app. Hoje isso reprovaria o build, porque o core carrega o nome do
- * 1º app em componentes e em chaves de armazenamento que ainda não passaram
- * pelo `vocab()`.
+ * `packages/**` não contém identificador de app NENHUM — é o que força texto
+ * novo a nascer pela marca e pelo vocabulário em vez de pelo nome do primeiro
+ * app. Entrou como aviso contado em 14/11 (50 arquivos), e vira erro agora que
+ * os dois sweeps acabaram.
  *
- * Então a regra entra medindo, e vira erro no passo do vocabulário. O número
- * aqui é a lista de tarefas daquele passo — e manter isto como aviso silencioso
- * seria o mesmo que não ter: o contador é o que impede a dívida de crescer sem
- * ninguém ver.
+ * ## Duas exceções, e nenhuma é conveniência
+ *
+ * **Comentário não conta.** Mesma decisão do `lint-vocabulario`: explicar por
+ * que algo existe — "era `odontobox` até 15/11" — não é texto que o usuário lê,
+ * e proibi-lo ensina a escrever código sem explicação. São 27 ocorrências em
+ * prosa histórica, e elas valem mais do que custam.
+ *
+ * **As chaves antigas de migração ficam**, por arquivo e com allowlist
+ * conferida. `ler('som', ['odontobox360-sound-enabled'])` cita o nome antigo
+ * porque é ele que está no navegador de quem usa o produto: apagar essa linha
+ * apagaria a preferência de todo mundo. O nome antigo ali é a PROVA de que a
+ * migração existe — o oposto de dívida.
  */
+/**
+ * Arquivos em que o nome antigo é a chave de MIGRAÇÃO, não dívida.
+ *
+ * Cada um passa o nome herdado como lista de `antigas` para `lib/armazenamento`,
+ * que lê a chave nova e, na ausência dela, migra a velha. Apagar a linha
+ * apagaria a preferência de quem já usa o produto.
+ */
+const CHAVES_DE_MIGRACAO = [
+  'packages/core/src/hooks/useSoundEnabled.ts',
+  'packages/core/src/components/shared/EmojiPicker.tsx',
+  'packages/core/src/components/layout/Topbar.tsx',
+  'packages/core/src/rotas/(dashboard)/atendimento/conversas/page.tsx',
+];
+
+/** O texto sem comentários — por análise de estado, não por regex. */
+function semComentarios(src) {
+  const out = [];
+  let i = 0;
+  let estado = 'codigo';
+  while (i < src.length) {
+    const c = src[i];
+    const d = src.slice(i, i + 2);
+    if (estado === 'codigo') {
+      if (d === '/*') { estado = 'bloco'; i += 2; continue; }
+      if (d === '//') { estado = 'linha'; i += 2; continue; }
+      out.push(c); i++; continue;
+    }
+    if (estado === 'bloco') { if (d === '*/') { estado = 'codigo'; i += 2; } else i++; continue; }
+    if (estado === 'linha') { if (c === '\n') { estado = 'codigo'; out.push(c); } i++; }
+  }
+  return out.join('');
+}
+
 const vazamentosNoCompartilhado = new Map();
+const orfaosDaMigracao = CHAVES_DE_MIGRACAO.filter((p) => !files.some((f) => f.rel === p));
+if (orfaosDaMigracao.length) {
+  err(`CHAVES_DE_MIGRACAO cita ${orfaosDaMigracao.length} arquivo(s) que não existem: ${orfaosDaMigracao.join(', ')}`);
+}
 for (const { rel, binary } of files) {
   if (binary) continue;
   if (!rel.startsWith('packages/')) continue;
   if (IGNORE_PREFIXES.some((p) => rel.startsWith(p))) continue;
+  if (CHAVES_DE_MIGRACAO.includes(rel)) continue;
   let texto;
-  try { texto = readFileSync(join(ROOT, rel), 'utf8').toLowerCase(); } catch { continue; }
+  try { texto = semComentarios(readFileSync(join(ROOT, rel), 'utf8')).toLowerCase(); } catch { continue; }
   for (const t of todosOsTokens) {
     if (!texto.includes(t.lower)) continue;
     if (!vazamentosNoCompartilhado.has(rel)) vazamentosNoCompartilhado.set(rel, new Set());
@@ -299,14 +351,14 @@ for (const { rel, binary } of files) {
   }
 }
 if (vazamentosNoCompartilhado.size > 0) {
-  warn(
-    `${vazamentosNoCompartilhado.size} arquivo(s) de packages/** citam identidade de app ` +
-    '— vira ERRO quando o vocabulário sair do core:'
-  );
-  for (const [rel, toks] of [...vazamentosNoCompartilhado].slice(0, 20)) {
-    warn(`    ${rel} → ${[...toks].slice(0, 3).join(', ')}`);
+  for (const [rel, toks] of vazamentosNoCompartilhado) {
+    err(`${rel} cita identidade de app fora de comentário: ${[...toks].slice(0, 3).join(', ')}`);
   }
-  if (vazamentosNoCompartilhado.size > 20) warn(`    … e ${vazamentosNoCompartilhado.size - 20} outro(s)`);
+  err(
+    'O nome do produto vem da marca — `BRAND().name` no servidor, `useMarca().name` no ' +
+    'cliente. Prefixo de cookie, chave de armazenamento e nome de instância vêm de ' +
+    '`BRAND().slug`: ver lib/auth/cookies, lib/armazenamento, lib/whatsapp/instancia.'
+  );
 }
 
 // ---------- 3. wrangler × manifesto ----------
