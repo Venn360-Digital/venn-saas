@@ -94,7 +94,8 @@
         "lint:caminhos": "node scripts/lint-caminhos.mjs",
         "gerar:rotas": "tsx scripts/gerar-rotas.ts",
         "check:rotas-sync": "tsx scripts/gerar-rotas.ts --check",
-        "check:recursos": "tsx scripts/check-recursos.ts"
+        "check:recursos": "tsx scripts/check-recursos.ts",
+        "test:vocabulario": "tsx scripts/test-vocabulario.ts"
     },
     "dependencies": {
         "@dnd-kit/core": "^6.3.1",

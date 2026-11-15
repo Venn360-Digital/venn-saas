@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 import { Fragment } from 'react'
 
 import { crumbsFor } from '../../lib/nav'
+import { useVocab } from '../../hooks/useVocab'
 import {
     Breadcrumb,
     BreadcrumbItem,
@@ -21,7 +22,7 @@ import {
  */
 export function BreadcrumbTrail() {
     const pathname = usePathname()
-    const crumbs = crumbsFor(pathname)
+    const crumbs = crumbsFor(pathname, useVocab())
     if (crumbs.length === 0) return null
 
     return (

@@ -8,6 +8,7 @@
         "./marca": "./src/marca.ts",
         "./marca-contexto": "./src/marca-contexto.tsx",
         "./hooks/useMoeda": "./src/hooks/useMoeda.tsx",
+        "./hooks/useVocab": "./src/hooks/useVocab.tsx",
         "./components/onboarding/types": "./src/components/onboarding/types.ts",
         "./components/agents/creation/useFacebookSdk": "./src/components/agents/creation/useFacebookSdk.ts",
         "./components/agents/creation/unsaved": "./src/components/agents/creation/unsaved.ts",

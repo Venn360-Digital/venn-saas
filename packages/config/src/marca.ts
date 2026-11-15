@@ -63,24 +63,55 @@ export interface Brand {
      * Mora na marca e não num arquivo de tradução porque é identidade, não
      * idioma: o app inteiro é pt-BR, e o que muda entre os três é o nicho.
      */
+    /**
+     * As palavras do nicho, em QUATRO eixos.
+     *
+     * Eram dois — organização e pessoa atendida —, e a varredura de 14/11/2026
+     * mostrou que o produto precisa de quatro: medidas 610 ocorrências em
+     * `packages/`, distribuídas em 211 da pessoa atendida, 123 da organização,
+     * **114 de quem presta o serviço** e **111 do que é vendido**. Os dois
+     * eixos que faltavam não eram detalhe: são a navegação inteira do módulo de
+     * vendas ("Especialistas", "Procedimentos").
+     *
+     * Quatro formas por eixo, escritas e não derivadas. Capitalizar em
+     * português por `toUpperCase()` acerta "paciente" e erra qualquer caso em
+     * que a palavra do nicho seja composta ou sigla — e o custo de escrever é
+     * uma vez por app, contra um bug de rótulo que ninguém revisa.
+     */
     vocabulario: {
-        /** Minúscula, para o meio da frase. */
+        /** Quem assina o contrato: clínica, agência, empresa. */
         organizacao: string
-        /** Maiúscula, para início de frase e rótulo. */
         Organizacao: string
-        /** Plural, para a tagline e o rodapé. */
         organizacoes: string
+        Organizacoes: string
         /**
-         * Quem a organização atende: paciente na odontologia, cliente nos
-         * outros dois.
+         * Quem a organização atende: paciente, cliente, hóspede.
          *
          * **Eixo diferente do de cima.** `organizacao` é quem assina;
-         * `pessoa` é quem é atendido. O produto inteiro ainda escreve
-         * "paciente" literal em dezenas de telas — o que este campo faz é
-         * impedir que o texto NOVO nasça com a palavra presa, para o próximo
-         * ajuste replicar nos três sem reescrever.
+         * `pessoa` é quem é atendido.
          */
         pessoa: string
+        Pessoa: string
         pessoas: string
+        Pessoas: string
+        /**
+         * Quem presta o serviço: especialista, consultor, atendente.
+         *
+         * É o rótulo de `/vendas/profissionais` — a rota é neutra desde
+         * 2026-11-11, e só o rótulo é do nicho.
+         */
+        profissional: string
+        Profissional: string
+        profissionais: string
+        Profissionais: string
+        /**
+         * O que a organização vende: procedimento, pacote, serviço.
+         *
+         * Rótulo de `/vendas/servicos`, pela mesma razão.
+         */
+        servico: string
+        Servico: string
+        servicos: string
+        Servicos: string
     }
 }
