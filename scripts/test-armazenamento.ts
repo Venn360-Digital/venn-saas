@@ -53,6 +53,11 @@ const CHAVES_JA_GRAVADAS: Record<string, Record<keyof typeof SUFIXOS, string>> =
         lembretes: 'stagent360-last-reminder-count',
         emojis: 'stagent.inbox.emoji.recent',
     },
+    conecta360: {
+        som: 'conecta360-sound-enabled',
+        lembretes: 'conecta360-last-reminder-count',
+        emojis: 'conecta.inbox.emoji.recent',
+    },
 }
 
 console.log('\nA chave antiga de cada app é slug + sufixo — e o slug vem da marca')
