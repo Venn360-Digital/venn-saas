@@ -113,13 +113,6 @@ async function main() {
      * `cloudflare.config.ts` é declarativo e **remove no deploy seguinte** o
      * segredo que não está nele.
      */
-    const config = readFileSync(configuracoesDeApp('cloudflare.config.ts')[0], 'utf8')
-    const declarados = new Set(
-        [...config.matchAll(/^\s*(PLATFORM_[A-Z0-9_]+):\s*bindings\.secret\(\)/gm)].map(
-            (m) => m[1]!
-        )
-    )
-
     const derivados = new Set<string>()
     for (const p of PLATFORM_PROVIDERS()) {
         const v = variaveisDoProvedor(p.provider)
@@ -128,11 +121,26 @@ async function main() {
     }
     derivados.add(nomeDeAmbiente(META_VERIFY_TOKEN_SECRET))
 
-    const orfaos = [...declarados].filter((n) => !derivados.has(n))
-    ok(
-        `config: nenhum PLATFORM_ declarado que o código não leia${orfaos.length ? ` — ${orfaos.join(', ')}` : ` (${declarados.size} declarado(s))`}`,
-        orfaos.length === 0
-    )
+    /*
+     * TODOS os configs, não o primeiro. Era `configuracoesDeApp(...)[0]`, e com
+     * um app só dava no mesmo; com dois passaria a verificar um e **ignorar o
+     * outro em silêncio**. E aqui o custo seria caro: segredo `PLATFORM_`
+     * declarado e não lido é removido no deploy seguinte, porque o config é
+     * declarativo.
+     */
+    for (const caminho of configuracoesDeApp('cloudflare.config.ts')) {
+        const config = readFileSync(caminho, 'utf8')
+        const declarados = new Set(
+            [...config.matchAll(/^\s*(PLATFORM_[A-Z0-9_]+):\s*bindings\.secret\(\)/gm)].map(
+                (m) => m[1]!
+            )
+        )
+        const orfaos = [...declarados].filter((n) => !derivados.has(n))
+        ok(
+            `${caminho}: nenhum PLATFORM_ declarado que o código não leia${orfaos.length ? ` — ${orfaos.join(', ')}` : ` (${declarados.size} declarado(s))`}`,
+            orfaos.length === 0
+        )
+    }
 
     /**
      * A VOLTA NÃO É EXIGIDA, e a razão é o deploy quebrado de 2026-10-24.

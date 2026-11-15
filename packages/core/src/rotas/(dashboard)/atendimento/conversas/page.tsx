@@ -834,7 +834,7 @@ export default function ConversasPage() {
      * cabeçalho deixa de afetar o som desta tela, e nada reclama.
      */
     useEffect(() => {
-        const stored = armazenamento.ler('som', ['odontobox360-sound-enabled'])
+        const stored = armazenamento.ler('som', [armazenamento.anterior('360-sound-enabled')])
         if (stored !== null) soundEnabledRef.current = stored === 'true'
 
         const handler = (e: Event) => {

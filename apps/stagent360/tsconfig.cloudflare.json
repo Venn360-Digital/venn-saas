@@ -1,0 +1,71 @@
+{
+  "//": [
+    "Os arquivos que rodam DENTRO do Worker da Cloudflare — Durable Objects,",
+    "consumidores de fila, handler agendado.",
+    "",
+    "Têm tsconfig próprio porque precisam de `@cloudflare/workers-types`, que",
+    "redefine globais (WebSocket, Request, Response) de forma incompatível com a",
+    "`lib: dom` do app Next. Misturar os dois faz o typecheck do app acusar",
+    "conflitos em arquivos que não têm nada a ver.",
+    "",
+    "DOIS caminhos no `include`, e isto não é transição inacabada: o entrypoint",
+    "do Worker fica no app (ele compõe a identidade dele) e os Durable Objects,",
+    "consumidores e o Workflow moram em `packages/core`. Os dois lados precisam",
+    "dos mesmos globais.",
+    "",
+    "O `exclude` do tsconfig.json do app tem de acompanhar este include. Em",
+    "14/11 os Durable Objects saíram de `src/cloudflare` (excluído) para",
+    "`packages/core/src/cloudflare` (que o `include: **/*.ts` do app pegava), e a",
+    "`/// <reference types=\"@cloudflare/workers-types\" />` deles passou a",
+    "redefinir `Response` no programa inteiro: `res.json()` virou `unknown` e o",
+    "typecheck do app acusou 627 erros em arquivos que ninguém tocou. A causa",
+    "não se parece com o efeito.",
+    "",
+    "`@cloudflare/workers-types` é pacote **só de tipos**: ele não carrega",
+    "runtime e não depende do workerd — então isto confere de verdade nesta",
+    "máquina, onde o workerd não roda (macOS 12.7.6, exige 13.5+). É o máximo de",
+    "verificação possível localmente para este código; o resto é o CI."
+  ],
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    // `cloudflare.config.ts` importa a entrada com extensão explícita e o
+    // atributo `with { type: "cf-worker" }` — é a forma que o `cf` exige para
+    // saber qual módulo é o Worker.
+    "allowImportingTsExtensions": true,
+    // `node` junto dos tipos da Cloudflare: o código compartilhado em
+    // `src/lib/` lê `process.env`, que **existe** em Workers com
+    // `nodejs_compat` ligado (ver `compatibility_flags` no wrangler.jsonc) mas
+    // não é declarado pelos tipos do runtime. Sem isto, importar qualquer
+    // módulo de `lib/` aqui acusa `Cannot find name 'process'` — que seria um
+    // erro de tipagem descrevendo algo que funciona.
+    "types": ["@cloudflare/workers-types", "node"],
+    // A condição que faz `@venn/db` resolver para o cliente do **workerd**.
+    //
+    // O pacote de banco expõe os dois clientes gerados pelo campo `exports`,
+    // separados pela condição `workerd` (ver packages/db/package.json). Quem
+    // escolhe no bundle do Worker é o `CONDICOES_DO_WORKER` do vite.config;
+    // aqui, no typecheck, quem escolhe é esta linha. Sem ela o tsc resolveria
+    // o cliente de Node e conferiria o código do Worker contra os tipos
+    // errados — passando, e mentindo.
+    //
+    // Exige `moduleResolution` "bundler" ou "node16"+ — está em "bundler"
+    // acima, então vale.
+    "customConditions": ["workerd"],
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"],
+      "server-only": ["../../workers/src/shims/server-only.ts"]
+    }
+  },
+  "include": ["src/cloudflare/**/*.ts", "../../packages/core/src/cloudflare/**/*.ts", "cloudflare.config.ts", "vite.config.ts"],
+  "exclude": ["node_modules"]
+}

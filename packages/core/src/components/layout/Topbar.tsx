@@ -184,8 +184,10 @@ export function Topbar({ marca }: { marca?: UnidadeAberta | null }) {
                 setReminders(data)
                 // Play sound for new reminders
                 if (data.length > 0 && soundEnabled) {
+                    // O sufixo é comum aos produtos; o slug vem da marca. Ver
+                    // `anterior()` em `useArmazenamento`.
                     const stored = armazenamento.ler('lembretes-vistos', [
-                        'odontobox360-last-reminder-count',
+                        armazenamento.anterior('360-last-reminder-count'),
                     ])
                     const lastCount = stored ? parseInt(stored) : 0
                     if (data.length > lastCount) {

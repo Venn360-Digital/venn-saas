@@ -59,10 +59,32 @@ async function main() {
     // `vinext/server/fetch-handler`, que é módulo virtual resolvido só pelo
     // plugin do Vite — o Node não tem como carregá-lo. E para esta verificação
     // o texto basta: o que se quer saber é se alguém deixou um `null` no mapa.
-    const fonte = await import('node:fs').then((fs) =>
-        fs.readFileSync(resolverNoCodigo('cloudflare/entrada.ts'), 'utf8')
-    )
-    const cfg = await import('node:fs').then((fs) => fs.readFileSync(configuracoesDeApp('cloudflare.config.ts')[0], 'utf8'))
+    /*
+     * O par (entrada.ts, cloudflare.config.ts) DE CADA APP.
+     *
+     * Era `resolverNoCodigo('cloudflare/entrada.ts')` mais
+     * `configuracoesDeApp(...)[0]`: o primeiro passou a LANÇAR quando o 2º app
+     * nasceu (o resolvedor recusa sufixo ambíguo — foi o que reprovou o portão
+     * e trouxe este arquivo para cá), e o segundo não lançaria: verificaria um
+     * app e ignoraria o outro em silêncio.
+     *
+     * Os dois arquivos são lidos PAREADOS, do mesmo app: a config de um app não
+     * pode aprovar o entrypoint de outro. O app vem do caminho da config, não
+     * de lista escrita.
+     */
+    const fs = await import('node:fs')
+    const { dirname, join } = await import('node:path')
+    const apps = configuracoesDeApp('cloudflare.config.ts').map((c) => ({
+        pasta: dirname(c),
+        cfg: fs.readFileSync(c, 'utf8'),
+        fonte: fs.readFileSync(join(dirname(c), 'src', 'cloudflare', 'entrada.ts'), 'utf8'),
+    }))
+    if (apps.length === 0) {
+        console.error('✖ nenhum app com cloudflare.config.ts — não há entrypoint para verificar.')
+        process.exit(2)
+    }
+    const fonte = apps[0]!.fonte
+    const cfg = apps[0]!.cfg
     const mapa = fonte.slice(fonte.indexOf('const PROCESSADORES'), fonte.indexOf('IDS_DE_DEDUP'))
 
     // Do valor da fila para a chave da constante: o mapa é escrito
@@ -98,19 +120,21 @@ async function main() {
      * Aconteceu agora: `TravaDeContato` foi escrita, exportada em `entrada.ts`
      * e **esquecida** na config.
      */
-    for (const classe of ['SalaDoWorkspace', 'AgendaDaConversa', 'TravaDeContato']) {
-        ok(
-            `durable object: "${classe}" exportada em entrada.ts`,
-            new RegExp(`export \\{ ${classe} \\}`).test(fonte)
-        )
-        ok(
-            `durable object: "${classe}" declarada em exports da config`,
-            new RegExp(`${classe}: exports\\.durableObject`).test(cfg)
-        )
-        ok(
-            `durable object: "${classe}" tem binding na config`,
-            new RegExp(`exportName: '${classe}'`).test(cfg)
-        )
+    for (const app of apps) {
+        for (const classe of ['SalaDoWorkspace', 'AgendaDaConversa', 'TravaDeContato']) {
+            ok(
+                `${app.pasta}: "${classe}" exportada em entrada.ts`,
+                new RegExp(`export \\{ ${classe} \\}`).test(app.fonte)
+            )
+            ok(
+                `${app.pasta}: "${classe}" declarada em exports da config`,
+                new RegExp(`${classe}: exports\\.durableObject`).test(app.cfg)
+            )
+            ok(
+                `${app.pasta}: "${classe}" tem binding na config`,
+                new RegExp(`exportName: '${classe}'`).test(app.cfg)
+            )
+        }
     }
 
     // ================================================================ cron
@@ -166,14 +190,16 @@ async function main() {
     // A config da Cloudflare tem de **derivar**, não repetir: dois números
     // escritos à parte se separam calados, e aí o consumidor acha que ainda há
     // tentativa quando a plataforma já mandou para a DLQ.
-    ok(
-        'tentativas: cloudflare.config.ts deriva maxRetries de TENTATIVAS',
-        /maxRetries:\s*TENTATIVAS\[fila\]\s*-\s*1/.test(cfg)
-    )
-    ok(
-        'tentativas: nenhum maxRetries literal sobrou na config',
-        !/maxRetries:\s*\d/.test(cfg)
-    )
+    for (const app of apps) {
+        ok(
+            `${app.pasta}: deriva maxRetries de TENTATIVAS`,
+            /maxRetries:\s*TENTATIVAS\[fila\]\s*-\s*1/.test(app.cfg)
+        )
+        ok(
+            `${app.pasta}: nenhum maxRetries literal sobrou na config`,
+            !/maxRetries:\s*\d/.test(app.cfg)
+        )
+    }
 
     // ================================================================ filas
 

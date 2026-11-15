@@ -1,0 +1,4 @@
+/* GERADO por scripts/gerar-rotas.ts — não edite.
+ * Conteúdo: packages/core/src/rotas/(auth)/error.tsx
+ */
+export { default } from '@venn/core/rotas-jsx/(auth)/error'

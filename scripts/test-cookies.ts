@@ -50,6 +50,10 @@ function ok(nome: string, condicao: boolean, detalhe = '') {
  */
 const PREFIXO_EM_PRODUCAO: Record<string, string> = {
     odontobox360: 'odontobox',
+    // Lido do código que serve este produto hoje: `PREFIXO_DO_COOKIE =
+    // 'stagent'` em `lib/auth/cookies.ts` do repositório dele, antes da
+    // unificação. Trocar isto desloga todo mundo que está logado agora.
+    stagent360: 'stagent',
 }
 
 console.log('\nO slug de cada app é o prefixo que os cookies já têm')

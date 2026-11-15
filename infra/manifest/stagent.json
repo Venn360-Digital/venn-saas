@@ -1,0 +1,268 @@
+{
+  "$comment": "Fonte unica de verdade dos recursos do Stagent360. IDs __FASE06__/__FASE07__ preenchidos nas Fases 06-08. Sem secrets. Arquitetura espelha o app de origem (vinext/Workers + Neon + R2 + Evolution no VPS); nomes pela convencao do runbook, hosts sob venn360.com. MIGRADO para o monorepo em 15/11/2026: o manifesto passou a ser um arquivo por app (`infra/manifest/<slug>.json`), e `app.repo` aponta para o repositório unificado. O nome do arquivo e `app.slug` TÊM de concordar — é do nome que as regras de isolamento derivam o dono.",
+  "app": {
+    "repo": "venn360/venn-saas",
+    "name": "Stagent360",
+    "slug": "stagent",
+    "segment": "none",
+    "cloudflareAccountId": "7ee4810a45580562977d68b86ec709e7"
+  },
+  "environments": {
+    "production": {
+      "hostnames": {
+        "app": "stagent.venn360.com",
+        "evolution": "evo-stagent.venn360.com",
+        "emailDomain": "mail.venn360.com",
+        "emailFrom": "noreply@mail.venn360.com",
+        "support": "suporte@stagent.venn360.com"
+      },
+      "cloudflare": {
+        "worker": "stagent",
+        "customDomain": "stagent.venn360.com",
+        "hyperdrive": [],
+        "r2": [
+          {
+            "binding": "PUBLICO",
+            "name": "stagent-prod-public"
+          },
+          {
+            "binding": "(via S3)",
+            "name": "stagent-prod-private"
+          }
+        ],
+        "kv": [],
+        "queues": [
+          {
+            "name": "stagent-prod-whatsapp-inbound"
+          },
+          {
+            "name": "stagent-prod-whatsapp-event"
+          },
+          {
+            "name": "stagent-prod-whatsapp-outbound"
+          },
+          {
+            "name": "stagent-prod-ai-reply"
+          },
+          {
+            "name": "stagent-prod-rag-index"
+          },
+          {
+            "name": "stagent-prod-agent-webhook"
+          },
+          {
+            "name": "stagent-prod-asaas-event"
+          },
+          {
+            "name": "stagent-prod-broadcast"
+          },
+          {
+            "name": "stagent-prod-cron"
+          }
+        ],
+        "durableObjects": [
+          {
+            "binding": "SALA_DO_WORKSPACE",
+            "class": "SalaDoWorkspace",
+            "id": "__FASE07__"
+          },
+          {
+            "binding": "AGENDA_DA_CONVERSA",
+            "class": "AgendaDaConversa",
+            "id": "__FASE07__"
+          },
+          {
+            "binding": "TRAVA_DE_CONTATO",
+            "class": "TravaDeContato",
+            "id": "__FASE07__"
+          }
+        ],
+        "email": {
+          "binding": "EMAIL",
+          "type": "send_email",
+          "from": "Stagent360 <noreply@mail.venn360.com>"
+        },
+        "turnstileSitekey": "",
+        "accessApps": [
+          {
+            "name": "evo-stagent",
+            "id": "666b99e1-014a-4f52-88c8-889fc61205aa",
+            "aud": "445a9333c6b31b19246b7d23456ced9823df5db445011fb434ab672044054c59",
+            "domain": "evo-stagent.venn360.com"
+          }
+        ],
+        "accessServiceTokens": [
+          {
+            "name": "stagent-worker-evo-prod",
+            "clientId": "6b97eeca9f5ab8ab320a8c4e7688efe1.access"
+          }
+        ]
+      },
+      "neon": {
+        "projectId": "lingering-star-00477174",
+        "branch": "production",
+        "branchId": "br-red-night-b65y27qs",
+        "endpointHost": "ep-misty-flower-b66fzdhu.c-2.sa-east-1.aws.neon.tech",
+        "pgVersion": 18,
+        "database": "stagent",
+        "roles": {
+          "app": "stagent_app",
+          "migrator": "stagent_migrator"
+        }
+      },
+      "evolution": {
+        "image": "evolution-go:0.7.2-whatsmeow-nov",
+        "container": "evo-stagent-prod",
+        "composeProject": "evo-stagent-prod",
+        "directory": "/opt/evolution/evo-stagent-prod",
+        "vpsInstanceId": "b930a363-a4b6-4896-a167-e7168179334b",
+        "vpsIp": "216.238.113.204",
+        "internalPort": 8080,
+        "database": "evo_stagent_prod",
+        "dbRole": "evo_stagent_prod",
+        "redisDb": null,
+        "redisPrefix": "stagent_prod",
+        "instancePrefix": "stagent-prod-",
+        "webhookUrl": "https://stagent.venn360.com/api/webhooks/evolution-go/<secret>",
+        "tunnelId": "4c293441-7575-401f-983e-e82e6110e257"
+      },
+      "integrations": {
+        "googleProjectId": "stagent360-prod",
+        "googleOAuthClientId": "",
+        "metaAppId": "",
+        "wabaId": "",
+        "whatsappPhoneNumberIds": []
+      }
+    },
+    "stg": {
+      "hostnames": {
+        "app": "homolog-stagent.venn360.com",
+        "evolution": "evo-stagent.venn360.com",
+        "emailDomain": "mail.venn360.com",
+        "emailFrom": "noreply@mail.venn360.com",
+        "support": "suporte@stagent.venn360.com"
+      },
+      "cloudflare": {
+        "worker": "stagent-stg",
+        "customDomain": "homolog-stagent.venn360.com",
+        "hyperdrive": [],
+        "r2": [
+          {
+            "binding": "PUBLICO",
+            "name": "stagent-stg-public"
+          },
+          {
+            "binding": "(via S3)",
+            "name": "stagent-stg-private"
+          }
+        ],
+        "kv": [],
+        "queues": [
+          {
+            "name": "stagent-stg-whatsapp-inbound"
+          },
+          {
+            "name": "stagent-stg-whatsapp-event"
+          },
+          {
+            "name": "stagent-stg-whatsapp-outbound"
+          },
+          {
+            "name": "stagent-stg-ai-reply"
+          },
+          {
+            "name": "stagent-stg-rag-index"
+          },
+          {
+            "name": "stagent-stg-agent-webhook"
+          },
+          {
+            "name": "stagent-stg-asaas-event"
+          },
+          {
+            "name": "stagent-stg-broadcast"
+          },
+          {
+            "name": "stagent-stg-cron"
+          }
+        ],
+        "durableObjects": [
+          {
+            "binding": "SALA_DO_WORKSPACE",
+            "class": "SalaDoWorkspace",
+            "id": "__FASE07__"
+          },
+          {
+            "binding": "AGENDA_DA_CONVERSA",
+            "class": "AgendaDaConversa",
+            "id": "__FASE07__"
+          },
+          {
+            "binding": "TRAVA_DE_CONTATO",
+            "class": "TravaDeContato",
+            "id": "__FASE07__"
+          }
+        ],
+        "email": {
+          "binding": "EMAIL",
+          "type": "send_email",
+          "from": "Stagent360 <noreply@mail.venn360.com>"
+        },
+        "turnstileSitekey": "",
+        "accessApps": [
+          {
+            "name": "stagent-stg-evo",
+            "id": "__FASE07__",
+            "domain": "stg-evo-stagent.venn360.com"
+          }
+        ],
+        "accessServiceTokens": [
+          {
+            "name": "stagent-worker-evo-stg",
+            "clientId": "b31be447d437fced16aebe0dd6177d16.access"
+          },
+          {
+            "name": "stagent-ci-stg",
+            "clientId": "ce8add9ee1f9a54ebc1436593c2e57f4.access"
+          }
+        ]
+      },
+      "neon": {
+        "projectId": "lingering-star-00477174",
+        "branch": "staging",
+        "branchId": "br-old-frost-b6qovv4l",
+        "endpointHost": "ep-square-pond-b6or2qgu.c-2.sa-east-1.aws.neon.tech",
+        "pgVersion": 18,
+        "database": "stagent",
+        "roles": {
+          "app": "stagent_app",
+          "migrator": "stagent_migrator"
+        }
+      },
+      "evolution": {
+        "image": "evolution-go:0.7.2-whatsmeow-nov",
+        "container": "evo-stagent-prod",
+        "composeProject": "evo-stagent-prod",
+        "directory": "/opt/evolution/evo-stagent-prod",
+        "internalPort": 8080,
+        "database": "evo_stagent_prod",
+        "dbRole": "evo_stagent_prod",
+        "redisDb": null,
+        "redisPrefix": "stagent_stg",
+        "instancePrefix": "stagent-stg-",
+        "webhookUrl": "https://homolog-stagent.venn360.com/api/webhooks/evolution-go/<secret>",
+        "_nota": "Homolog compartilha o Evolution de produção (um contêiner por produto, nunca por ambiente). Os campos acima são os DA PRODUÇÃO de propósito; o que separa os ambientes é o nome da instância, que é `<slug>_<id-da-linha>` e é único por construção, e o webhook, que é por instância.",
+        "vpsInstanceId": "b930a363-a4b6-4896-a167-e7168179334b",
+        "vpsIp": "216.238.113.204",
+        "tunnelId": "4c293441-7575-401f-983e-e82e6110e257"
+      },
+      "integrations": {
+        "googleProjectId": "stagent360-stg",
+        "googleOAuthClientId": "",
+        "metaAppId": "",
+        "wabaId": "",
+        "whatsappPhoneNumberIds": []
+      }
+    }
+  }
+}

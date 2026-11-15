@@ -37,7 +37,13 @@ function ok(nome: string, condicao: boolean, detalhe = '') {
  */
 const PREFIXO_JA_CRIADO: Record<string, string> = {
     odontobox360: 'odontobox',
+    // Lido do código que serve este produto hoje: ele cria as instâncias como
+    // `stagent_<id>` (`api/agents/[id]/integrations/whatsapp/route.ts` e
+    // `meta/route.ts` do repositório dele). Mudar isto não renomeia a instância
+    // na Evolution: cria outra, e a linha já ligada deixa de ser encontrada.
+    stagent360: 'stagent',
 }
+
 
 console.log('\nO prefixo de instância é o das instâncias já criadas na Evolution')
 const apps = readdirSync('apps').filter((n) => existsSync(join('apps', n, 'src/config/brand.ts')))
