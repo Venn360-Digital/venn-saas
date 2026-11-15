@@ -32,6 +32,7 @@ import {
 import { cn } from '@venn/ui/utils'
 import { useVocab } from '../../hooks/useVocab'
 import { comArtigo } from '../../lib/concordancia'
+import { useMarca } from '../../marca-contexto'
 
 /**
  * Conta da Clínica — a conta e as clínicas dela, numa guia.
@@ -119,6 +120,7 @@ interface FormUnidade {
 }
 
 export function ContaDaUnidadeTab({ formId }: { formId: string }) {
+    const marca = useMarca()
     // Palavras do nicho da unidade; `comArtigo` monta o determinante pelo
     // gênero declarado na marca.
     const v = useVocab()
@@ -548,7 +550,7 @@ export function ContaDaUnidadeTab({ formId }: { formId: string }) {
 
                         <FormField
                             label="Logomarca"
-                            hint="Substitui a do OdontoBox360 no cabeçalho. Até 160 × 25 px."
+                            hint={`Substitui a do ${marca.name} no cabeçalho. Até 160 × 25 px.`}
                         >
                             <button
                                 type="button"

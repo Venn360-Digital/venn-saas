@@ -4,6 +4,7 @@ import { Suspense, useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 
 import { Logo } from '@venn/core/components/brand/Logo'
+import { useMarca } from '../../../marca-contexto'
 
 /**
  * Para onde o Asaas devolve o pagador — uma página de uma frase.
@@ -24,6 +25,7 @@ import { Logo } from '@venn/core/components/brand/Logo'
 const STATUS_VALIDOS = new Set(['processando', 'cancelado', 'expirado'])
 
 function Conteudo() {
+    const marca = useMarca()
     const params = useSearchParams()
     const bruto = params.get('status')
     const status = bruto && STATUS_VALIDOS.has(bruto) ? bruto : 'processando'
@@ -77,7 +79,7 @@ function Conteudo() {
             <p className="text-xs text-muted-foreground">
                 {podeFechar
                     ? 'Você já pode fechar esta janela.'
-                    : 'Voltando para o OdontoBox360…'}
+                    : `Voltando para o ${marca.name}…`}
             </p>
         </main>
     )

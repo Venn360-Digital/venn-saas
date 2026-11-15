@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { BRAND } from '@venn/core/marca'
 
 /**
  * O código que a clínica cola no site dela.
@@ -27,7 +28,7 @@ const SCRIPT = (origem: string) => `(function () {
   'use strict'
   var atual = document.currentScript
   var chave = atual && atual.getAttribute('data-key')
-  if (!chave) { console.warn('[OdontoBox360] falta data-key no script do widget'); return }
+  if (!chave) { console.warn('[${BRAND().name}] falta data-key no script do widget'); return }
 
   var ORIGEM = ${JSON.stringify(origem)}
   var API = ORIGEM + '/api/widget/' + encodeURIComponent(chave)

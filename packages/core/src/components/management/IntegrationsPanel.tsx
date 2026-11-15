@@ -13,6 +13,7 @@ import { ConfirmDialog } from '../shared/ConfirmDialog'
 import { PageHeader } from '../shared/PageHeader'
 import { useVocab } from '../../hooks/useVocab'
 import { comArtigo } from '../../lib/concordancia'
+import type { Brand } from '@venn/config/marca'
 
 // ─── Types ──────────────────────────────────────────────────────
 interface IntegrationDef {
@@ -40,11 +41,14 @@ interface GoogleCalendarStatus {
 }
 
 // ─── Integration definitions ────────────────────────────────────
-const INTEGRATIONS: IntegrationDef[] = [
+/** Função que recebe a marca: o nome do produto aparece nas descrições, e no
+ * cliente ele vem do provedor — `BRAND()` lança no navegador. */
+function integrations(marca: Brand): IntegrationDef[] {
+    return [
     {
         id: 'google-calendar',
         name: 'Google Calendar',
-        description: 'Exporte atividades do OdontoBox360 para o Google Calendar do workspace',
+        description: `Exporte atividades do ${marca.name} para o Google Calendar do workspace`,
         icon: '📅',
         iconBgColor: BRAND_COLORS.google,
         provider: 'google_calendar',
@@ -82,6 +86,7 @@ const INTEGRATIONS: IntegrationDef[] = [
         comingSoon: true,
     },
 ]
+}
 
 // ─── Google Calendar Card ────────────────────────────────────────
 function GoogleCalendarCard({ def }: { def: IntegrationDef }) {
@@ -350,10 +355,11 @@ function ComingSoonRow({ def }: { def: IntegrationDef }) {
  * padronização veio desfazer.
  */
 export function IntegrationsPanel() {
+    const marca = useMarca()
     const v = useVocab()
 
-    const live = INTEGRATIONS.filter((def) => def.provider === 'google_calendar')
-    const soon = INTEGRATIONS.filter((def) => def.provider !== 'google_calendar')
+    const live = integrations(marca).filter((def) => def.provider === 'google_calendar')
+    const soon = integrations(marca).filter((def) => def.provider !== 'google_calendar')
 
     /*
      * Sem teto de largura: cartão em guia acompanha a resolução (DESIGN.md §5,
@@ -378,7 +384,7 @@ export function IntegrationsPanel() {
         <BandLayout>
             <SettingsBand
                 title="Ferramentas"
-                description={`O que ${comArtigo(v, 'organizacao')} liga ao OdontoBox360. O cartão diz se está conectado e por qual conta.`}
+                description={`O que ${comArtigo(v, 'organizacao')} liga ao ${marca.name}. O cartão diz se está conectado e por qual conta.`}
             >
                 {grid}
             </SettingsBand>

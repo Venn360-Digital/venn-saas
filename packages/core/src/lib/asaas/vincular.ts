@@ -3,6 +3,7 @@ import { deOutroApp, marcarReferencia } from './referencia'
 import { adicionaisCobraveis } from '../account'
 import { asaas } from './client'
 import { CICLOS, cicloDe, isPlanId, planNameFor, valorDaFatura, type BillingCycle } from '../plan-limits'
+import { BRAND } from '../../marca'
 
 /**
  * Descobre o cliente e a assinatura que um checkout pago criou no Asaas.
@@ -298,7 +299,7 @@ async function descricaoDaAssinatura(accountId: string): Promise<string> {
         },
     })
 
-    if (!conta) return 'OdontoBox360'
+    if (!conta) return BRAND().name
 
     const plano = planNameFor(conta.subscription?.plan)
     const nomes = conta.workspaces.map((w) => w.name)
@@ -312,7 +313,7 @@ async function descricaoDaAssinatura(accountId: string): Promise<string> {
               : `${nomes.slice(0, 3).join(', ')} e mais ${nomes.length - 3}`
 
     const partes = [
-        `OdontoBox360 — ${plano}`,
+        `${BRAND().name} — ${plano}`,
         conta.name,
         unidades ? `${nomes.length} unidade${nomes.length === 1 ? '' : 's'}: ${unidades}` : '',
     ].filter(Boolean)

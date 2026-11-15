@@ -1,6 +1,7 @@
 import Image from 'next/image'
 
 import { cn } from '@venn/ui/utils'
+import { useMarca } from '../../marca-contexto'
 
 type Variant = 'wordmark' | 'full' | 'stacked' | 'mark'
 
@@ -70,6 +71,7 @@ export function Logo({
     className,
     priority = false,
 }: LogoProps) {
+    const marca = useMarca()
     const art = ART[variant]
     const width = Math.round(height * art.ratio)
 
@@ -77,7 +79,7 @@ export function Logo({
         return (
             <Image
                 src={tone === 'dark' ? art.dark : art.light}
-                alt="OdontoBox360"
+                alt={marca.name}
                 width={width}
                 height={height}
                 priority={priority}
@@ -91,7 +93,7 @@ export function Logo({
         <>
             <Image
                 src={art.light}
-                alt="OdontoBox360"
+                alt={marca.name}
                 width={width}
                 height={height}
                 priority={priority}
@@ -100,7 +102,7 @@ export function Logo({
             />
             <Image
                 src={art.dark}
-                alt="OdontoBox360"
+                alt={marca.name}
                 width={width}
                 height={height}
                 priority={priority}

@@ -1,5 +1,6 @@
 import { vocab } from './vocabulario'
 import { comArtigo } from './concordancia'
+import { BRAND } from '../marca'
 /**
  * The agreement shown on the last step of onboarding.
  *
@@ -55,7 +56,7 @@ export function TERMS(): TermsSection[] {
     {
         title: 'Seus dados',
         body: [
-            `${comArtigo(vocab(), 'Organizacao')} é a controladora dos dados dos seus ${vocab().pessoas}; o OdontoBox360 atua como operador, nos termos da LGPD.`,
+            `${comArtigo(vocab(), 'Organizacao')} é a controladora dos dados dos seus ${vocab().pessoas}; o ${BRAND().name} atua como operador, nos termos da LGPD.`,
             'Encerrada a avaliação sem contratação, os dados ficam disponíveis para consulta e exportação por 90 dias. Você recebe aviso 60 dias antes e novamente 7 dias antes da exclusão definitiva.',
             'A exportação está disponível a qualquer momento, inclusive durante o período de somente-leitura.',
         ],
