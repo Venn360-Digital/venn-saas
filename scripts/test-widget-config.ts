@@ -35,31 +35,31 @@ function conferir(nome: string, obtido: unknown, esperado: unknown) {
 }
 
 console.log('\nhostDe — só o host importa')
-conferir('tira esquema, porta e caminho', hostDe('https://Clinica.com.br:443/precos?x=1'), 'clinica.com.br')
-conferir('aceita host nu', hostDe('clinica.com.br'), 'clinica.com.br')
-conferir('minúsculas', hostDe('WWW.Clinica.COM.BR'), 'www.clinica.com.br')
+conferir('tira esquema, porta e caminho', hostDe('https://exemplo.com.br:443/precos?x=1'), 'exemplo.com.br')
+conferir('aceita host nu', hostDe('exemplo.com.br'), 'exemplo.com.br')
+conferir('minúsculas', hostDe('WWW.exemplo.COM.BR'), 'www.exemplo.com.br')
 conferir('vazio é nulo', hostDe('   '), null)
 conferir('lixo é nulo', hostDe('://'), null)
 
 console.log('\norigemPermitida — a regra de autorização')
 conferir('lista vazia libera (é o estado de todo widget já colado)', origemPermitida('https://qualquer.com', []), true)
-conferir('sem Origin libera', origemPermitida(null, ['clinica.com.br']), true)
-conferir('host exato entra', origemPermitida('https://clinica.com.br/precos', ['clinica.com.br']), true)
-conferir('subdomínio entra', origemPermitida('https://www.clinica.com.br', ['clinica.com.br']), true)
-conferir('porta não muda nada', origemPermitida('https://clinica.com.br:8443', ['clinica.com.br']), true)
-conferir('http também entra — o esquema não diz de quem é o site', origemPermitida('http://clinica.com.br', ['clinica.com.br']), true)
-conferir('outro domínio é recusado', origemPermitida('https://copiou.com', ['clinica.com.br']), false)
+conferir('sem Origin libera', origemPermitida(null, ['exemplo.com.br']), true)
+conferir('host exato entra', origemPermitida('https://exemplo.com.br/precos', ['exemplo.com.br']), true)
+conferir('subdomínio entra', origemPermitida('https://www.exemplo.com.br', ['exemplo.com.br']), true)
+conferir('porta não muda nada', origemPermitida('https://exemplo.com.br:8443', ['exemplo.com.br']), true)
+conferir('http também entra — o esquema não diz de quem é o site', origemPermitida('http://exemplo.com.br', ['exemplo.com.br']), true)
+conferir('outro domínio é recusado', origemPermitida('https://copiou.com', ['exemplo.com.br']), false)
 conferir(
-    'sufixo colado NÃO entra — "maliciosaclinica.com.br" não é subdomínio',
-    origemPermitida('https://maliciosaclinica.com.br', ['clinica.com.br']),
+    'sufixo colado NÃO entra — "maliciosaexemplo.com.br" não é subdomínio',
+    origemPermitida('https://maliciosaexemplo.com.br', ['exemplo.com.br']),
     false
 )
 conferir(
     'domínio que CONTÉM o permitido no meio é recusado',
-    origemPermitida('https://clinica.com.br.evil.com', ['clinica.com.br']),
+    origemPermitida('https://exemplo.com.br.evil.com', ['exemplo.com.br']),
     false
 )
-conferir('o pai não entra pelo filho', origemPermitida('https://clinica.com.br', ['www.clinica.com.br']), false)
+conferir('o pai não entra pelo filho', origemPermitida('https://exemplo.com.br', ['www.exemplo.com.br']), false)
 conferir('vale qualquer um da lista', origemPermitida('https://b.com', ['a.com', 'b.com']), true)
 conferir('origem ilegível com lista cheia é recusada', origemPermitida('://', ['a.com']), false)
 
@@ -76,9 +76,9 @@ conferir('cor de 3 dígitos vale', lerConfiguracaoDoWidget({ cor: '#0bf' }).cor,
 conferir(
     'domínios viram host, sem repetição',
     lerConfiguracaoDoWidget({
-        dominios: ['https://clinica.com.br/x', 'clinica.com.br', 'WWW.clinica.com.br', '   ', 42],
+        dominios: ['https://exemplo.com.br/x', 'exemplo.com.br', 'WWW.exemplo.com.br', '   ', 42],
     }).dominios,
-    ['clinica.com.br', 'www.clinica.com.br']
+    ['exemplo.com.br', 'www.exemplo.com.br']
 )
 conferir(
     'obrigatório sozinho não trava a conversa atrás de um formulário sem campo',

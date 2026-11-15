@@ -13,6 +13,8 @@ import { ConfirmDialog } from '../../shared/ConfirmDialog'
 import { marcarSujo, useEdicaoNaoSalva } from './unsaved'
 import { usePermissions } from '../../../hooks/usePermissions'
 import { cn } from '@venn/ui/utils'
+import { useVocab } from '../../../hooks/useVocab'
+import { comArtigo } from '../../../lib/concordancia'
 
 /**
  * A moldura das sete seções do agente, na Tela 03.
@@ -252,6 +254,7 @@ export function AgentFrame({
     dica?: string
     children: React.ReactNode
 }) {
+    const v = useVocab()
     const router = useRouter()
     const params = useSearchParams()
     const agentId = params.get('id')
@@ -479,7 +482,7 @@ export function AgentFrame({
                                 <strong className="font-semibold text-foreground">
                                     Alterar a configuração é do dono ou do administrador
                                 </strong>{' '}
-                                da clínica — peça a eles o que precisar mudar.
+                                {comArtigo(v, 'organizacao', 'de')} — peça a eles o que precisar mudar.
                             </p>
                         </div>
                     ) : null}

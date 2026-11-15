@@ -247,7 +247,7 @@ interface UnidadeDaConta {
     agentes: number
     canais: number
     conversas: number
-    pacientes: number
+    contatos: number
 }
 
 /** Uma cobrança do espelho, como a faixa de histórico a lê. */
@@ -2247,7 +2247,7 @@ export function PlanoTab() {
                                             ['Agentes', unidade.agentes],
                                             ['Canais', unidade.canais],
                                             ['Conversas', unidade.conversas],
-                                            [`${v.Pessoas}`, unidade.pacientes],
+                                            [`${v.Pessoas}`, unidade.contatos],
                                         ].map(([rotulo, valor]) => (
                                             <div key={rotulo as string} className="px-3 py-2">
                                                 <p className="text-[11px] text-muted-foreground">{rotulo}</p>
@@ -2300,7 +2300,7 @@ export function PlanoTab() {
                                         href="/gerenciamento/conta?tab=empresa"
                                         className="font-medium text-primary-subtle-foreground underline underline-offset-2"
                                     >
-                                        Conta da Clínica → Nova unidade
+                                        Conta {comArtigo(v, 'Organizacao', 'de')} → Nova unidade
                                     </a>
                                     {renovaEm ? ` — Renova em ${renovaEm}` : ''}
                                 </p>

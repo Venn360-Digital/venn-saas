@@ -895,7 +895,7 @@ export function CanaisTab({ agentId, canManage = true }: CanaisTabProps) {
 
                 {!canManage ? (
                     <p className="px-5 pb-4 text-xs text-muted-foreground">
-                        Conectar e desconectar números é do dono ou do administrador da clínica.
+                        Conectar e desconectar números é do dono ou do administrador {comArtigo(v, 'organizacao', 'de')}.
                     </p>
                 ) : semVaga ? (
                     <p className="px-5 pb-4 text-xs text-muted-foreground">
@@ -935,7 +935,7 @@ export function CanaisTab({ agentId, canManage = true }: CanaisTabProps) {
                             title={
                                 <span className="flex items-center gap-2">
                                     <Globe className="size-4 text-muted-foreground" aria-hidden="true" />
-                                    Site da clínica
+                                    Site {comArtigo(v, 'organizacao', 'de')}
                                 </span>
                             }
                             description={

@@ -46,7 +46,7 @@ export const INCLUIR_INATIVOS: boolean = true
  * servidor desta tela repete o mesmo mapeamento, então os dois caminhos
  * (primeira pintura e releitura por `fetch`) entregam o mesmo formato.
  */
-export interface Especialista {
+export interface Profissional {
     id: string
     name: string
     specialty: string | null
@@ -73,4 +73,4 @@ export interface Especialista {
  * conta hoje a partir da lista em memória é a paginação de cliente, não o
  * contrato.
  */
-export type DadosIniciais = PaginaDeIndice<Especialista>
+export type DadosIniciais = PaginaDeIndice<Profissional>

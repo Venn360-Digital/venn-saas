@@ -273,7 +273,7 @@ export function UserFormModal({
                             type="email"
                             value={formData.email}
                             onChange={(e) => { setFormData({ ...formData, email: e.target.value }); if (errors.email) setErrors((p) => ({ ...p, email: undefined })) }}
-                            placeholder="nome@clinica.com.br"
+                            placeholder="nome@exemplo.com.br"
                             aria-invalid={errors.email ? true : undefined}
                             autoComplete="email"
                         />

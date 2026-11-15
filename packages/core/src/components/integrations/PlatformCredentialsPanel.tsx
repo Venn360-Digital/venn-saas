@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { Check, ShieldCheck, Terminal } from 'lucide-react'
 
 import { cn } from '@venn/ui/utils'
+import { useVocab } from '../../hooks/useVocab'
 
 interface ProviderRow {
     provider: string
@@ -42,6 +43,7 @@ interface ProviderRow {
  * acreditar ter rotacionado uma credencial que continua vindo de outro lugar.
  */
 export function PlatformCredentialsPanel() {
+    const v = useVocab()
     const [rows, setRows] = useState<ProviderRow[] | null>(null)
     /**
      * O estado da fila de webhooks do Asaas.
@@ -85,7 +87,7 @@ export function PlatformCredentialsPanel() {
                 <h2 className="text-h4">Aplicativos da plataforma</h2>
             </div>
             <p className="mb-4 text-sm text-muted-foreground">
-                Registrados uma vez e usados por todas as clínicas. As credenciais vivem no
+                Registrados uma vez e usados por todas as {v.organizacoes}. As credenciais vivem no
                 Cloudflare Secrets e entram por <code className="text-xs">wrangler secret put</code> —
                 não por esta tela. Aqui você vê o que está definido e o que falta.
             </p>

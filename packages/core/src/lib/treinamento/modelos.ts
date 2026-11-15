@@ -106,7 +106,7 @@ ${aviso()}
 
   Exemplo de forma:
   "Você é <NOME>, atendente virtual da <EMPRESA>. Fala por WhatsApp com quem
-  procura ${comArtigo(vocab(), 'organizacao')} pela primeira vez. Você não é dentista e não substitui a
+  procura ${comArtigo(vocab(), 'organizacao')} pela primeira vez. Você não substitui a
   avaliação de um profissional."
 -->
 

@@ -216,7 +216,7 @@ export async function GraphView({
                     {sourceRows.length > 0 ? (
                         <BarList rows={sourceRows} />
                     ) : (
-                        <EmptyChart>Nenhum paciente novo neste período.</EmptyChart>
+                        <EmptyChart>Nenhum {vocab().pessoa} novo neste período.</EmptyChart>
                     )}
                 </ChartCard>
             </div>

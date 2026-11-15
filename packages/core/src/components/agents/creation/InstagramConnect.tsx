@@ -75,6 +75,7 @@ interface Props {
  * enfeite.
  */
 function Preparos() {
+    const v = useVocab()
     return (
         <div className="rounded-md border border-border bg-muted/40 p-3.5">
             <p className="text-[12px] font-semibold">
@@ -88,7 +89,7 @@ function Preparos() {
                         conta profissional
                     </Caminho>
                     Serve Comercial ou Criador de conteúdo. Não é preciso Página do Facebook,
-                    nem gerenciador de negócios: a clínica entra com a própria conta do
+                    nem gerenciador de negócios: {comArtigo(v, 'organizacao')} entra com a própria conta do
                     Instagram.
                 </Passo>
 

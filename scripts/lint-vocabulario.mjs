@@ -35,7 +35,7 @@
 import { readFileSync, writeFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { arquivosDeCodigo, exigirPiso } from './lib/raizes-de-codigo.mjs'
+import { arquivosDeCodigo, exigirPiso, conferirAllowlist } from './lib/raizes-de-codigo.mjs'
 
 const ROOT = process.cwd()
 const TETO_FILE = join(ROOT, 'scripts', 'vocabulario-baseline.json')
@@ -90,12 +90,28 @@ function semComentarios(src) {
     return out.join('')
 }
 
+/**
+ * Onde a palavra do nicho é CONTRATO, e por isso fica.
+ *
+ * `lib/nav.ts` mapeia SLUGS de URL para rótulo, e as chaves `pacientes`,
+ * `especialistas` e `procedimentos` são **endereços que alguém guardou** — o
+ * rewrite ainda os resolve, e a trilha não deve mostrar slug cru. Trocá-las
+ * apagaria o redirecionamento: foi o que um renomeio em massa quase fez em
+ * 15/11/2026, e `test:redirects` existe por causa disso.
+ *
+ * A isenção é por ARQUIVO e conferida por `conferirAllowlist`: se o caminho
+ * sair de lugar, a lista acusa a órfã em vez de passar calada.
+ */
+const DE_CONTRATO = ['packages/core/src/lib/nav.ts']
+
 const doCore = arquivosDeCodigo().filter((f) => f.startsWith('packages/'))
 exigirPiso('lint-vocabulario', doCore, 400)
+conferirAllowlist('lint-vocabulario', DE_CONTRATO, doCore)
 
 let total = 0
 const porArquivo = []
 for (const f of doCore) {
+    if (DE_CONTRATO.includes(f)) continue
     let n = 0
     const limpo = semComentarios(readFileSync(join(ROOT, f), 'utf8'))
     const achados = []

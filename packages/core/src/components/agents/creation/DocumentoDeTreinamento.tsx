@@ -14,6 +14,8 @@ import {
 import { secionarMarkdown, semComentarios } from '../../../lib/rag/secoes'
 import { textoParaAcervo } from '../../../lib/treinamento/indexar'
 import { cn } from '@venn/ui/utils'
+import { useVocab } from '../../../hooks/useVocab'
+import { comArtigo } from '../../../lib/concordancia'
 
 /**
  * O campo padrão da central de treinamento — um documento em Markdown.
@@ -89,6 +91,7 @@ export function DocumentoDeTreinamento({
     desatualizado = false,
     somenteLeitura = false,
 }: Props) {
+    const v = useVocab()
     const entrada = useRef<HTMLInputElement>(null)
     /**
      * **"Gerar cadastro" saiu**, por decisão do Andre em 2026-11-04.
@@ -364,7 +367,7 @@ export function DocumentoDeTreinamento({
                         “{exemplosFora.join('”, “')}” não vai para o acervo.
                     </strong>{' '}
                     Exemplo de resposta orienta o estilo; no acervo ele seria recuperado como
-                    fato e repetido ao paciente — inclusive na pergunta errada. O texto fica
+                    fato e repetido {comArtigo(v, 'pessoa', 'a')} — inclusive na pergunta errada. O texto fica
                     guardado aqui.
                 </p>
             ) : null}

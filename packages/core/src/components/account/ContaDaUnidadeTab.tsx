@@ -71,7 +71,7 @@ interface Unidade {
     phone: string | null
     createdAt: string
     usuarios: number
-    pacientes: number
+    contatos: number
     agentes: number
     participo: boolean
     fusoHorario: string
@@ -1004,8 +1004,8 @@ export function ContaDaUnidadeTab({ formId }: { formId: string }) {
                                                     <p className="text-xs text-muted-foreground">
                                                         <span className="num">{unidade.usuarios}</span>{' '}
                                                         usuário{unidade.usuarios === 1 ? '' : 's'} ·{' '}
-                                                        <span className="num">{unidade.pacientes}</span>{' '}
-                                                        {unidade.pacientes === 1 ? v.pessoa : v.pessoas} ·{' '}
+                                                        <span className="num">{unidade.contatos}</span>{' '}
+                                                        {unidade.contatos === 1 ? v.pessoa : v.pessoas} ·{' '}
                                                         <span className="num">{unidade.agentes}</span>{' '}
                                                         agente{unidade.agentes === 1 ? '' : 's'}
                                                     </p>

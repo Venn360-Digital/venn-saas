@@ -311,8 +311,8 @@ export function CancelarAssinaturaCard() {
                             <li className="flex items-start gap-2">
                                 <Check className="mt-0.5 size-3.5 shrink-0 text-primary" />
                                 <span>
-                                    As conversas, os pacientes e os negócios continuam guardados, e
-                                    voltam inteiros se a clínica assinar de novo.
+                                    As conversas, {comArtigo(v, 'pessoas')} e os negócios continuam guardados, e
+                                    voltam inteiros se {comArtigo(v, 'organizacao')} assinar de novo.
                                 </span>
                             </li>
                         </ul>
@@ -335,7 +335,7 @@ export function CancelarAssinaturaCard() {
                             autoComplete="off"
                             value={digitado}
                             onChange={(e) => setDigitado(e.target.value)}
-                            placeholder="voce@clinica.com.br"
+                            placeholder="voce@exemplo.com.br"
                         />
                     </FormField>
                 </div>
