@@ -212,6 +212,7 @@ const PROVAS = [
     'test:widget-config',
     'test:fuso-unidade',
     'test:vocabulario',
+    'test:concordancia',
     'test:distribuicao',
     'test:marcacao',
     'test:mencoes',

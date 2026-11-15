@@ -133,18 +133,35 @@ comVocabularioNasConfiguracoes(original, { pessoa: 'outro' })
 conferir('o objeto de entrada ficou intacto', original, { fusoHorario: 'X', vocabulario: { pessoa: 'hóspede' } })
 
 console.log('\nA lista de campos é DERIVADA do contrato, não escrita à mão')
-conferir(
-    'os quatro eixos estão no padrão da marca',
-    Object.keys(PADRAO).length,
-    16
-)
-for (const campo of Object.keys(PADRAO)) {
+const PALAVRAS = Object.entries(PADRAO)
+    .filter(([, v]) => typeof v === 'string')
+    .map(([k]) => k)
+conferir('os quatro eixos dão 16 palavras', PALAVRAS.length, 16)
+for (const campo of PALAVRAS) {
     conferir(
         `o override de "${campo}" é aceito`,
         vocab({ vocabulario: { [campo]: 'xyz' } })[campo as keyof typeof PADRAO],
         'xyz'
     )
 }
+
+console.log('\nO gênero NÃO é sobrescritível pela unidade')
+/*
+ * Ele entrou no contrato como objeto, e a lista de campos ajustáveis é derivada
+ * das chaves. Sem filtrar por TIPO, a unidade poderia gravar `genero: "x"` e
+ * quebrar a concordância de todas as frases do produto de uma vez. O teste
+ * acima pegou isto quando o gênero entrou — a derivação precisava do filtro.
+ */
+conferir(
+    'tentar sobrescrever o gênero não muda nada',
+    vocab({ vocabulario: { genero: 'xyz' } }).genero,
+    PADRAO.genero
+)
+conferir(
+    'e ele não aparece no override lido',
+    'genero' in lerVocabularioDasConfiguracoes({ vocabulario: { genero: 'xyz' } }),
+    false
+)
 
 console.log(`\n${passou} ok, ${falhou} falha(s)\n`)
 process.exit(falhou > 0 ? 1 : 0)

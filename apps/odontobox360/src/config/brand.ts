@@ -40,6 +40,12 @@ export const BRAND: Brand = {
     og: '/logos/logo-wordmark-light.png',
     emailFooter: 'OdontoBox360 · atendimento, agenda e CRM para clínicas odontológicas',
     vocabulario: {
+        genero: {
+            organizacao: 'f',
+            pessoa: 'm',
+            profissional: 'm',
+            servico: 'm',
+        },
         organizacao: 'clínica',
         Organizacao: 'Clínica',
         organizacoes: 'clínicas',

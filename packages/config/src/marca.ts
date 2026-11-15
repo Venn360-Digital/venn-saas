@@ -79,6 +79,29 @@ export interface Brand {
      * uma vez por app, contra um bug de rótulo que ninguém revisa.
      */
     vocabulario: {
+        /**
+         * O gênero gramatical de cada eixo, para a concordância.
+         *
+         * Medido antes de existir: **228 das 548 ocorrências** de palavra do
+         * nicho em `packages/` vêm precedidas de determinante — 103 de artigo
+         * definido, 74 de `de`+artigo, 27 de demonstrativo. 42% dos casos, não
+         * uma borda.
+         *
+         * Sem isto, trocar a palavra quebra a frase: "abrir **o** paciente"
+         * vira "**o** clínica" num nicho feminino, e "**a** clínica" vira
+         * "**a** estúdio". O helper `comArtigo` em `core/lib/concordancia`
+         * monta o determinante a partir daqui.
+         *
+         * É uma declaração do app e não uma dedução: "paciente" e "cliente" são
+         * comuns de dois gêneros, e qual se usa é escolha de quem escreve o
+         * produto, não do dicionário.
+         */
+        genero: {
+            organizacao: 'm' | 'f'
+            pessoa: 'm' | 'f'
+            profissional: 'm' | 'f'
+            servico: 'm' | 'f'
+        }
         /** Quem assina o contrato: clínica, agência, empresa. */
         organizacao: string
         Organizacao: string

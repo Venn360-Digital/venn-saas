@@ -56,9 +56,21 @@ const CHAVE = 'vocabulario'
  * Função, não constante: `BRAND()` lança se ninguém registrou a marca, e um
  * `const` aqui seria avaliado quando a Cloudflare valida o script.
  */
-function campos(): (keyof Vocabulario)[] {
-    return Object.keys(BRAND().vocabulario) as (keyof Vocabulario)[]
+function campos(): PalavraDoNicho[] {
+    const v = BRAND().vocabulario as Record<string, unknown>
+    /*
+     * Só as chaves de TEXTO. `genero` entrou no contrato e é um objeto, não uma
+     * palavra — sem este filtro a unidade poderia gravar `genero: "x"` pelo
+     * override e quebrar a concordância de todas as frases. O filtro é pelo
+     * TIPO do valor, não por uma lista de exceções que alguém manteria à mão.
+     */
+    return Object.keys(v).filter((k) => typeof v[k] === 'string') as PalavraDoNicho[]
 }
+
+/** As chaves de `vocabulario` que são palavra, e não a tabela de gênero. */
+export type PalavraDoNicho = {
+    [K in keyof Vocabulario]: Vocabulario[K] extends string ? K : never
+}[keyof Vocabulario]
 
 /**
  * Uma palavra só vale se for texto não vazio e curto.
@@ -74,12 +86,12 @@ function palavraValida(v: unknown): v is string {
 }
 
 /** O override da unidade, só com os campos válidos. */
-export function lerVocabularioDasConfiguracoes(settings: unknown): Partial<Vocabulario> {
+export function lerVocabularioDasConfiguracoes(settings: unknown): Partial<Record<PalavraDoNicho, string>> {
     if (!settings || typeof settings !== 'object' || Array.isArray(settings)) return {}
     const bruto = (settings as Record<string, unknown>)[CHAVE]
     if (!bruto || typeof bruto !== 'object' || Array.isArray(bruto)) return {}
     const lido = bruto as Record<string, unknown>
-    const saida: Partial<Vocabulario> = {}
+    const saida: Partial<Record<PalavraDoNicho, string>> = {}
     for (const campo of campos()) {
         const v = lido[campo]
         if (palavraValida(v)) saida[campo] = v.trim()
@@ -112,7 +124,7 @@ export function temVocabularioNasConfiguracoes(settings: unknown): boolean {
  */
 export function comVocabularioNasConfiguracoes(
     settings: unknown,
-    ajuste: Partial<Record<keyof Vocabulario, string>>
+    ajuste: Partial<Record<PalavraDoNicho, string>>
 ): Record<string, unknown> {
     const base =
         settings && typeof settings === 'object' && !Array.isArray(settings)
