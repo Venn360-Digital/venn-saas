@@ -84,7 +84,7 @@ antes do publish**:
 2. `audit:isolation --strict` — recusa vazamento de identidade entre os apps.
 
 `smoke:prod` roda **depois** do publish e confere, de fora, que a identidade
-publicada bate com `infra/manifest.json`. Smoke falho é alarme, não portão:
+publicada bate com `infra/manifest/<app>.json`. Smoke falho é alarme, não portão:
 diagnóstico pela árvore de rollback do arquivo 15 (§6.3), nunca rollback
 automático.
 

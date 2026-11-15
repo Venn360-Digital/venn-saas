@@ -40,7 +40,7 @@ Para cada credencial VIVA encontrada no histórico:
 
 ### 4. Manifesto da própria Odontobox
 
-Crie `infra/manifest.json` da Odontobox (formato de `infra/runbook/templates/manifest.example.json`) com os recursos REAIS e os nomes atuais (R10). Ele documenta a Odontobox no mesmo formato dos novos apps.
+Crie `infra/manifest/<app>.json` da Odontobox (formato de `infra/runbook/templates/manifest.example.json`) com os recursos REAIS e os nomes atuais (R10). Ele documenta a Odontobox no mesmo formato dos novos apps.
 
 ### 5. Higiene do repositório
 
@@ -66,7 +66,7 @@ Crie `infra/manifest.json` da Odontobox (formato de `infra/runbook/templates/man
 ## Saídas
 
 - PR `chore/dup-saneamento`.
-- `infra/manifest.json` (Odontobox).
+- `infra/manifest/<app>.json` (Odontobox).
 - `infra/reports/odontobox/fase-02.md`: o que foi corrigido, credenciais rotacionadas (nomes + fingerprints novos), resultado das migrations e pendências.
 
 ## Critérios de saída

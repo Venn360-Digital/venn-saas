@@ -2,7 +2,7 @@
 
 **Onde executar:** repositório do novo app (ex.: `stagent360`), branch `chore/dup-neon`.
 **Modo:** Plan mode. Use o MCP da Neon. Aplique R5 antes de cada escrita.
-**Antes de começar:** leia `infra/runbook/01-REGRAS-GLOBAIS.md` e `infra/manifest.json`.
+**Antes de começar:** leia `infra/runbook/01-REGRAS-GLOBAIS.md` e `infra/manifest/<app>.json`.
 
 ---
 
@@ -58,7 +58,7 @@ Criar um projeto Neon EXCLUSIVO do app, com branches `production` e `staging`, r
 
 ## Saídas
 
-- `infra/manifest.json` e `infra/fingerprints/{slug}.json` atualizados.
+- `infra/manifest/<app>.json` e `infra/fingerprints/{slug}.json` atualizados.
 - `infra/reports/{slug}/fase-06.md`: IDs, fingerprints das 4 credenciais, evidências das verificações.
 
 ## Critérios de saída

@@ -44,7 +44,7 @@ Pacote de prompts para o **Claude Code**: cada fase é um arquivo e termina em u
 
 ## Templates (`templates/`)
 
-- `manifest.example.json`: modelo do `infra/manifest.json`, a fonte única de verdade dos recursos de cada app.
+- `manifest.example.json`: modelo do `infra/manifest/<app>.json`, a fonte única de verdade dos recursos de cada app.
 - `fingerprint.example.json`: modelo de `infra/fingerprints/<slug>.json`, os identificadores de um app, que viram lista proibida nos outros.
 - `audit-isolation.mjs`: auditoria estática, sem dependências.
   - `node scripts/audit-isolation.mjs` aceita os placeholders `__FASE07__` (Fases 05–06).

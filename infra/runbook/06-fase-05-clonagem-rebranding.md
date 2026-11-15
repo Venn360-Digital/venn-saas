@@ -55,7 +55,7 @@ SEGMENTO_SEEDS   = none                        # ou o segmento do novo produto
 
 ## Parte 2 — Rebranding (branch `chore/dup-identidade`)
 
-1. **`infra/manifest.json`:**
+1. **`infra/manifest/<app>.json`:**
    - recrie a partir de `infra/runbook/templates/manifest.example.json`, com as variáveis acima e os nomes da convenção;
    - IDs vazios, que serão preenchidos nas Fases 06–08;
    - apague o manifesto herdado da Odontobox.

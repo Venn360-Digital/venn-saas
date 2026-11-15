@@ -3,12 +3,19 @@
  * audit-isolation.mjs — Auditoria estática de isolamento entre apps (Odontobox360 / Stagent360 / Conecta360)
  *
  * Falha (exit 1) quando o repositório:
- *   1. contém qualquer identificador listado em infra/fingerprints/<outro-app>.json
- *      (strings de marca, hostnames, IDs Cloudflare, buckets, endpoints Neon, containers, client IDs...);
- *   2. tem no wrangler um ID/bucket/rota/nome de Worker que não pertence ao ambiente certo do infra/manifest.json;
- *   3. tem o ambiente `stg` apontando para recurso de `production` (ou o contrário);
- *   4. tem a configuração raiz do wrangler (dev local, sem --env) apontando para recurso de produção;
- *   5. tem recursos do manifesto que colidem com recursos de outro app.
+ *   1. tem um `infra/manifest/<app>.json` que cita identificador de OUTRO app —
+ *      é dali que o portão de deploy tira o que comparar, e um endpoint Neon
+ *      alheio aprovaria um deploy apontado para o banco errado;
+ *   2. tem, em `apps/<X>/`, identificador de outro app; ou, fora de `apps/`,
+ *      identificador de app que não mora neste repositório;
+ *   2b. tem identidade de app NENHUM dentro de `packages/**` — é o que força
+ *      texto novo a nascer pela marca e pelo vocabulário;
+ *   3. (removida — ver a nota no lugar dela; quem faz o trabalho é
+ *      `scripts/check-recursos.ts`, passo 6 do portão).
+ *
+ * O escopo vem do CAMINHO, e o dono é DERIVADO (do nome da pasta em `apps/`, do
+ * nome do arquivo em `infra/manifest/`), nunca adivinhado por prefixo —
+ * `odontobox360` não começa igual a `odontobox`.
  *
  * Uso:
  *   node scripts/audit-isolation.mjs            # placeholders __FASE07__ aceitos (Fases 05-06)
@@ -19,12 +26,39 @@
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
 import { execSync } from 'node:child_process';
 import { join, relative, extname, basename } from 'node:path';
+import { manifestos } from './lib/manifestos.mjs';
 
 const ROOT = process.cwd();
+/**
+ * `--strict` é o modo do PORTÃO DE DEPLOY, e tem de significar algo.
+ *
+ * O único efeito dele vivia dentro da regra 3 (placeholders `__FASE07__` eram
+ * erro em strict e aviso fora). Removida a regra, o flag ficou decorativo: o
+ * portão continuaria passando `--strict` e o comportamento seria idêntico ao
+ * modo frouxo. Flag oco num portão é pior que flag ausente, porque documenta
+ * uma garantia que não existe.
+ *
+ * Agora ele significa: **todo app aqui tem os TRÊS** — pasta em `apps/`,
+ * manifesto em `infra/manifest/` e fingerprint em `infra/fingerprints/`.
+ *
+ * Os três são o que torna o escopo por dono possível: a pasta diz onde o
+ * código mora, o manifesto diz o que o deploy deve usar, o fingerprint diz
+ * quais strings são identidade dele. Falte um e as regras deste arquivo
+ * passam a proteger menos do que parecem — um manifesto sem fingerprint, por
+ * exemplo, não é conferido por ninguém, porque a regra 1 escopa comparando com
+ * os tokens dos OUTROS e a identidade dele não está listada em lugar nenhum.
+ *
+ * Fora do strict isso é aviso, de propósito: criar um app é vários commits, e
+ * rodar a auditoria no meio do caminho tem de ser possível. O que não pode é
+ * um app a meio caminho CHEGAR AO DEPLOY — e é o portão que passa `--strict`.
+ *
+ * Também vale para frente: aviso novo acrescentado a este arquivo passa a
+ * barrar o deploy por construção, em vez de virar ruído permanente que ninguém
+ * lê — foi o que aconteceu com "validação de bindings ignorada", impressa em
+ * todo build por meses.
+ */
 const STRICT = process.argv.includes('--strict');
-const MANIFEST_PATH = 'infra/manifest.json';
 const FINGERPRINT_DIR = 'infra/fingerprints';
-const PLACEHOLDER = '__FASE07__';
 
 const IGNORE_DIRS = new Set([
   '.git', 'node_modules', '.wrangler', '.open-next', '.next', 'dist', 'build',
@@ -37,6 +71,13 @@ const IGNORE_DIRS = new Set([
 // Caminhos onde menções a outros apps são legítimas (documentação, inventários, listas proibidas)
 const IGNORE_PREFIXES = [
   'infra/runbook/', 'infra/fingerprints/', 'infra/inventory/', 'infra/reports/',
+  /*
+   * `infra/manifest/<slug>.json` é a identidade DECLARADA de cada app: ele tem
+   * de poder dizer o próprio nome. Quem confere que ele não diz o nome dos
+   * outros é a regra 1, arquivo por arquivo, com o dono vindo do nome do
+   * arquivo — mesma divisão de trabalho dos fingerprints acima.
+   */
+  'infra/manifest/',
   'scripts/audit-isolation.mjs',
   /*
    * Migração APLICADA é imutável: editar o arquivo muda o checksum e o
@@ -50,7 +91,6 @@ const BINARY_EXT = new Set([
   '.png', '.jpg', '.jpeg', '.gif', '.webp', '.avif', '.ico', '.pdf', '.woff', '.woff2',
   '.ttf', '.otf', '.eot', '.zip', '.gz', '.tgz', '.mp4', '.mp3', '.wav', '.webm', '.lockb', '.wasm',
 ]);
-const HEX32 = /\b[0-9a-f]{32}\b/gi;
 
 const errors = [];
 const warnings = [];
@@ -78,32 +118,7 @@ function deepStrings(value, acc = []) {
   return acc;
 }
 
-function hexIds(text) {
-  return new Set((String(text).match(HEX32) || []).map((s) => s.toLowerCase()));
-}
 
-/** Remove comentários de JSONC respeitando strings ("https://" não é comentário) e vírgulas finais. */
-function stripJsonc(src) {
-  let out = '';
-  let inStr = false;
-  let esc = false;
-  for (let i = 0; i < src.length; i++) {
-    const c = src[i];
-    const n = src[i + 1];
-    if (inStr) {
-      out += c;
-      if (esc) esc = false;
-      else if (c === '\\') esc = true;
-      else if (c === '"') inStr = false;
-      continue;
-    }
-    if (c === '"') { inStr = true; out += c; continue; }
-    if (c === '/' && n === '/') { while (i < src.length && src[i] !== '\n') i++; out += '\n'; continue; }
-    if (c === '/' && n === '*') { i += 2; while (i < src.length && !(src[i] === '*' && src[i + 1] === '/')) i++; i++; continue; }
-    out += c;
-  }
-  return out.replace(/,(\s*[}\]])/g, '$1');
-}
 
 /**
  * A lista de arquivos vem do GIT, não do disco — e isso foi um conserto.
@@ -119,8 +134,25 @@ function stripJsonc(src) {
  *
  * O `walk` fica como reserva para ambiente sem git.
  */
+/**
+ * Os arquivos do repositório — rastreados **e os novos ainda não rastreados**.
+ *
+ * Era só `git ls-files`, e isso abria um falso verde que me pegou em 15/11:
+ * arquivo recém-criado é invisível a `ls-files` até o `git add`, então rodar a
+ * auditoria antes de commitar a aprovava sobre um arquivo que ela **nunca
+ * leu** — e o build reprovou no primeiro arquivo novo do lote, por um
+ * identificador de app irmão num comentário meu.
+ *
+ * `--others --exclude-standard` acrescenta o não rastreado respeitando o
+ * `.gitignore`, que é o que torna o resultado local igual ao do builder (lá
+ * tudo já está commitado). Mesma classe das outras seis formas do defeito de
+ * caminho: a verificação olhava um conjunto diferente do que o portão olha.
+ */
 function arquivosDoGit() {
-  const saida = execSync('git ls-files -z', { cwd: ROOT, maxBuffer: 64 * 1024 * 1024 });
+  const saida = execSync('git ls-files -z --cached --others --exclude-standard', {
+    cwd: ROOT,
+    maxBuffer: 64 * 1024 * 1024,
+  });
   const lista = [];
   for (const rel of saida.toString('utf8').split('\0')) {
     if (!rel) continue;
@@ -150,46 +182,127 @@ function walk(dir, out = []) {
 }
 
 // ---------- carga ----------
-const manifest = readJson(MANIFEST_PATH);
-const SLUG = manifest?.app?.slug;
-if (!SLUG) { console.error('✖ manifest.app.slug ausente'); process.exit(2); }
-const envs = manifest.environments || {};
-const ENV_NAMES = Object.keys(envs);
-if (!ENV_NAMES.includes('production') || !ENV_NAMES.includes('stg')) {
-  err(`manifest.environments deve conter "production" e "stg" (encontrado: ${ENV_NAMES.join(', ') || 'nenhum'})`);
-}
+/**
+ * Um manifesto por app (`infra/manifest/<slug>.json`). A validação de forma —
+ * existir, ser JSON, o nome do arquivo bater com `app.slug`, declarar os dois
+ * ambientes — mora em `scripts/lib/manifestos.mjs`, porque três verificadores
+ * dependem dela.
+ */
+const MANIFESTOS = manifestos();
+const SLUGS_DAQUI = new Set(MANIFESTOS.map((m) => m.slug));
 
 const fingerprints = [];
-/** TODOS os fingerprints, o do próprio app incluído — a regra por pasta precisa deles. */
+/** TODOS os fingerprints, o dos apps daqui incluídos — a regra por pasta precisa deles. */
 const fingerprintsTodos = [];
 if (existsSync(FINGERPRINT_DIR)) {
   for (const f of readdirSync(FINGERPRINT_DIR).filter((x) => x.endsWith('.json'))) {
     const fp = readJson(join(FINGERPRINT_DIR, f));
     const fpSlug = fp.slug || basename(f, '.json');
     fingerprintsTodos.push({ file: f, slug: fpSlug, data: fp });
-    if (fpSlug === SLUG) continue; // o próprio app: não entra na lista proibida global
+    /*
+     * A lista proibida GLOBAL (para caminhos sem dono: `packages/`, `scripts/`,
+     * a raiz) é derivada: é o fingerprint de app que **não mora neste
+     * repositório**, isto é, que não tem manifesto aqui.
+     *
+     * Antes era "todos menos o do manifesto", com um manifesto só. Dava o mesmo
+     * resultado por acidente de haver um app. Com três, a raiz passa a nomear
+     * legitimamente os três — `package.json` já carrega `--expect-slug
+     * odontobox` no `migrate:prod` e o `smoke:prod` nomeia o app que publica —,
+     * então "todos menos um" reprovaria o orquestrador do monorepo.
+     *
+     * Quem protege os caminhos sem dono é a regra 2b, que proíbe identidade de
+     * app NENHUM em `packages/**`. A lista global cuida do caso diferente e
+     * ainda real: o identificador de um app que ainda vive em outro repositório
+     * não pode aparecer aqui antes de ele chegar — foi assim que um comentário
+     * copiado barrou um deploy em 13/11.
+     */
+    if (SLUGS_DAQUI.has(fpSlug)) continue;
     fingerprints.push({ file: f, slug: fpSlug, data: fp });
   }
 } else {
-  warn(`Pasta ${FINGERPRINT_DIR}/ não existe — nenhuma lista proibida carregada.`);
+  /*
+   * Erro SEMPRE, e não só em strict: varrer 1200 arquivos contra uma lista
+   * vazia relata "nenhum vazamento encontrado" — a forma mais perfeita de
+   * falso verde que existe. Não há uso, nem local, em que isso seja aceitável.
+   */
+  err(`Pasta ${FINGERPRINT_DIR}/ não existe — nenhuma lista proibida carregada, logo nada a encontrar.`);
+}
+if (fingerprintsTodos.length === 0) {
+  err(
+    `${FINGERPRINT_DIR}/ não tem nenhum fingerprint — a varredura abaixo compararia cada arquivo contra uma lista vazia e passaria.`
+  );
 }
 
+/*
+ * `warnStrings` NÃO entra aqui, e a razão é um defeito que esta leitura
+ * revelou: o radar de termo de nicho **nunca disparou**.
+ *
+ * Ele era montado a partir de `fingerprints`, que é a lista dos OUTROS apps — e
+ * `warnStrings` só existe no fingerprint do odontobox, justamente o que fica
+ * fora dessa lista. Dez termos ('odontograma', 'dentista', 'convênio', 'CRO'…)
+ * apontados por ninguém, desde sempre.
+ *
+ * Consertá-lo aqui seria duplicar mal o `lint-vocabulario`, que faz o mesmo
+ * trabalho **certo**: separa comentário de código por análise de estado (há 705
+ * "paciente" e 1231 "clínica" em prosa de comentário dentro de `packages/`,
+ * explicando o domínio — proibi-los ensinaria a escrever código sem
+ * explicação), tem teto que só desce e está em zero absoluto. Esta auditoria não
+ * analisa comentário: ligar o radar aqui reprovaria 1900 linhas de prosa
+ * legítima.
+ *
+ * Seis dos dez termos já estão cobertos pelos quatro eixos do
+ * `lint-vocabulario`. Os outros quatro — 'odontograma', 'odontológico',
+ * 'convênio' e 'CRO' — vão para lá no lote dos prompts de IA, e não aqui:
+ * medidos fora de comentário, são **12 ocorrências em 5 arquivos**
+ * (`treinamento/modelos` 5, `types/agent-creation` 3, `config/app` 2,
+ * `conversas/resumo` 1, `follow-up-suggestion` 1) — texto de prompt e um
+ * feature flag chamado `odontograma`. Prompt é o que o agente fala com o
+ * cliente final: mexer nele pede `test:prompt`, `test:cenarios` e
+ * `test:escalada` antes e depois, que é lote próprio por desenho. Entrar no
+ * teto junto com eles é o que impede os 12 de virarem 13.
+ */
 const forbidden = []; // { token, lower, owner }
-const warnTokens = [];
 for (const fp of fingerprints) {
   for (const [key, val] of Object.entries(fp.data)) {
-    if (key === 'slug' || key.startsWith('$')) continue;
-    const list = deepStrings(val).map((s) => s.trim()).filter((s) => s.length >= 3 && !s.startsWith('<'));
-    if (key === 'warnStrings') list.forEach((t) => warnTokens.push({ token: t, lower: t.toLowerCase(), owner: fp.slug }));
-    else list.forEach((t) => forbidden.push({ token: t, lower: t.toLowerCase(), owner: fp.slug }));
+    if (key === 'slug' || key === 'warnStrings' || key.startsWith('$')) continue;
+    for (const tk of deepStrings(val).map((s) => s.trim()).filter((s) => s.length >= 3 && !s.startsWith('<'))) {
+      forbidden.push({ token: tk, lower: tk.toLowerCase(), owner: fp.slug });
+    }
   }
+}
+
+/* ----------  0. os três artefatos de cada app  ----------
+ *
+ * Erro em strict, aviso fora. Ver a nota do `--strict` acima para por que são
+ * três e por que a tolerância local é deliberada.
+ */
+const pastasDeApp = existsSync('apps')
+  ? readdirSync('apps').filter((n) => existsSync(join('apps', n, 'cloudflare.config.ts')))
+  : [];
+const slugsComFingerprint = new Set(fingerprintsTodos.map((fp) => fp.slug));
+const cobrar = STRICT ? err : warn;
+
+for (const slug of SLUGS_DAQUI) {
+  if (!slugsComFingerprint.has(slug)) {
+    cobrar(`o app "${slug}" tem manifesto mas não tem ${FINGERPRINT_DIR}/${slug}.json — sem fingerprint, a identidade dele não é conferida por ninguém.`);
+  }
+}
+for (const fp of fingerprintsTodos) {
+  if (!SLUGS_DAQUI.has(fp.slug)) continue; // app de outro repositório: só a lista proibida
+  const temPasta = pastasDeApp.some((n) => n.startsWith(fp.slug));
+  if (!temPasta) {
+    cobrar(`o app "${fp.slug}" tem manifesto e fingerprint mas nenhuma pasta em apps/ com cloudflare.config.ts.`);
+  }
+}
+if (pastasDeApp.length === 0) {
+  err('apps/ não tem nenhuma pasta com cloudflare.config.ts — não há app para auditar.');
 }
 
 /**
  * De quem é a pasta `apps/<X>/`? Derivado do fingerprint, com fail-fast.
  *
- * Existe porque a regra 1 nasceu mono-app: um `SLUG` vindo do manifesto, e os
- * outros fingerprints proibidos em TODO o repositório. Com os três apps no
+ * Existe porque a regra 1 nasceu mono-app: um slug vindo de um manifesto só, e
+ * os outros fingerprints proibidos em TODO o repositório. Com os três apps no
  * mesmo repositório isso deixa de fazer sentido — `apps/stagent360/**` tem de
  * poder dizer "stagent", que é a identidade dele, e tem de NÃO poder dizer
  * "odontobox".
@@ -232,11 +345,20 @@ for (const fp of fingerprintsTodos) {
   }
 }
 
-// ---------- 1. colisão manifesto × outros apps ----------
-const manifestValues = deepStrings(manifest).map((s) => s.toLowerCase()).filter((s) => s.length >= 3);
-for (const f of forbidden) {
-  if (manifestValues.some((v) => v === f.lower || (f.lower.length >= 8 && v.includes(f.lower)))) {
-    err(`infra/manifest.json contém "${f.token}", que pertence ao app "${f.owner}"`);
+/* ----------  1. colisão manifesto × outros apps  ----------
+ *
+ * Arquivo por arquivo, e o dono vem do NOME do arquivo. O manifesto de um app
+ * pode — tem de — dizer a identidade dele; o que não pode é citar a de outro,
+ * porque é dali que o portão de deploy tira o que comparar. Um manifesto com o
+ * endpoint Neon do app irmão aprovaria um deploy apontado para o banco errado.
+ */
+for (const { slug, caminho, dados } of MANIFESTOS) {
+  const valores = deepStrings(dados).map((s) => s.toLowerCase()).filter((s) => s.length >= 3);
+  const alheios = todosOsTokens.filter((tk) => tk.owner !== slug);
+  for (const f of alheios) {
+    if (valores.some((v) => v === f.lower || (f.lower.length >= 8 && v.includes(f.lower)))) {
+      err(`${caminho} contém "${f.token}", que pertence ao app "${f.owner}"`);
+    }
   }
 }
 
@@ -269,11 +391,6 @@ for (const { rel, binary } of files) {
     if (!lower.includes(f.lower)) continue;
     const ln = lines.findIndex((l) => l.toLowerCase().includes(f.lower)) + 1;
     err(`${rel}:${ln} referencia "${f.token}" (app "${f.owner}")`);
-  }
-  for (const w of warnTokens) {
-    if (!lower.includes(w.lower)) continue;
-    const ln = lines.findIndex((l) => l.toLowerCase().includes(w.lower)) + 1;
-    warn(`${rel}:${ln} contém termo do segmento "${w.token}" (revise se faz sentido neste produto)`);
   }
 }
 
@@ -361,120 +478,36 @@ if (vazamentosNoCompartilhado.size > 0) {
   );
 }
 
-// ---------- 3. wrangler × manifesto ----------
-const wranglerFile = ['wrangler.jsonc', 'wrangler.json', 'wrangler.toml'].find((f) => existsSync(f));
-if (!wranglerFile) {
-  warn('Nenhum wrangler.jsonc/json/toml encontrado na raiz — validação de bindings ignorada.');
-} else {
-  const raw = readFileSync(wranglerFile, 'utf8');
+/* ----------  3. (removida) wrangler × manifesto  ----------
+ *
+ * Eram ~110 linhas que **nunca validaram nada**: toda a regra vivia dentro de
+ * `if (wranglerFile)`, e não existe `wrangler.jsonc` neste repositório desde a
+ * migração para o pacote `cf`. O ramo do `else` imprimia
+ * "validação de bindings ignorada" em todo build — um aviso permanente, que é
+ * a forma mais eficiente de ninguém mais ler os avisos.
+ *
+ * A premissa dela também morreu com o monorepo: ela esperava UM wrangler na
+ * raiz, e aqui cada app tem o seu `cloudflare.config.ts`, que importa o
+ * entrypoint com `with { type: 'cf-worker' }` e por isso não é avaliável no
+ * Node — não há o que interpretar como JSON.
+ *
+ * Quem faz o trabalho hoje, e de verdade, é `scripts/check-recursos.ts` (passo
+ * 6 do portão, PR #224): afirma um prefixo por ambiente, prefixos diferentes
+ * entre produção e homologação, e o config contendo o prefixo e o nome do
+ * Worker que o manifesto declara — agora app por app. Foi provado em quatro
+ * cenários, cada um um erro real.
+ */
 
-  if (raw.includes(PLACEHOLDER)) {
-    (STRICT ? err : warn)(`${wranglerFile} ainda contém placeholders ${PLACEHOLDER}`);
-  }
-
-  const appLevelIds = hexIds(JSON.stringify({ ...manifest, environments: undefined }));
-  const envIds = Object.fromEntries(ENV_NAMES.map((e) => [e, hexIds(JSON.stringify(envs[e]))]));
-  const allManifestIds = new Set([...appLevelIds, ...Object.values(envIds).flatMap((s) => [...s])]);
-
-  for (const id of hexIds(raw)) {
-    if (!allManifestIds.has(id)) err(`${wranglerFile} contém o ID ${id}, que não consta em infra/manifest.json`);
-  }
-
-  if (wranglerFile === 'wrangler.toml') {
-    warn('wrangler.toml: validação por ambiente não suportada (apenas checagem global de IDs). Considere migrar para wrangler.jsonc.');
-  } else {
-    let cfg;
-    try { cfg = JSON.parse(stripJsonc(raw)); } catch (e) { err(`Não foi possível interpretar ${wranglerFile}: ${e.message}`); }
-    if (cfg) {
-      const otherEnv = (e) => ENV_NAMES.filter((x) => x !== e);
-
-      // 3a. raiz (dev local) não pode apontar para produção
-      const { env: _envBlock, ...rootCfg } = cfg;
-      const rootText = JSON.stringify(rootCfg);
-      for (const id of hexIds(rootText)) {
-        if (envIds.production?.has(id) && !appLevelIds.has(id)) {
-          err(`Configuração raiz do ${wranglerFile} (usada sem --env) aponta para recurso de PRODUÇÃO: ${id}`);
-        }
-      }
-      for (const b of rootCfg.r2_buckets || []) {
-        const prodBuckets = (envs.production?.cloudflare?.r2 || []).map((x) => x.name);
-        if (prodBuckets.includes(b.bucket_name)) err(`Configuração raiz usa o bucket de PRODUÇÃO ${b.bucket_name}`);
-      }
-
-      // 3b. cada ambiente
-      for (const e of ENV_NAMES) {
-        const sec = cfg.env?.[e];
-        if (!sec) { err(`${wranglerFile}: bloco env.${e} ausente`); continue; }
-        const m = envs[e];
-        const secText = JSON.stringify(sec);
-
-        if (m?.cloudflare?.worker && sec.name && sec.name !== m.cloudflare.worker) {
-          err(`env.${e}.name = "${sec.name}", esperado "${m.cloudflare.worker}"`);
-        }
-        if (!sec.name) warn(`env.${e}.name não definido (o wrangler gerará "<name>-${e}"). Defina explicitamente "${m?.cloudflare?.worker}".`);
-
-        for (const id of hexIds(secText)) {
-          if (appLevelIds.has(id)) continue;
-          if (!envIds[e].has(id)) {
-            const owner = otherEnv(e).find((o) => envIds[o].has(id));
-            err(owner
-              ? `env.${e} referencia ${id}, que pertence ao ambiente "${owner}"`
-              : `env.${e} referencia ${id}, que não consta em manifest.environments.${e}`);
-          }
-        }
-
-        const allowedBuckets = (m?.cloudflare?.r2 || []).map((x) => x.name);
-        for (const b of sec.r2_buckets || []) {
-          if (b.bucket_name === PLACEHOLDER) continue;
-          if (!allowedBuckets.includes(b.bucket_name)) err(`env.${e} usa o bucket "${b.bucket_name}", fora do manifesto deste ambiente`);
-        }
-
-        const allowedQueues = (m?.cloudflare?.queues || []).map((x) => x.name);
-        const q = sec.queues || {};
-        for (const p of [...(q.producers || []), ...(q.consumers || [])]) {
-          if (p.queue === PLACEHOLDER) continue;
-          if (p.queue && !allowedQueues.includes(p.queue)) err(`env.${e} usa a queue "${p.queue}", fora do manifesto deste ambiente`);
-        }
-
-        const allowedHosts = deepStrings(m?.hostnames || {}).map((h) => h.toLowerCase());
-        const routes = [...(sec.routes || []), ...(sec.route ? [sec.route] : [])];
-        for (const r of routes) {
-          const pattern = typeof r === 'string' ? r : r.pattern;
-          if (!pattern || pattern === PLACEHOLDER) continue;
-          const host = pattern.replace(/^https?:\/\//, '').split('/')[0].replace(/^\*\.?/, '').toLowerCase();
-          if (!allowedHosts.includes(host)) err(`env.${e} tem rota "${pattern}" fora dos hostnames do manifesto deste ambiente`);
-        }
-
-        // vars não podem apontar para hostnames de outro ambiente
-        // (comparação com fronteira: "homolog.stagent.venn360.com" NÃO casa com "stagent.venn360.com";
-        //  e-mails como "suporte@host" são ignorados)
-        const varsText = JSON.stringify(sec.vars || {}).toLowerCase();
-        for (const o of otherEnv(e)) {
-          const oh = envs[o]?.hostnames || {};
-          for (const h of [oh.app, oh.evolution, oh.emailDomain].filter(Boolean)) {
-            const hl = h.toLowerCase();
-            if (allowedHosts.includes(hl)) continue;
-            const re = new RegExp(`(?<![a-z0-9.@-])${hl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![a-z0-9-])`);
-            if (re.test(varsText)) err(`env.${e}.vars referencia o hostname "${h}", do ambiente "${o}"`);
-          }
-        }
-
-        const slugVar = sec.vars?.APP_SLUG;
-        if (slugVar && slugVar !== SLUG) err(`env.${e}.vars.APP_SLUG = "${slugVar}", esperado "${SLUG}"`);
-        const envVar = sec.vars?.APP_ENV;
-        if (envVar && envVar !== e) err(`env.${e}.vars.APP_ENV = "${envVar}", esperado "${e}"`);
-      }
-    }
-  }
-}
-
-// ---------- saída ----------
-const head = `Auditoria de isolamento — app "${SLUG}"${STRICT ? ' (strict)' : ''} — ${files.length} arquivos, ${forbidden.length} identificadores proibidos de ${fingerprints.length} outro(s) app(s)`;
+const head = `Auditoria de isolamento — ${MANIFESTOS.length} app(s) aqui (${[...SLUGS_DAQUI].join(', ')})${STRICT ? ' (strict)' : ''} — ${files.length} arquivos, ${forbidden.length} identificadores proibidos de ${fingerprints.length} app(s) de fora`;
 console.log(head);
 for (const w of warnings) console.log(`  ⚠ ${w}`);
 for (const e of errors) console.log(`  ✖ ${e}`);
 if (errors.length) {
   console.log(`\nFALHOU: ${errors.length} erro(s). Não faça deploy nem rode migrations. Não desabilite esta auditoria (R12).`);
+  process.exit(1);
+}
+if (STRICT && warnings.length) {
+  console.log(`\nFALHOU: ${warnings.length} aviso(s), e --strict não tolera aviso. Resolva ou rebaixe a regra de propósito.`);
   process.exit(1);
 }
 console.log(`\nOK: nenhum vazamento de identidade encontrado${warnings.length ? ` (${warnings.length} aviso(s) para revisar)` : ''}.`);
