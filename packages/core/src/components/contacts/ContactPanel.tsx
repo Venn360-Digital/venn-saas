@@ -36,6 +36,8 @@ import { canalComApelido } from '../../lib/linha'
 import { formatPhone } from '../../lib/phone'
 import { createdViaLabel } from '../../lib/created-via'
 import { cn } from '@venn/ui/utils'
+import { useVocab } from '../../hooks/useVocab'
+import { comArtigo } from '../../lib/concordancia'
 
 /** Os quatro modos da ficha, nos mesmos nomes da ficha do negócio. */
 type Mode = 'ficha' | 'schedule' | 'activities' | 'notes'
@@ -174,6 +176,8 @@ export function ContactPanel({
     onDelete: (contactId: string) => void
     onTagCreated?: (tag: PickableTag) => void
 }) {
+    const v = useVocab()
+
     const [detail, setDetail] = useState<Detail | null>(null)
     const [saved, setSaved] = useState<string | null>(null)
     const [mode, setMode] = useState<Mode>('ficha')
@@ -275,15 +279,15 @@ export function ContactPanel({
     const openDeal = detail?.deals.find((d) => d.status === 'open') ?? null
     const lastConversation = detail?.conversations[0] ?? null
     const modes = [
-        { id: 'ficha', label: 'Ficha do paciente', icon: User },
+        { id: 'ficha', label: `Ficha ${comArtigo(v, 'pessoa', 'de')}`, icon: User },
         { id: 'schedule', label: 'Agendar atividade', icon: CalendarPlus },
         { id: 'activities', label: 'Atividades', icon: ListTodo },
-        { id: 'notes', label: 'Notas do paciente', icon: StickyNote },
+        { id: 'notes', label: `Notas ${comArtigo(v, 'pessoa', 'de')}`, icon: StickyNote },
     ]
 
     return (
         <RecordPanel
-            label={detail?.name ? `Ficha de ${detail.name}` : 'Ficha do paciente'}
+            label={detail?.name ? `Ficha de ${detail.name}` : `Ficha ${comArtigo(v, 'pessoa', 'de')}`}
             modes={detail ? modes : undefined}
             mode={mode}
             // Clicar de novo no modo aberto volta para a ficha, como no negócio.
@@ -341,7 +345,7 @@ export function ContactPanel({
                                 </span>
                             </TooltipTrigger>
                             <TooltipContent>
-                                Este paciente ainda não tem conversa. Ela nasce quando ele
+                                {comArtigo(v, 'Pessoa', 'este')} ainda não tem conversa. Ela nasce quando
                                 escreve, ou pelo Novo atendimento em Conversas.
                             </TooltipContent>
                         </Tooltip>
@@ -535,7 +539,7 @@ export function ContactPanel({
                         <ActivityForm
                             key={detail.id}
                             contactId={detail.id}
-                            contactName={detail.name || formatPhone(detail.phone) || 'paciente'}
+                            contactName={detail.name || formatPhone(detail.phone) || v.pessoa}
                             dealId={openDeal?.id ?? null}
                             dealTitle={openDeal?.title ?? null}
                             onScheduled={() => {
@@ -559,14 +563,14 @@ export function ContactPanel({
                     {mode === 'notes' ? (
                         <div className="space-y-1.5">
                             <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                                Notas do paciente
+                                Notas {comArtigo(v, 'pessoa', 'de')}
                             </Label>
                             <InlineField
                                 multiline
                                 value={detail.notes ?? ''}
                                 onCommit={(notes) => void save('notes', { notes })}
-                                placeholder="O que a equipe precisa saber sobre este paciente…"
-                                ariaLabel="Notas do paciente"
+                                placeholder={`O que a equipe precisa saber sobre ${comArtigo(v, 'pessoa', 'este')}…`}
+                                ariaLabel={`Notas ${comArtigo(v, 'pessoa', 'de')}`}
                             />
                             <p className="text-[11px] text-muted-foreground">Grava ao sair do campo.</p>
                         </div>
