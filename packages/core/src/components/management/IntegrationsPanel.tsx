@@ -11,6 +11,8 @@ import { PlatformCredentialsPanel } from '../integrations/PlatformCredentialsPan
 import { BandLayout, SettingsBand } from '../shared/TabsFrame'
 import { ConfirmDialog } from '../shared/ConfirmDialog'
 import { PageHeader } from '../shared/PageHeader'
+import { useVocab } from '../../hooks/useVocab'
+import { comArtigo } from '../../lib/concordancia'
 
 // ─── Types ──────────────────────────────────────────────────────
 interface IntegrationDef {
@@ -348,6 +350,8 @@ function ComingSoonRow({ def }: { def: IntegrationDef }) {
  * padronização veio desfazer.
  */
 export function IntegrationsPanel() {
+    const v = useVocab()
+
     const live = INTEGRATIONS.filter((def) => def.provider === 'google_calendar')
     const soon = INTEGRATIONS.filter((def) => def.provider !== 'google_calendar')
 
@@ -374,7 +378,7 @@ export function IntegrationsPanel() {
         <BandLayout>
             <SettingsBand
                 title="Ferramentas"
-                description="O que a clínica liga ao OdontoBox360. O cartão diz se está conectado e por qual conta."
+                description={`O que ${comArtigo(v, 'organizacao')} liga ao OdontoBox360. O cartão diz se está conectado e por qual conta.`}
             >
                 {grid}
             </SettingsBand>

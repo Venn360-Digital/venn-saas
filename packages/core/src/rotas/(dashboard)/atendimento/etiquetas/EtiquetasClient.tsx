@@ -24,6 +24,8 @@ import { PICKER_RAMP } from '@venn/core/lib/palette'
 
 import { useIndiceServidor } from '@venn/core/hooks/useIndiceServidor'
 import { LIMITE_PADRAO, type DadosIniciais, type TagItem } from './dados'
+import { useVocab } from '../../../../hooks/useVocab'
+import { comArtigo } from '../../../../lib/concordancia'
 
 /**
  * Values the user picks and the database stores, so this list is forward-only:
@@ -35,6 +37,8 @@ import { LIMITE_PADRAO, type DadosIniciais, type TagItem } from './dados'
 const COLOR_PALETTE = PICKER_RAMP
 
 export function EtiquetasClient({ inicial }: { inicial: DadosIniciais }) {
+    const v = useVocab()
+
     // Presentation only — the API enforces the same rule. Without this an
     // ATENDENTE would see Edit/Delete controls that answer 403.
     const { canEdit } = usePermissions()
@@ -267,7 +271,7 @@ export function EtiquetasClient({ inicial }: { inicial: DadosIniciais }) {
                             description={
                                 query
                                     ? 'Tente outro termo de busca.'
-                                    : 'Crie a primeira para segmentar seus pacientes.'
+                                    : `Crie a primeira para segmentar seus ${v.pessoas}.`
                             }
                             action={
                                 canEdit && !query ? (
@@ -359,7 +363,7 @@ export function EtiquetasClient({ inicial }: { inicial: DadosIniciais }) {
                 open={deletingTag !== null}
                 onOpenChange={(open) => !open && setDeletingTag(null)}
                 title="Excluir etiqueta"
-                description={`"${deletingTag?.name}" será removida de todos os pacientes e conversas que a usam.`}
+                description={`"${deletingTag?.name}" será removida de todos ${comArtigo(v, 'pessoas')} e conversas que a usam.`}
                 confirmLabel="Excluir"
                 destructive
                 onConfirm={handleDelete}
@@ -368,7 +372,7 @@ export function EtiquetasClient({ inicial }: { inicial: DadosIniciais }) {
                 open={bulkDeleting}
                 onOpenChange={(open) => !open && setBulkDeleting(false)}
                 title={`Excluir ${selectedIds.length} ${selectedIds.length === 1 ? 'etiqueta' : 'etiquetas'}`}
-                description="As etiquetas marcadas serão removidas de todos os pacientes e conversas que as usam."
+                description={`As etiquetas marcadas serão removidas de todos ${comArtigo(v, 'pessoas')} e conversas que as usam.`}
                 confirmLabel="Excluir"
                 destructive
                 onConfirm={deleteSelected}

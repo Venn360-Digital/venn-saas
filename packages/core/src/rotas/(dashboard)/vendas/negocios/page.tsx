@@ -105,6 +105,8 @@ import { cn } from '@venn/ui/utils'
 import { OutcomeReasonsDialog } from '@venn/core/components/shared/OutcomeReasonsDialog'
 import { CreatableSelect } from '@venn/core/components/shared/CreatableSelect'
 import { useMoeda } from '@venn/core/hooks/useMoeda'
+import { useVocab } from '../../../../hooks/useVocab'
+import { comArtigo } from '../../../../lib/concordancia'
 
 const STATUS_LABELS: Record<string, string> = { open: 'Abertos', won: 'Ganhos', lost: 'Perdidos', all: 'Todos' }
 
@@ -546,6 +548,8 @@ function StatusBadge({ status }: { status: string }) {
 
 // ─── Main Page ──────────────────────────────────────────────────────
 export default function NegociosPage() {
+    const v = useVocab()
+
     // The kanban card already gates Excluir on this; the list view did not, so
     // an ATENDENTE was offered a delete the API answers with 403.
     const { canEdit } = usePermissions()
@@ -1476,7 +1480,7 @@ export default function NegociosPage() {
                             <div className="w-[280px] rounded-lg border border-primary bg-card p-2.5 opacity-90 shadow-xl">
                                 <p className="truncate text-[13px] font-semibold">{activeDeal.title}</p>
                                 <p className="truncate text-[11px] text-muted-foreground">
-                                    {activeDeal.contact?.name ?? 'Sem paciente'} · soltar numa fase do trilho
+                                    {activeDeal.contact?.name ?? `Sem ${v.pessoa}`} · soltar numa fase do trilho
                                 </p>
                             </div>
                         ) : null}
@@ -1658,7 +1662,7 @@ export default function NegociosPage() {
                 open={deleteDialogOpen}
                 onOpenChange={setDeleteDialogOpen}
                 title="Excluir negócio"
-                description={`"${dealToDelete?.title ?? ''}" sai do funil junto com suas atividades. O paciente ligado a ele não é apagado.`}
+                description={`"${dealToDelete?.title ?? ''}" sai do funil junto com suas atividades. ${comArtigo(v, 'Pessoa')} ligado a ele não é apagado.`}
                 confirmLabel="Excluir"
                 destructive
                 onConfirm={handleDeleteDeal}

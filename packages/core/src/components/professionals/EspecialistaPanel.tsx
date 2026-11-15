@@ -7,6 +7,7 @@ import { PanelField, PanelSection, RecordPanel, usePanelSave } from '../shared/R
 import { Switch } from '@venn/ui/switch'
 import { PICKER_RAMP } from '../../lib/palette'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@venn/ui/tooltip'
+import { useVocab } from '../../hooks/useVocab'
 
 export interface EspecialistaPanelItem {
     id: string
@@ -54,6 +55,8 @@ export function EspecialistaPanel({
     /** A grade de horários dele, que é uma tela à parte. */
     onJanelas: (id: string) => void
 }) {
+    const v = useVocab()
+
     const { save, saved, local } = usePanelSave<EspecialistaPanelItem>(
         `/api/professionals/${item.id}`,
         onChanged,
@@ -161,7 +164,7 @@ export function EspecialistaPanel({
                             checked={e.isActive}
                             disabled={!canEdit}
                             onCheckedChange={(v) => void save('isActive', { isActive: v })}
-                            aria-label="Especialista ativo"
+                            aria-label={`${v.Profissional} ativo`}
                         />
                         <span className="text-[11px] text-muted-foreground">
                             {e.isActive

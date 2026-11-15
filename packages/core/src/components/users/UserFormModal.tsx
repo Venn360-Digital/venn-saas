@@ -23,6 +23,8 @@ import { cn } from '@venn/ui/utils'
 import { PhoneInput } from '../shared/PhoneInput'
 import { phoneIssue } from '../../lib/phone'
 import { ROTULO_DO_PAPEL } from '../../lib/papeis'
+import { useVocab } from '../../hooks/useVocab'
+import { comArtigo } from '../../lib/concordancia'
 
 interface WorkspaceUser {
     id: string
@@ -88,6 +90,8 @@ export function UserFormModal({
     user,
     departments,
 }: UserFormModalProps) {
+    const v = useVocab()
+
     const [loading, setLoading] = useState(false)
     const [formData, setFormData] = useState(EMPTY_FORM)
     const [errors, setErrors] = useState<{ name?: string; email?: string; phone?: string }>({})
@@ -387,7 +391,7 @@ export function UserFormModal({
                         <p className="text-xs text-muted-foreground">
                             {isProtectedMember
                                 ? 'O administrador principal não pode ser desativado.'
-                                : 'Desligar encerra o acesso da pessoa a esta clínica e a tira das filas e das transferências. As conversas e mensagens dela permanecem.'}
+                                : `Desligar encerra o acesso da pessoa a ${comArtigo(v, 'organizacao', 'este')} e a tira das filas e das transferências. As conversas e mensagens dela permanecem.`}
                         </p>
                     </div>
                     <Switch id="user-deactivate" checked={formData.isActive} disabled={isProtectedMember} onCheckedChange={(v) => setFormData({ ...formData, isActive: v })} />

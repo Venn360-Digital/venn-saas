@@ -14,6 +14,7 @@ import {
 } from '@venn/ui/dialog'
 import { Input } from '@venn/ui/input'
 import { cn } from '@venn/ui/utils'
+import { useVocab } from '../../hooks/useVocab'
 
 interface Reason {
     id: string
@@ -41,6 +42,8 @@ export function OutcomeReasonsDialog({
     open: boolean
     onOpenChange: (open: boolean) => void
 }) {
+    const v = useVocab()
+
     const [side, setSide] = useState<'won' | 'lost'>('won')
     const [reasons, setReasons] = useState<{ won: Reason[]; lost: Reason[] } | null>(null)
     const [draft, setDraft] = useState('')
@@ -149,7 +152,7 @@ export function OutcomeReasonsDialog({
                                 void add()
                             }
                         }}
-                        placeholder={side === 'won' ? 'Ex: Indicação de paciente' : 'Ex: Preço alto'}
+                        placeholder={side === 'won' ? `Ex: Indicação de ${v.pessoa}` : 'Ex: Preço alto'}
                     />
                     <Button onClick={() => void add()} disabled={busy || !draft.trim()} className="gap-1.5">
                         {busy ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}

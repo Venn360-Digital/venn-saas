@@ -14,6 +14,8 @@ import { EmptyState } from '../shared/EmptyState'
 import { FormField } from '../shared/FormField'
 import { RecordDialog } from '../shared/RecordDialog'
 import { usePermissions } from '../../hooks/usePermissions'
+import { useVocab } from '../../hooks/useVocab'
+import { comArtigo } from '../../lib/concordancia'
 
 /**
  * O calendário da clínica: quando ela não atende.
@@ -71,6 +73,8 @@ const VAZIO = {
 }
 
 export function AgendaDaUnidadeTab() {
+    const v = useVocab()
+
     const { canEdit } = usePermissions()
     const [ano, setAno] = useState(new Date().getFullYear())
     const [feriados, setFeriados] = useState<Feriado[]>([])
@@ -189,7 +193,7 @@ export function AgendaDaUnidadeTab() {
             <SettingsBand
                 className="flex min-h-0 flex-1 flex-col"
                 title="Feriados nacionais"
-                description="Já vêm prontos e bloqueiam a agenda de todos os profissionais. Desligue os que a clínica atende."
+                description={`Já vêm prontos e bloqueiam a agenda de todos os profissionais. Desligue os que ${comArtigo(v, 'organizacao')} atende.`}
                 aside={
                     <span className="flex items-center gap-1">
                         <Button variant="ghost" size="sm" onClick={() => setAno((a) => a - 1)}>
@@ -229,7 +233,7 @@ export function AgendaDaUnidadeTab() {
                                             <Switch
                                                 checked={!f.blocks}
                                                 disabled={!canEdit}
-                                                aria-label={`A clínica atende no ${f.name}`}
+                                                aria-label={`${comArtigo(v, 'Organizacao')} atende no ${f.name}`}
                                                 onCheckedChange={(v) => void decidirFeriado(f, !v)}
                                             />
                                         </span>
@@ -245,7 +249,7 @@ export function AgendaDaUnidadeTab() {
             <SettingsBand
                 className="flex min-h-0 flex-1 flex-col"
                 last
-                title="Fechamentos da clínica"
+                title={`Fechamentos ${comArtigo(v, 'organizacao', 'de')}`}
                 description="Recesso, congresso, dedetização — o que fecha a agenda e não é feriado nacional."
             >
                 {fechamentos.length === 0 ? (

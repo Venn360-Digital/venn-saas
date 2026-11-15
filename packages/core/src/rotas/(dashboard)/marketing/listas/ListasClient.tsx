@@ -32,6 +32,7 @@ import {
 
 import { FichaDaLista } from './FichaDaLista'
 import type { DadosIniciais, ListaItem } from './dados'
+import { useVocab } from '../../../../hooks/useVocab'
 
 const RECORTE_INTEIRO = 'workspace-inteiro'
 const EMPTY_FORM = {
@@ -54,6 +55,8 @@ const dealStatusLabel: Record<string, string> = {
 }
 
 export function ListasClient({ inicial }: { inicial: DadosIniciais }) {
+    const v = useVocab()
+
     const { canEdit } = usePermissions()
 
     const buscar = useCallback(async () => {
@@ -335,7 +338,7 @@ export function ListasClient({ inicial }: { inicial: DadosIniciais }) {
                             setForm((p) => ({ ...p, name: e.target.value }))
                             if (errors.name) setErrors({})
                         }}
-                        placeholder="Pacientes de ortodontia"
+                        placeholder={`${v.Pessoas} de ortodontia`}
                         autoFocus
                     />
                 </FormField>

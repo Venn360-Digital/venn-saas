@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@venn/ui/textarea'
 import { ACTIVITY_TYPES, activityType } from '../../lib/activity-types'
 import { useNow } from '../../hooks/useNow'
+import { useVocab } from '../../hooks/useVocab'
 
 const DURATIONS = [15, 30, 45, 60, 90, 120]
 
@@ -55,6 +56,8 @@ export function ActivityForm({
     onScheduled?: (info: { date: string; time: string }) => void
     onCancel?: () => void
 }) {
+    const v = useVocab()
+
     const [kind, setKind] = useState('meeting')
     /** `null` enquanto ninguém editou: o título segue o tipo e o paciente. */
     const [titleOverride, setTitleOverride] = useState<string | null>(null)
@@ -224,7 +227,7 @@ export function ActivityForm({
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
                     rows={2}
-                    placeholder="Procedimento, preparo, o que levar…"
+                    placeholder={`${v.Servico}, preparo, o que levar…`}
                 />
             </div>
 

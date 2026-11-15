@@ -5,6 +5,8 @@ import Link from 'next/link'
 import { Logo } from '../brand/Logo'
 import { cn } from '@venn/ui/utils'
 import { useUnidades, type UnidadeAberta } from '../../hooks/useUnidades'
+import { useVocab } from '../../hooks/useVocab'
+import { comArtigo } from '../../lib/concordancia'
 
 /** Reexportado de onde o evento mora agora, para quem já importava daqui. */
 export { WORKSPACE_UPDATED } from '../../hooks/useUnidades'
@@ -47,6 +49,8 @@ export { WORKSPACE_UPDATED } from '../../hooks/useUnidades'
  * discorda de si mesmo.
  */
 export function ClinicBrand({ inicial }: { inicial?: UnidadeAberta | null }) {
+    const v = useVocab()
+
     const { dados } = useUnidades(inicial)
     const { logo, name } = dados
 
@@ -81,7 +85,7 @@ export function ClinicBrand({ inicial }: { inicial?: UnidadeAberta | null }) {
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                     src={logo}
-                    alt={name ?? 'Logo da clínica'}
+                    alt={name ?? `Logo ${comArtigo(v, 'organizacao', 'de')}`}
                     className="h-auto max-h-[112px] w-[120px] object-contain group-data-[collapsible=icon]:hidden"
                 />
             ) : (

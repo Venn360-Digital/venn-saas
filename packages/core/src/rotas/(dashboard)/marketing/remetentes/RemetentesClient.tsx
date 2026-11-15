@@ -23,6 +23,7 @@ import {
 import type { SugestaoDeDmarc } from '@venn/core/lib/marketing/dmarc'
 
 import type { DadosIniciais, RemetenteItem } from './dados'
+import { useVocab } from '../../../../hooks/useVocab'
 
 const RECORTE_INTEIRO = 'workspace-inteiro'
 
@@ -36,6 +37,7 @@ const FORM_VAZIO = { domain: '', fromLocal: 'contato', fromName: '', replyTo: ''
 type CampoDoForm = keyof typeof FORM_VAZIO
 
 export function RemetentesClient({ inicial }: { inicial: DadosIniciais }) {
+
     // A marca desce pelo React: no navegador o registro de módulo não existe
     // (quem o faz roda no servidor). Ver `marca-contexto.tsx`.
     const marca = useMarca()
@@ -199,6 +201,7 @@ function FichaDoDominio({
     onSalvo: () => Promise<unknown> | void
     onCriado: (novo: RemetenteItem) => void
 }) {
+    const v = useVocab()
     // A marca desce pelo React: no navegador o registro de módulo não existe
     // (quem o faz roda no servidor). Ver `marca-contexto.tsx`.
     const marca = useMarca()
@@ -447,7 +450,7 @@ function FichaDoDominio({
                     id="rem-name"
                     value={form.fromName}
                     onChange={(e) => mudar('fromName', e.target.value)}
-                    placeholder="Clínica Sorriso Claro"
+                    placeholder={`${v.Organizacao} Sorriso Claro`}
                     disabled={!podeEditar}
                 />
             </FormField>

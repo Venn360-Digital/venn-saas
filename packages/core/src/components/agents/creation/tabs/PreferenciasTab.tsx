@@ -12,6 +12,8 @@ import {
 import { Input } from '@venn/ui/input'
 import { SettingsCard, SettingsRow } from '../../../shared/TabsFrame'
 import { INTERACTION_LIMITS, type AgentPreferences } from '../../../../types/agent-preferences'
+import { useVocab } from '../../../../hooks/useVocab'
+import { comArtigo } from '../../../../lib/concordancia'
 
 /**
  * As preferências da conversa, na guia de ajustes da Tela 03.
@@ -49,6 +51,8 @@ interface PreferenciasTabProps {
 }
 
 export function PreferenciasTab({ data, onChange, somenteLeitura = false }: PreferenciasTabProps) {
+    const v = useVocab()
+
     return (
         <div className="flex flex-col gap-4">
             <SettingsCard
@@ -71,7 +75,7 @@ export function PreferenciasTab({ data, onChange, somenteLeitura = false }: Pref
                     <div className="border-t border-border pt-4">
                         <SettingsRow
                             title="Velocidade de resposta"
-                            description="Espera antes de responder, somada à pausa que o Agente já faz para o paciente terminar de escrever."
+                            description={`Espera antes de responder, somada à pausa que o Agente já faz para ${comArtigo(v, 'pessoa')} terminar de escrever.`}
                             action={
                                 <span className="num w-12 text-right text-[13px] font-semibold">
                                     {data.responseSpeed.toFixed(1)} s
@@ -113,7 +117,7 @@ export function PreferenciasTab({ data, onChange, somenteLeitura = false }: Pref
                 <div className="flex flex-col gap-4">
                     <SettingsRow
                         title="Restringir temas permitidos"
-                        description="O Agente responde só sobre a clínica e as próprias atribuições. Fora disso, recusa educadamente e retoma o atendimento."
+                        description={`O Agente responde só sobre ${comArtigo(v, 'organizacao')} e as próprias atribuições. Fora disso, recusa educadamente e retoma o atendimento.`}
                         action={
                             <Switch
                                 checked={data.restrictTopics}
@@ -130,7 +134,7 @@ export function PreferenciasTab({ data, onChange, somenteLeitura = false }: Pref
                     <div className="border-t border-border pt-4">
                         <SettingsRow
                             title="Finalizar atendimento sem resposta"
-                            description="Dias de silêncio até o atendimento ser encerrado sozinho. O paciente que voltar reabre a conversa, e o limite de interações recomeça. Zero mantém tudo aberto."
+                            description={`Dias de silêncio até o atendimento ser encerrado sozinho. ${comArtigo(v, 'Pessoa')} que voltar reabre a conversa, e o limite de interações recomeça. Zero mantém tudo aberto.`}
                             action={
                                 <div className="flex items-center gap-2">
                                     <Input
@@ -160,7 +164,7 @@ export function PreferenciasTab({ data, onChange, somenteLeitura = false }: Pref
                     <div className="border-t border-border pt-4">
                         <SettingsRow
                             title="Limite de interações por atendimento"
-                            description="Ao atingir o limite, o Agente para de responder, avisa o paciente e deixa a conversa para a equipe."
+                            description={`Ao atingir o limite, o Agente para de responder, avisa ${comArtigo(v, 'pessoa')} e deixa a conversa para a equipe.`}
                             action={
                                 <Select
                                     value={String(data.interactionLimit)}
