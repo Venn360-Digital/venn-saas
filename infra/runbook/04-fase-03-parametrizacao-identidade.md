@@ -129,7 +129,7 @@ Já coberto na Parte 1, item 4. Adicione um teste automatizado: a resposta de lo
 ## Saídas
 
 - PR `chore/dup-parametrizacao`.
-- `infra/manifest.json` atualizado com as novas vars.
+- `infra/manifest/<app>.json` atualizado com as novas vars.
 - `infra/reports/odontobox/fase-03.md`: arquivos alterados, evidências dos testes negativos e comparação visual.
 
 ## Critérios de saída

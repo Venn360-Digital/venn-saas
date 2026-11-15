@@ -11,21 +11,38 @@
  *
  * Chama GET https://<host>/api/internal/identity com `x-identity-token` (e, em
  * stg, os headers do service token do Access) e compara a resposta com
- * infra/manifest.json. Divergência → exit 1. É a prova, de fora, de que o deploy
- * aponta para o banco/Evolution/buckets certos — e não para os de outro app.
+ * `infra/manifest/<app>.json`. Divergência → exit 1. É a prova, de fora, de que
+ * o deploy aponta para o banco/Evolution/buckets certos — e não para os de
+ * outro app.
  *
- * Uso: node scripts/smoke-identity.mjs <production|stg>
+ * Uso: node scripts/smoke-identity.mjs <production|stg> <app>
+ *
+ * ## O app é ARGUMENTO, e não derivado
+ *
+ * O manifesto virou um arquivo por app. Derivar "o único que existe" faria este
+ * verificador mudar de significado no dia em que o segundo app nascesse — e ele
+ * roda no PORTÃO DE DEPLOY, onde apontar para o manifesto errado é publicar um
+ * app contra a conferência de outro. Quem sabe qual app está publicando é o
+ * script da raiz que o painel chama (`smoke:prod`), do mesmo jeito que
+ * `migrate:prod` já carrega `--expect-slug`.
  */
 import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
+import { manifestoDoApp, slugsComManifesto } from './lib/manifestos.mjs'
 
 const env = process.argv[2]
+const app = process.argv[3]
 if (env !== 'production' && env !== 'stg') {
-    console.error("Uso: smoke-identity.mjs <production|stg>")
+    console.error('Uso: smoke-identity.mjs <production|stg> <app>')
+    process.exit(2)
+}
+if (!app) {
+    console.error('Uso: smoke-identity.mjs <production|stg> <app>')
+    console.error(`  Apps com manifesto: ${slugsComManifesto().join(', ')}`)
     process.exit(2)
 }
 
-const manifest = JSON.parse(readFileSync('infra/manifest.json', 'utf8'))
+const manifest = manifestoDoApp(app).dados
 const amb = manifest.environments[env]
 const slug = manifest.app.slug
 const host = amb.hostnames.app

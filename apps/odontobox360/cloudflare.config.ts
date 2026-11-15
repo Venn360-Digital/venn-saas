@@ -494,7 +494,7 @@ export default defineConfig({
              * era declarado como tal, com a justificativa de "topologia da rede",
              * e isso não resistiu à conferência de 03/11: o host é registro
              * PÚBLICO de DNS na zona (`CNAME … cfargotunnel.com`, proxied), já
-             * aparece em texto claro no `infra/manifest.json` versionado, e o
+             * aparece em texto claro no `infra/manifest/<app>.json` versionado, e o
              * próprio `/api/internal/identity` o devolve na resposta. Quem
              * protege o Evolution é o Cloudflare Access, não o desconhecimento
              * do nome.

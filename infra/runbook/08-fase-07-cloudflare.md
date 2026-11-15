@@ -2,7 +2,7 @@
 
 **Onde executar:** repositório do novo app, branch `chore/dup-cloudflare`.
 **Modo:** Plan mode. Use o MCP da Cloudflare e/ou wrangler com o token DEDICADO deste app (`{slug}-provisioning`). Aplique R4 e R5 em cada escrita.
-**Antes de começar:** leia `infra/runbook/01-REGRAS-GLOBAIS.md`, `infra/manifest.json` e o inventário da Odontobox, item C, para replicar os MESMOS tipos de recurso.
+**Antes de começar:** leia `infra/runbook/01-REGRAS-GLOBAIS.md`, `infra/manifest/<app>.json` e o inventário da Odontobox, item C, para replicar os MESMOS tipos de recurso.
 
 ---
 
@@ -10,7 +10,7 @@
 
 Para cada recurso que a Odontobox usa (inventário C4–C9), crie o equivalente do novo app **duas vezes**, uma para `production` e outra para `stg`, com os nomes da convenção. Se a Odontobox usa algo que esta lista não cobre, crie também, seguindo a mesma lógica, e reporte.
 
-Tudo que for criado entra no `infra/manifest.json`, no ambiente correto, no mesmo momento.
+Tudo que for criado entra no `infra/manifest/<app>.json`, no ambiente correto, no mesmo momento.
 
 ## Passos
 
@@ -100,7 +100,7 @@ Crie o API token `{slug}-ci` (Workers Scripts Edit, Workers Routes Edit nas zona
 
 ## Saídas
 
-- `wrangler.jsonc`, `infra/manifest.json` e `infra/fingerprints/{slug}.json` atualizados.
+- `wrangler.jsonc`, `infra/manifest/<app>.json` e `infra/fingerprints/{slug}.json` atualizados.
 - `infra/reports/{slug}/fase-07.md`: recursos por ambiente, regras criadas (com expressão), registros DNS criados, status do MX do apex antes e depois, e pendências.
 
 ## Critérios de saída
