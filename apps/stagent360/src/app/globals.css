@@ -174,8 +174,8 @@
 
   /* The official teal, exactly as published. White on it is 2.43:1 and fails
      badly — but the brand's own navy on it is 6.79:1, which is how the logo is
-     built too: navy "Odonto", teal "Box". So the pairing is the fix, not a
-     darker teal. */
+     built too — the wordmark pairs navy and teal rather than putting white on
+     the teal. So the pairing is the fix, not a darker teal. */
   --primary: #0057c2;
   --primary-foreground: #ffffff;
   /* Hover darkens rather than fading toward transparent, which over a light page
