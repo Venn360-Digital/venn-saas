@@ -39,13 +39,14 @@ import { useVocab } from '../../../../hooks/useVocab'
 import { comArtigo } from '../../../../lib/concordancia'
 import type { Vocabulario } from '../../../../lib/vocabulario'
 
-/** Memoizado: `PRODUCT_CATEGORIES()` lê o vocabulário no rótulo. */
-let categoriasCache: { id: string; label: string }[] | null = null
-function CATEGORIES(): { id: string; label: string }[] {
-    if (categoriasCache === null) {
-        categoriasCache = PRODUCT_CATEGORIES().map((c) => ({ id: c.id as string, label: c.label }))
-    }
-    return categoriasCache
+/**
+ * O vocabulário entra por parâmetro, pela mesma razão que `CATEGORY_TONES`
+ * abaixo já documentava: no cliente `vocab()` não serve, porque `BRAND()`
+ * lança no navegador. Era o que faltava aqui — a memoização de módulo escondia
+ * uma chamada a `PRODUCT_CATEGORIES(v)`, que lê o vocabulário por dentro.
+ */
+function CATEGORIES(v: Vocabulario): { id: string; label: string }[] {
+    return PRODUCT_CATEGORIES(v).map((c) => ({ id: c.id as string, label: c.label }))
 }
 
 /** Função, não constante: o texto usa o vocabulário da unidade, que vem do
@@ -327,7 +328,7 @@ export function ProcedimentosClient({ inicial }: { inicial: DadosIniciais }) {
                     <ProductPanel
                         key={openItem.id}
                         item={openItem}
-                        categories={CATEGORIES()}
+                        categories={CATEGORIES(v)}
                         canEdit={canEdit}
                         onClose={() => setOpenId(null)}
                         {...panelNeighbours(openId, rowIds, setOpenId)}
@@ -356,9 +357,9 @@ export function ProcedimentosClient({ inicial }: { inicial: DadosIniciais }) {
                 filters={
                     <FilterPill
                         label="Categoria"
-                        value={categoryFilter === 'all' ? null : (CATEGORIES().find((c) => c.id === categoryFilter)?.label ?? categoryFilter)}
+                        value={categoryFilter === 'all' ? null : (CATEGORIES(v).find((c) => c.id === categoryFilter)?.label ?? categoryFilter)}
                         onClear={() => { setCategoryFilter('all'); setPage(1) }}
-                        options={[{ value: 'all', label: 'Todas' }, ...CATEGORIES().map((c) => ({ value: c.id, label: c.label }))]}
+                        options={[{ value: 'all', label: 'Todas' }, ...CATEGORIES(v).map((c) => ({ value: c.id, label: c.label }))]}
                         selected={categoryFilter}
                         onSelect={(v) => { setCategoryFilter(v); setPage(1) }}
                     />
@@ -483,7 +484,7 @@ export function ProcedimentosClient({ inicial }: { inicial: DadosIniciais }) {
                             <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                            {CATEGORIES().map((c) => (
+                            {CATEGORIES(v).map((c) => (
                                 <SelectItem key={c.id} value={c.id}>{c.label}</SelectItem>
                             ))}
                         </SelectContent>

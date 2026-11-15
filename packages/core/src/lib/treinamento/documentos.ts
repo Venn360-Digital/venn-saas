@@ -34,8 +34,7 @@
  */
 
 import { modeloEscrito } from './modelos'
-import { vocab } from '../vocabulario'
-import { comArtigo } from '../concordancia'
+import type { Vocabulario } from '../vocabulario'
 
 /**
  * Onde o texto do documento chega ao modelo.
@@ -113,10 +112,15 @@ export interface DocumentoDeTreinamento {
 export const SECAO_EXEMPLOS = 'Exemplos de resposta'
 
 /**
- * Função memoizada, e não constante: o texto lê o vocabulário, e `BRAND()` é
- * fail-fast. Constante de módulo é avaliada quando a Cloudflare VALIDA o
- * script — sem requisição e sem marca registrada —, e a publicação reprova com
- * `MarcaNaoRegistradaError`. A forma que já reprovou cinco publicações.
+ * Função memoizada, e não constante.
+ *
+ * Nasceu assim porque um rótulo lia o vocabulário, e constante de módulo é
+ * avaliada quando a Cloudflare VALIDA o script — sem requisição e sem marca
+ * registrada —, o que reprovava a publicação com `MarcaNaoRegistradaError`.
+ * Esse rótulo foi reescrito em forma neutra (ver o comentário em
+ * "Sobre a empresa"), então **hoje nada aqui lê a marca**. A forma de função
+ * fica: 85 pontos de chamada dependem dela, e voltar a constante não compra
+ * nada além de tornar possível, de novo, uma leitura de marca neste nível.
  */
 let documentosCache: readonly DocumentoDeTreinamento[] | null = null
 export function DOCUMENTOS(): readonly DocumentoDeTreinamento[] {
@@ -174,7 +178,13 @@ export function DOCUMENTOS(): readonly DocumentoDeTreinamento[] {
             'Os fatos sobre a empresa: endereço, horário, diferenciais. Vai em toda ' +
             'mensagem — a medição mostrou que a busca não o encontrava de forma ' +
             'confiável (“onde vocês ficam?” vinha raspando o piso). Escreva o ' +
-            `essencial, não a história ${comArtigo(vocab(), 'organizacao', 'de')}.`,
+            // Forma NEUTRA de propósito, e não `comArtigo(vocab(), …)`: este
+            // catálogo é lido por `AgentFrame`, que é `'use client'`, e no
+            // navegador ninguém registrou a marca — `vocab()` lançava aqui, na
+            // tela de treinamento do agente. Parametrizar `DOCUMENTOS()` custaria
+            // 85 pontos de chamada por um rótulo; reescrever sem o substantivo
+            // custa uma linha e vale nos três nichos. É a regra 3 da varredura.
+            'essencial, não a trajetória completa.',
     },
     {
         slug: 'servicos',
@@ -436,7 +446,7 @@ export function orcamentoDoPrompt(porSlug: Record<string, string>): {
  * muro de prosa — que é exatamente o que o corte por cabeçalho não aproveita.
  * Com o esqueleto, virar documento bom é preencher, não redigir.
  */
-export function modeloDoDocumento(doc: DocumentoDeTreinamento): string {
+export function modeloDoDocumento(doc: DocumentoDeTreinamento, v: Vocabulario): string {
     /**
      * O modelo escrito ganha do esqueleto.
      *
@@ -444,7 +454,7 @@ export function modeloDoDocumento(doc: DocumentoDeTreinamento): string {
      * não existe, saem só os cabeçalhos do catálogo. Assim o botão funciona nos
      * oito desde já, e cada modelo real entra sem tocar em tela nem em rota.
      */
-    const escrito = modeloEscrito(doc.slug)
+    const escrito = modeloEscrito(doc.slug, v)
     if (escrito) return escrito
 
     return `# ${doc.titulo}\n\n${doc.secoes.map((secao) => `## ${secao}\n`).join('\n')}`

@@ -9,7 +9,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@venn/ui/tooltip'
 import { cn } from '@venn/ui/utils'
 import { useVocab } from '../../hooks/useVocab'
 import type { Vocabulario } from '../../lib/vocabulario'
-import { escrever, ler, remover } from '../../lib/armazenamento'
+import { useArmazenamento, type Armazenamento } from '../../hooks/useArmazenamento'
 
 /**
  * Seletor de emojis do compositor.
@@ -56,9 +56,9 @@ const NOME_RECENTES = 'emoji-recentes'
 const CHAVE_ANTIGA = 'odontobox.inbox.emoji.recent'
 const RECENT_MAX = 16
 
-function readRecent(): string[] {
+function readRecent(armazenamento: Armazenamento): string[] {
     try {
-        const raw = ler(NOME_RECENTES, [CHAVE_ANTIGA])
+        const raw = armazenamento.ler(NOME_RECENTES, [CHAVE_ANTIGA])
         const list = raw ? (JSON.parse(raw) as unknown) : []
         return Array.isArray(list) ? list.filter((e): e is string => typeof e === 'string') : []
     } catch {
@@ -74,6 +74,7 @@ interface EmojiPickerProps {
 
 export function EmojiPicker({ onSelect, disabled, className }: EmojiPickerProps) {
     const v = useVocab()
+    const armazenamento = useArmazenamento()
 
     const [open, setOpen] = useState(false)
     const [recent, setRecent] = useState<string[]>([])
@@ -82,7 +83,7 @@ export function EmojiPicker({ onSelect, disabled, className }: EmojiPickerProps)
     // `set-state-in-effect` acusa, e evita divergência de hidratação, já que no
     // servidor não há localStorage e a lista inicial é vazia nos dois lados.
     const handleOpenChange = (next: boolean) => {
-        if (next) setRecent(readRecent())
+        if (next) setRecent(readRecent(armazenamento))
         setOpen(next)
     }
 
@@ -91,7 +92,7 @@ export function EmojiPicker({ onSelect, disabled, className }: EmojiPickerProps)
         const next = [emoji, ...recent.filter((e) => e !== emoji)].slice(0, RECENT_MAX)
         setRecent(next)
         try {
-            escrever(NOME_RECENTES, JSON.stringify(next))
+            armazenamento.escrever(NOME_RECENTES, JSON.stringify(next))
         } catch {
             // Sem persistência: os recentes valem só para esta sessão.
         }

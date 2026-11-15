@@ -1,8 +1,8 @@
 'use client'
 
-import { useCallback, useSyncExternalStore } from 'react'
+import { useCallback, useMemo, useSyncExternalStore } from 'react'
 
-import { chave, escrever, evento, ler } from '../lib/armazenamento'
+import { useArmazenamento } from './useArmazenamento'
 
 /**
  * A chave que já existe no navegador de quem usa o produto hoje.
@@ -31,32 +31,48 @@ const NOME_DO_EVENTO = 'som-mudou'
  * stored value, and React treats the difference as part of the protocol rather
  * than as something to patch up after the first paint.
  */
-function subscribe(onChange: () => void) {
-    // `storage` fires for other tabs; the custom event for this one.
-    window.addEventListener('storage', onChange)
-    window.addEventListener(evento(NOME_DO_EVENTO), onChange)
-    return () => {
-        window.removeEventListener('storage', onChange)
-        window.removeEventListener(evento(NOME_DO_EVENTO), onChange)
-    }
-}
-
-function getSnapshot(): boolean {
-    // `ler` já engole a exceção de janela privativa e devolve null: som ligado
-    // é o melhor padrão para quem nunca escolheu.
-    return ler(NOME, [CHAVE_ANTIGA]) !== 'false'
-}
-
 /** Sound is on until someone turns it off, including before hydration. */
 const getServerSnapshot = () => true
 
 export function useSoundEnabled(): [boolean, (next: boolean) => void] {
+    const armazenamento = useArmazenamento()
+
+    /**
+     * `subscribe` e `getSnapshot` saem do hook, e não do módulo, porque agora
+     * dependem do prefixo da marca — e o `useSyncExternalStore` reinscreve
+     * quando a identidade de `subscribe` muda, então as duas têm de ser
+     * estáveis. `useArmazenamento` já é memoizado pelo `slug`, o que faz esta
+     * dependência mudar nunca na prática.
+     */
+    const { subscribe, getSnapshot } = useMemo(() => {
+        const nomeDoEvento = armazenamento.evento(NOME_DO_EVENTO)
+        return {
+            subscribe: (onChange: () => void) => {
+                // `storage` fires for other tabs; the custom event for this one.
+                window.addEventListener('storage', onChange)
+                window.addEventListener(nomeDoEvento, onChange)
+                return () => {
+                    window.removeEventListener('storage', onChange)
+                    window.removeEventListener(nomeDoEvento, onChange)
+                }
+            },
+            // `ler` já engole a exceção de janela privativa e devolve null: som
+            // ligado é o melhor padrão para quem nunca escolheu.
+            getSnapshot: () => armazenamento.ler(NOME, [CHAVE_ANTIGA]) !== 'false',
+        }
+    }, [armazenamento])
+
     const enabled = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot)
 
-    const set = useCallback((next: boolean) => {
-        escrever(NOME, String(next))
-        window.dispatchEvent(new CustomEvent(evento(NOME_DO_EVENTO), { detail: next }))
-    }, [])
+    const set = useCallback(
+        (next: boolean) => {
+            armazenamento.escrever(NOME, String(next))
+            window.dispatchEvent(
+                new CustomEvent(armazenamento.evento(NOME_DO_EVENTO), { detail: next })
+            )
+        },
+        [armazenamento]
+    )
 
     return [enabled, set]
 }

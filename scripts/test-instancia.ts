@@ -68,12 +68,18 @@ console.log('\nOs nomes do pagamento: os dois lados têm de concordar')
  * valores divergirem, a confirmação nunca chega e a tela gira sem erro — o pior
  * tipo de falha, porque parece lentidão.
  */
-ok('o nome da janela vem do slug', nomeDaJanelaDePagamento() === `${slug}-pagamento`, nomeDaJanelaDePagamento())
-ok('o tipo da mensagem vem do slug', tipoDaMensagemDePagamento() === `${slug}:pagamento`, tipoDaMensagemDePagamento())
+/*
+ * O prefixo entra por argumento, e é por isso que estas provas passaram a
+ * recebê-lo: os dois lados do pagamento são componentes de cliente, e lá
+ * `BRAND()` lança. O `slug` abaixo vem da marca de teste, não da função —
+ * comparar a saída com `BRAND().slug` seria comparar o valor consigo mesmo.
+ */
+ok('o nome da janela vem do slug', nomeDaJanelaDePagamento(slug) === `${slug}-pagamento`, nomeDaJanelaDePagamento(slug))
+ok('o tipo da mensagem vem do slug', tipoDaMensagemDePagamento(slug) === `${slug}:pagamento`, tipoDaMensagemDePagamento(slug))
 ok(
     'janela e mensagem são DIFERENTES entre si',
-    nomeDaJanelaDePagamento() !== tipoDaMensagemDePagamento(),
-    `${nomeDaJanelaDePagamento()} / ${tipoDaMensagemDePagamento()}`
+    nomeDaJanelaDePagamento(slug) !== tipoDaMensagemDePagamento(slug),
+    `${nomeDaJanelaDePagamento(slug)} / ${tipoDaMensagemDePagamento(slug)}`
 )
 
 console.log(`\n${passou} ok, ${falhou} falha(s)\n`)

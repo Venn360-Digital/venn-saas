@@ -1,5 +1,3 @@
-import { BRAND } from '../marca'
-
 /**
  * Os dois nomes que ligam a janela de pagamento à tela que a abriu.
  *
@@ -21,20 +19,22 @@ import { BRAND } from '../marca'
  * Um módulo à parte porque os dois lados precisam dos MESMOS valores: a tela do
  * plano, que abre e escuta, e a rota de retorno, que responde. Divergir aqui
  * faria a confirmação nunca chegar, e a tela ficaria girando sem erro nenhum.
+ *
+ * ## Por que o prefixo é PARÂMETRO
+ *
+ * Os dois lados são componentes `'use client'`, e no navegador ninguém
+ * registrou a marca — `BRAND()` lança lá, depois de o build passar. O prefixo
+ * entra por argumento e sai de `useMarca().slug`, que o provedor da raiz
+ * garante. Obrigatório na assinatura de propósito: assim o compilador cobra,
+ * em vez de um linter.
  */
 
-let prefixoCache: string | null = null
-function prefixo(): string {
-    if (prefixoCache === null) prefixoCache = BRAND().slug
-    return prefixoCache
-}
-
 /** O nome da janela: `window.open` reusa a de mesmo nome. */
-export function nomeDaJanelaDePagamento(): string {
-    return `${prefixo()}-pagamento`
+export function nomeDaJanelaDePagamento(prefixo: string): string {
+    return `${prefixo}-pagamento`
 }
 
 /** O `tipo` do `postMessage` — a tela só aceita este. */
-export function tipoDaMensagemDePagamento(): string {
-    return `${prefixo()}:pagamento`
+export function tipoDaMensagemDePagamento(prefixo: string): string {
+    return `${prefixo}:pagamento`
 }

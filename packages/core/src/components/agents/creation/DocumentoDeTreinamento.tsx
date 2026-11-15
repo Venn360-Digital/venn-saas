@@ -205,7 +205,7 @@ export function DocumentoDeTreinamento({
                             variant="outline"
                             size="sm"
                             className="h-8"
-                            onClick={() => onChange(modeloDoDocumento(doc))}
+                            onClick={() => onChange(modeloDoDocumento(doc, v))}
                             // Sobrescrever texto escrito é perda silenciosa: o
                             // modelo só entra no campo vazio.
                             disabled={temConteudo}

@@ -40,6 +40,7 @@ import {
 } from '@venn/core/lib/funil/gatilho'
 import { MAX_PASSOS, podePublicar } from '@venn/core/lib/funil/publicar'
 import { GALERIA_DE_FUNIS } from '@venn/core/lib/funil/galeria'
+import { vocab } from '@venn/core/lib/vocabulario'
 
 let falhas = 0
 const ok = (nome: string, cond: boolean, extra = '') => {
@@ -432,7 +433,7 @@ console.log('── A galeria de partida passa pelas próprias guardas ──')
  * ordem repetida. Nada disso daria erro em tempo de execução — daria funil
  * mudo, ou funil em laço.
  */
-for (const partida of GALERIA_DE_FUNIS()) {
+for (const partida of GALERIA_DE_FUNIS(vocab())) {
     const passos = partida.passos as unknown as PassoDoFunil[]
 
     ok(`${partida.id}: sem ciclo`, cicloNoDesenho(passos) === null, (cicloNoDesenho(passos) ?? []).join(' → '))
@@ -494,11 +495,11 @@ for (const partida of GALERIA_DE_FUNIS()) {
 /** Nomes distintos: o seletor da tela usa o id, e a pessoa escolhe pelo nome. */
 ok(
     'a galeria não tem id repetido',
-    new Set(GALERIA_DE_FUNIS().map((g) => g.id)).size === GALERIA_DE_FUNIS().length
+    new Set(GALERIA_DE_FUNIS(vocab()).map((g) => g.id)).size === GALERIA_DE_FUNIS(vocab()).length
 )
 ok(
     'nem nome repetido',
-    new Set(GALERIA_DE_FUNIS().map((g) => g.nome)).size === GALERIA_DE_FUNIS().length
+    new Set(GALERIA_DE_FUNIS(vocab()).map((g) => g.nome)).size === GALERIA_DE_FUNIS(vocab()).length
 )
 
 /**
@@ -508,7 +509,7 @@ ok(
  * — preço, prazo, nome de servico. É a mesma regra da mineração de
  * lacunas: a sugestão traz a pergunta e um branco marcado.
  */
-for (const partida of GALERIA_DE_FUNIS()) {
+for (const partida of GALERIA_DE_FUNIS(vocab())) {
     for (const p of partida.passos.filter((x) => x.type === 'mensagem')) {
         const c = p.config as Record<string, unknown>
         ok(

@@ -29,7 +29,7 @@ import { GatilhoDaEquipe } from '../equipe/GatilhoDaEquipe'
 import { UnitSwitcher } from './UnitSwitcher'
 import type { UnidadeAberta } from '../../hooks/useUnidades'
 import { useSoundEnabled } from '../../hooks/useSoundEnabled'
-import { escrever, ler } from '../../lib/armazenamento'
+import { useArmazenamento } from '../../hooks/useArmazenamento'
 
 interface AppNotification {
     id: string
@@ -101,6 +101,7 @@ function sessaoMorreu(res: Response): boolean {
 
 export function Topbar({ marca }: { marca?: UnidadeAberta | null }) {
     const [soundEnabled, setSoundEnabled] = useSoundEnabled()
+    const armazenamento = useArmazenamento()
     const [reminders, setReminders] = useState<Reminder[]>([])
     const [notifications, setNotifications] = useState<AppNotification[]>([])
     const [unread, setUnread] = useState(0)
@@ -183,16 +184,18 @@ export function Topbar({ marca }: { marca?: UnidadeAberta | null }) {
                 setReminders(data)
                 // Play sound for new reminders
                 if (data.length > 0 && soundEnabled) {
-                    const stored = ler('lembretes-vistos', ['odontobox360-last-reminder-count'])
+                    const stored = armazenamento.ler('lembretes-vistos', [
+                        'odontobox360-last-reminder-count',
+                    ])
                     const lastCount = stored ? parseInt(stored) : 0
                     if (data.length > lastCount) {
                         try { new Audio('/sounds/notification.mp3').play().catch(() => { }) } catch { }
                     }
-                    escrever('lembretes-vistos', String(data.length))
+                    armazenamento.escrever('lembretes-vistos', String(data.length))
                 }
             }
         } catch { /* ignore */ }
-    }, [soundEnabled])
+    }, [soundEnabled, armazenamento])
 
     useEffect(() => {
         // `loadReminders` só chama setState depois do primeiro `await`; a regra

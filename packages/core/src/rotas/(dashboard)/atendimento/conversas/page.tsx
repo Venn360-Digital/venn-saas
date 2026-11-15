@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter, useSearchParams } from 'next/navigation'
-import { evento, ler } from '@venn/core/lib/armazenamento'
+import { useArmazenamento } from '@venn/core/hooks/useArmazenamento'
 
 import { apelidoDaLinha } from '@venn/core/lib/linha'
 import { formatPhone } from '@venn/core/lib/phone'
@@ -822,6 +822,7 @@ export default function ConversasPage() {
             .catch(() => setQuickRepliesLoaded(true))
     }, [quickRepliesLoaded])
 
+    const armazenamento = useArmazenamento()
     const audioContextRef = useRef<AudioContext | null>(null)
 
     /*
@@ -833,16 +834,16 @@ export default function ConversasPage() {
      * cabeçalho deixa de afetar o som desta tela, e nada reclama.
      */
     useEffect(() => {
-        const stored = ler('som', ['odontobox360-sound-enabled'])
+        const stored = armazenamento.ler('som', ['odontobox360-sound-enabled'])
         if (stored !== null) soundEnabledRef.current = stored === 'true'
 
         const handler = (e: Event) => {
             soundEnabledRef.current = (e as CustomEvent).detail
         }
-        const nome = evento('som-mudou')
+        const nome = armazenamento.evento('som-mudou')
         window.addEventListener(nome, handler)
         return () => window.removeEventListener(nome, handler)
-    }, [])
+    }, [armazenamento])
 
     /**
      * Aviso sonoro de mensagem nova.

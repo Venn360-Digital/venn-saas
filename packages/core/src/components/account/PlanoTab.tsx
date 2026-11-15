@@ -695,7 +695,7 @@ export function PlanoTab() {
 
         janelaDoPagamento.current = window.open(
             '',
-            nomeDaJanelaDePagamento(),
+            nomeDaJanelaDePagamento(marca.slug),
             `width=${largura},height=${altura},left=${esquerda},top=${topo},noopener=no`
         )
 
@@ -864,7 +864,7 @@ export function PlanoTab() {
 
         janelaDoPagamento.current = window.open(
             '',
-            nomeDaJanelaDePagamento(),
+            nomeDaJanelaDePagamento(marca.slug),
             `width=${largura},height=${altura},left=${esquerda},top=${topo},noopener=no`
         )
 
@@ -978,7 +978,7 @@ export function PlanoTab() {
             // confirmado" e mudar o que esta tela mostra.
             if (evento.origin !== window.location.origin) return
             const dado = evento.data as { tipo?: string; status?: string } | null
-            if (dado?.tipo !== tipoDaMensagemDePagamento()) return
+            if (dado?.tipo !== tipoDaMensagemDePagamento(marca.slug)) return
 
             setPagando(false)
             janelaDoPagamento.current = null
@@ -2517,7 +2517,7 @@ export function PlanoTab() {
                                             Conexões disponíveis
                                         </p>
                                         <div className="mt-1.5 flex items-center gap-1.5">
-                                            {redesDoPlano(planKey).map((rede) => {
+                                            {redesDoPlano(planKey, v).map((rede) => {
                                                 const RedeIcon = rede.icon
                                                 return (
                                                     <span

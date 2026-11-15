@@ -1,5 +1,3 @@
-import { BRAND } from '../marca'
-
 /**
  * As chaves que o produto guarda no navegador, prefixadas pela marca.
  *
@@ -23,6 +21,25 @@ import { BRAND } from '../marca'
  * a mesma chave — e o som de um controlaria o do outro. O prefixo é o que os
  * separa, pela mesma razão do prefixo de cookie.
  *
+ * ## Por que o prefixo é PARÂMETRO, e não lido da marca aqui
+ *
+ * Este módulo só roda no navegador — `localStorage` e `window` não existem no
+ * servidor. E no navegador **ninguém registrou a marca**: o registro de
+ * módulo (`../marca`) é avaliado pela raiz do App Router e pelo entrypoint do
+ * Worker, os dois no servidor. Ler `BRAND()` daqui compila, builda, publica —
+ * e lança na hidratação.
+ *
+ * Medido em 15/11/2026, com o módulo avaliado sem registro: `chave()` e
+ * `evento()` lançam `MarcaNaoRegistradaError`, e `ler()` devolve `null`
+ * silenciosamente (a exceção morre no `tentar`), o que **apaga a preferência
+ * de todo mundo** — exatamente o acidente que a leitura dupla existe para
+ * evitar, entregue por outro caminho.
+ *
+ * Com o prefixo obrigatório na assinatura, quem chama tem de ter de onde
+ * tirá-lo, e no cliente o lugar é `useMarca().slug` (o provedor da raiz) —
+ * `useArmazenamento()` faz essa ligação. A rede passa a ser o compilador, não
+ * um linter: esquecer o argumento não compila.
+ *
  * ## Nunca lança
  *
  * `localStorage` lança em modo privativo de alguns navegadores, com cookies de
@@ -31,15 +48,9 @@ import { BRAND } from '../marca'
  * silenciosa devolve o padrão, que é o comportamento de quem nunca escolheu.
  */
 
-let prefixoCache: string | null = null
-function prefixo(): string {
-    if (prefixoCache === null) prefixoCache = BRAND().slug
-    return prefixoCache
-}
-
-/** `odontobox:som` — o nome de hoje, derivado da marca. */
-export function chave(nome: string): string {
-    return `${prefixo()}:${nome}`
+/** `<slug>:som` — o nome de hoje. O prefixo é o `slug` da marca. */
+export function chave(prefixo: string, nome: string): string {
+    return `${prefixo}:${nome}`
 }
 
 function tentar<T>(f: () => T, padrao: T): T {
@@ -57,9 +68,9 @@ function tentar<T>(f: () => T, padrao: T): T {
  * velho — um produto que renomeou duas vezes tem duas. A migração acontece uma
  * vez: o valor vai para a chave nova e a velha é removida.
  */
-export function ler(nome: string, antigas: string[] = []): string | null {
+export function ler(prefixo: string, nome: string, antigas: string[] = []): string | null {
     return tentar(() => {
-        const nova = chave(nome)
+        const nova = chave(prefixo, nome)
         const atual = localStorage.getItem(nova)
         if (atual !== null) return atual
         for (const velha of antigas) {
@@ -73,13 +84,13 @@ export function ler(nome: string, antigas: string[] = []): string | null {
     }, null)
 }
 
-export function escrever(nome: string, valor: string): void {
-    tentar(() => localStorage.setItem(chave(nome), valor), undefined)
+export function escrever(prefixo: string, nome: string, valor: string): void {
+    tentar(() => localStorage.setItem(chave(prefixo, nome), valor), undefined)
 }
 
-export function remover(nome: string, antigas: string[] = []): void {
+export function remover(prefixo: string, nome: string, antigas: string[] = []): void {
     tentar(() => {
-        localStorage.removeItem(chave(nome))
+        localStorage.removeItem(chave(prefixo, nome))
         for (const velha of antigas) localStorage.removeItem(velha)
     }, undefined)
 }
@@ -92,6 +103,6 @@ export function remover(nome: string, antigas: string[] = []): void {
  * registrado com o nome antigo simplesmente deixa de ser chamado no recarregar
  * seguinte, sem perda de dado.
  */
-export function evento(nome: string): string {
-    return `${prefixo()}:${nome}`
+export function evento(prefixo: string, nome: string): string {
+    return `${prefixo}:${nome}`
 }

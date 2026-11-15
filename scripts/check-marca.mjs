@@ -61,13 +61,29 @@
  *    leem a marca sem escrever `BRAND(`). Importar `@venn/core/marca` é o que
  *    o runtime usa.
  *
- *    Cobertura, medida e não suposta: a leitura pode também chegar ao bundle do
- *    cliente de forma transitiva, por um módulo sem a diretiva importado por um
- *    que a tem. Medido o fechamento dos imports de valor a partir das 198
- *    sementes: 273 módulos alcançáveis, **zero** importando o registro. Quem
- *    fecha esse lado é o `import 'server-only'` de `config/app.ts`, que o
- *    bundler do Next transforma em erro de build. Esta regra cobre o caso
- *    direto; aquele tem dono.
+ *    ⚠️ **A diretiva não é o bundle, e essa diferença custou quatro defeitos
+ *    em produção.** A leitura também chega ao navegador de forma TRANSITIVA:
+ *    um módulo sem `'use client'`, importado por um que a tem, é avaliado no
+ *    cliente igual. Eu havia medido esse fechamento à mão e escrito aqui
+ *    "273 módulos alcançáveis, zero importando o registro" — e uma medição
+ *    anotada em comentário **não é uma rede**. A varredura de vocabulário
+ *    entrou depois e pôs `vocab()` dentro de `plans`, `terms`,
+ *    `deal-lanes`, `product-categories`, `galeria`, `modelos` e
+ *    `agent-creation`, todos alcançados por componentes de cliente. Resultado,
+ *    medido em 15/11/2026: `TERMS()`, `planList()`, `redesDoPlano()` e
+ *    `DOCUMENTOS()` lançavam `MarcaNaoRegistradaError` na hidratação — a tela
+ *    de termos, o passo 2 do onboarding, a guia Plano e o treinamento do
+ *    agente, tudo publicado e verde.
+ *
+ *    Então a regra 6 passou a CALCULAR o fechamento a cada execução, com o
+ *    mesmo critério que o bundler usa (import de valor; `import type` é
+ *    apagado na compilação). O conserto do código é o compilador: os módulos
+ *    recebem o vocabulário por parâmetro obrigatório, e não há mais o que
+ *    esquecer. Esta regra é o que impede a volta.
+ *
+ *    `config/app.ts` continua tendo dono próprio — o `import 'server-only'`,
+ *    que o bundler transforma em erro de build — e por isso ele aparece no
+ *    fechamento sem ser defeito.
  */
 import { readFileSync, existsSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
@@ -240,24 +256,126 @@ for (const f of readdirSync('scripts').filter((n) => n.endsWith('.ts'))) {
     }
 }
 
-// ── 6. componente de cliente não chama o registro ───────────────────────
+// ── 6. nada no bundle do cliente chama o registro ───────────────────────
 //
-// A lista de arquivos é DERIVADA (quem tem a diretiva), e o piso existe porque
-// uma varredura que não encontra nada reporta sucesso: foi assim que a guarda
-// de uma conexão por aba ficou oca por uma fase inteira.
+// As sementes são DERIVADAS (quem tem a diretiva) e o fechamento é CALCULADO,
+// pelo mesmo critério do bundler. Os dois pisos existem porque varredura que
+// não encontra nada reporta sucesso — foi assim que a guarda de uma conexão
+// por aba ficou oca por uma fase inteira.
 const DO_CONTEXTO = ['packages/core/src/marca-contexto.tsx']
-const deCliente = arquivosDeCodigo().filter((f) =>
-    /^['"]use client['"]/m.test(readFileSync(f, 'utf8').slice(0, 200))
-)
-exigirPiso('componentes de cliente', deCliente, 150)
-conferirAllowlist('marca no cliente', DO_CONTEXTO, arquivosDeCodigo())
-for (const f of deCliente) {
-    if (DO_CONTEXTO.includes(f)) continue
-    const texto = readFileSync(f, 'utf8')
-    if (!/(?:from|import)\s*\(?\s*['"`](?:@venn\/core\/marca|\.{1,2}\/+marca)['"`]/.test(texto)) continue
-    erro(`"${f}" é 'use client' e importa o registro da marca.`)
-    console.error('  No navegador ninguém registrou a marca: `BRAND()` lança na tela, depois de')
-    console.error('  o build passar. Troque por `useMarca()` de @venn/core/marca-contexto.')
+
+/**
+ * Módulos cujo dono é outra rede, e que por isso podem estar no fechamento.
+ *
+ * `config/app.ts` tem `import 'server-only'`: se ele realmente entrasse no
+ * bundle do cliente, o próprio Next reprovaria o build com uma mensagem
+ * melhor que esta. Ele aparece aqui porque o fechamento textual não enxerga a
+ * poda que o bundler faz — é sobre-aproximação, não defeito.
+ */
+const DE_OUTRA_REDE = ['packages/core/src/config/app.ts']
+
+/**
+ * O módulo de registro, pelo CAMINHO — não por expressão regular.
+ *
+ * O padrão anterior era `['"](@venn/core/marca|\.{1,2}/+marca)['"]`, e ele
+ * deixava passar `'../../marca'`: depois de `..` e da barra vinha outro `..`,
+ * não `marca`. Ou seja, **o caso direto que a regra 6 existe para pegar — um
+ * `'use client'` importando o registro — escapava se o arquivo estivesse dois
+ * níveis abaixo**, que é onde mora metade dos componentes
+ * (`components/<pasta>/X.tsx`). Descoberto ao provar a regra no sentido de
+ * falhar, em 15/11/2026.
+ *
+ * Agora o critério é o mesmo do bundler: resolve o especificador e compara com
+ * o arquivo. Nada para manter em sincronia com a árvore de pastas.
+ */
+const CAMINHO_DO_REGISTRO = 'packages/core/src/marca.ts'
+
+const codigo = arquivosDeCodigo()
+const noRepo = new Set(codigo)
+const texto = new Map(codigo.map((f) => [f, readFileSync(f, 'utf8')]))
+
+if (!noRepo.has(CAMINHO_DO_REGISTRO)) {
+    // Caminho literal tem de falhar ALTO quando o arquivo se move: calado, esta
+    // regra passaria a aprovar tudo. É a sexta forma do defeito de caminho
+    // literal desta fase, e a única rede contra ela é a recusa em rodar.
+    console.error(`✖ ${CAMINHO_DO_REGISTRO} não existe — o registro da marca mudou de lugar.`)
+    console.error('  Atualize CAMINHO_DO_REGISTRO em scripts/check-marca.mjs: sem isso a regra 6')
+    console.error('  não acusaria mais nada, em silêncio.')
+    process.exit(2)
+}
+
+const sementes = codigo.filter((f) => /^['"]use client['"]/m.test(texto.get(f).slice(0, 200)))
+exigirPiso('componentes de cliente', sementes, 150)
+conferirAllowlist('marca no cliente', DO_CONTEXTO, codigo)
+conferirAllowlist('dono em outra rede', DE_OUTRA_REDE, codigo)
+
+/**
+ * Só import de VALOR entra no fechamento.
+ *
+ * `import type { X } from './y'` é apagado na compilação e não põe `y` no
+ * bundle — contá-lo encheria a lista de falsos positivos (metade dos
+ * componentes importa o TIPO `Vocabulario`). Um `{ type A, type B }` todo de
+ * tipo também sai.
+ */
+function especificadoresDeValor(t) {
+    const fora = []
+    for (const m of t.matchAll(/(?:^|\n)\s*(?:import|export)\s+([^'"\n;]*?)from\s*['"]([^'"]+)['"]/g)) {
+        const clausula = m[1]
+        if (/^\s*type\s/.test(clausula)) continue
+        const chaves = clausula.match(/\{([^}]*)\}/)
+        if (chaves && chaves[1].split(',').every((n) => n.trim() === '' || /^type\s/.test(n.trim()))) continue
+        fora.push(m[2])
+    }
+    for (const m of t.matchAll(/import\s*\(\s*['"]([^'"]+)['"]\s*\)/g)) fora.push(m[1])
+    return fora
+}
+
+/** O caminho do repositório para um especificador, ou null se for externo. */
+function resolverEspecificador(spec, deQuem) {
+    let base
+    if (spec.startsWith('.')) {
+        base = join(deQuem, '..', spec)
+    } else if (spec.startsWith('@venn/')) {
+        const [, pkg, ...resto] = spec.split('/')
+        base =
+            pkg === 'core' && (resto[0] === 'rotas' || resto[0] === 'rotas-jsx')
+                ? join('packages/core/src/rotas', ...resto.slice(1))
+                : join(`packages/${pkg}/src`, ...resto)
+    } else {
+        return null
+    }
+    for (const c of [base, `${base}.ts`, `${base}.tsx`, join(base, 'index.ts'), join(base, 'index.tsx')]) {
+        if (noRepo.has(c)) return c
+    }
+    return null
+}
+
+const fechamento = new Set(sementes)
+const porQuem = new Map()
+const fila = [...sementes]
+while (fila.length) {
+    const f = fila.pop()
+    for (const spec of especificadoresDeValor(texto.get(f) ?? '')) {
+        const alvo = resolverEspecificador(spec, f)
+        if (!alvo || fechamento.has(alvo)) continue
+        fechamento.add(alvo)
+        porQuem.set(alvo, f)
+        fila.push(alvo)
+    }
+}
+exigirPiso('módulos no bundle do cliente', [...fechamento], 250)
+
+for (const f of fechamento) {
+    if (DO_CONTEXTO.includes(f) || DE_OUTRA_REDE.includes(f)) continue
+    const leORegistro = especificadoresDeValor(texto.get(f) ?? '').some(
+        (spec) => resolverEspecificador(spec, f) === CAMINHO_DO_REGISTRO
+    )
+    if (!leORegistro) continue
+    const comoChegou = sementes.includes(f) ? "é 'use client'" : `é alcançado por "${porQuem.get(f)}"`
+    erro(`"${f}" ${comoChegou} e importa o registro da marca.`)
+    console.error('  No navegador ninguém registrou a marca: a leitura lança na tela, depois de')
+    console.error('  o build passar e a publicação ter sido aceita. Receba o valor por parâmetro')
+    console.error('  (o chamador tira de `useMarca()`/`useVocab()`) em vez de ler o registro aqui.')
 }
 
 if (falhas > 0) {
@@ -267,5 +385,5 @@ if (falhas > 0) {
 console.log(
     `registro da marca: ${appsDoRepo().length} app(s), ${ENTRADAS.filter((e) => e.existe).length} ponto(s) de entrada em ordem, ` +
     `${dosPacotes.length} arquivo(s) de pacote sem importar nada do app pelo alias, ` +
-    `${deCliente.length} componente(s) de cliente sem chamar o registro`
+    `${sementes.length} semente(s) de cliente e ${fechamento.size} módulo(s) no bundle sem chamar o registro`
 )

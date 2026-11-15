@@ -12,6 +12,7 @@ import {
     type BillingCycle,
 } from '../../lib/plan-limits'
 import { cn } from '@venn/ui/utils'
+import { useVocab } from '../../hooks/useVocab'
 
 interface Step2PlanProps {
     data: { plan: string; cycle: BillingCycle }
@@ -41,6 +42,8 @@ interface Step2PlanProps {
  * Nada de informação saiu — o que saiu foi espaço vazio e peso tipográfico.
  */
 export function Step2Plan({ data, updateData }: Step2PlanProps) {
+    // As palavras vêm do contexto: no navegador ninguém registrou a marca.
+    const v = useVocab()
     return (
         <div className="space-y-2">
             {/* O AVISO E O ALTERNADOR NA MESMA LINHA.
@@ -98,7 +101,7 @@ export function Step2Plan({ data, updateData }: Step2PlanProps) {
             </div>
 
             <div className="grid gap-3 sm:grid-cols-3">
-                {planList().map((plan) => {
+                {planList(v).map((plan) => {
                     const selected = data.plan === plan.id
                     const porMes = mensalEquivalente(plan.id, 0, data.cycle)
                     const ganhaTreinamento = treinamentoIncluido(plan.id, data.cycle) > 0
@@ -168,7 +171,7 @@ export function Step2Plan({ data, updateData }: Step2PlanProps) {
                                     Conexões disponíveis
                                 </p>
                                 <div className="mt-1 flex items-center gap-1">
-                                    {redesDoPlano(plan.id).map((rede) => {
+                                    {redesDoPlano(plan.id, v).map((rede) => {
                                         const RedeIcon = rede.icon
                                         return (
                                             <span
