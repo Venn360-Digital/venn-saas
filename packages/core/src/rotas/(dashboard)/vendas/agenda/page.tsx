@@ -32,6 +32,7 @@ import { PERIOD_PRESETS, isoDay, matchPreset, periodRange, type PeriodPresetId, 
 import { useFusoDaUnidade } from '@venn/core/hooks/useUnidades'
 import { usePermissions } from '@venn/core/hooks/usePermissions'
 import { JanelasDialog } from '@venn/core/components/professionals/JanelasDialog'
+import { useVocab } from '@venn/core/hooks/useVocab'
 
 // ─── Types ──────────────────────────────────────────────────────────
 interface Activity {
@@ -127,6 +128,8 @@ function isSameDay(d1: Date, d2: Date): boolean {
 
 // ─── Main Page ──────────────────────────────────────────────────────
 export default function AgendaPage() {
+    const v = useVocab()
+
     // Presentation only — the API enforces the same rule. Without this an
     // ATENDENTE would see Delete controls that answer 403.
     const { canEdit, canSeeEveryone: canChooseOwner } = usePermissions()
@@ -183,17 +186,17 @@ export default function AgendaPage() {
     })
 
     /** Quem atende e o que se faz — carregados uma vez, para os dois seletores. */
-    const [especialistas, setEspecialistas] = useState<{ id: string; name: string }[]>([])
-    const [procedimentos, setProcedimentos] = useState<{ id: string; name: string; durationMinutes: number | null }[]>([])
+    const [profissionais, setProfissionais] = useState<{ id: string; name: string }[]>([])
+    const [servicos, setServicos] = useState<{ id: string; name: string; durationMinutes: number | null }[]>([])
 
     useEffect(() => {
         void fetch('/api/professionals')
             .then((r) => (r.ok ? r.json() : []))
-            .then(setEspecialistas)
+            .then(setProfissionais)
             .catch(() => undefined)
         void fetch('/api/products?schedulable=true&limit=200')
             .then((r) => (r.ok ? r.json() : null))
-            .then((d) => setProcedimentos(d?.data ?? []))
+            .then((d) => setServicos(d?.data ?? []))
             .catch(() => undefined)
     }, [])
 
@@ -490,15 +493,15 @@ export default function AgendaPage() {
     const needle = search.trim().toLowerCase()
     // O recorte por especialista é da tela também — a API já devolve o período
     // inteiro, e filtrar aqui evita uma ida ao servidor a cada troca de pílula.
-    const porEspecialista = specialistFilter
+    const porProfissional = specialistFilter
         ? activities.filter((a) => a.professional?.id === specialistFilter)
         : activities
     const visible = needle
-        ? porEspecialista.filter(a =>
+        ? porProfissional.filter(a =>
             a.title.toLowerCase().includes(needle)
             || (a.contact?.name ?? '').toLowerCase().includes(needle)
             || (a.deal?.title ?? '').toLowerCase().includes(needle))
-        : porEspecialista
+        : porProfissional
     const totalPages = Math.max(1, Math.ceil(visible.length / pageSize))
     const currentPage = Math.min(page, totalPages)
     const pageRows = visible.slice((currentPage - 1) * pageSize, currentPage * pageSize)
@@ -561,7 +564,7 @@ export default function AgendaPage() {
         },
         {
             id: 'who',
-            header: 'Paciente · Negócio',
+            header: `${v.Pessoa} · Negócio`,
             hideBelow: 'md',
             cell: (a) => (
                 <span className="truncate text-muted-foreground">
@@ -658,7 +661,7 @@ export default function AgendaPage() {
                 }
                 search={search}
                 onSearchChange={(v) => { setSearch(v); setPage(1) }}
-                searchLabel="Buscar atividade, paciente ou negócio"
+                searchLabel={`Buscar atividade, ${v.pessoa} ou negócio`}
                 filters={
                     <>
                         <FilterPill
@@ -684,14 +687,14 @@ export default function AgendaPage() {
                         {/* Por quem atende. Só aparece quando há especialista
                             cadastrado: numa clínica que não usa, um filtro de
                             uma opção só não filtra nada. */}
-                        {especialistas.length > 0 ? (
+                        {profissionais.length > 0 ? (
                             <FilterPill
-                                label="Especialista"
-                                value={specialistFilter ? (especialistas.find((e) => e.id === specialistFilter)?.name ?? null) : null}
+                                label={v.Profissional}
+                                value={specialistFilter ? (profissionais.find((e) => e.id === specialistFilter)?.name ?? null) : null}
                                 onClear={() => setSpecialistFilter('')}
                                 options={[
                                     { value: '', label: 'Todos' },
-                                    ...especialistas.map((e) => ({ value: e.id, label: e.name })),
+                                    ...profissionais.map((e) => ({ value: e.id, label: e.name })),
                                 ]}
                                 selected={specialistFilter}
                                 onSelect={setSpecialistFilter}
@@ -941,7 +944,7 @@ export default function AgendaPage() {
                 }
             >
                 <FormField label="Título" htmlFor="act-title" required error={errors.title} className="col-span-2">
-                    <Input id="act-title" value={formData.title} onChange={(e) => { setFormData({ ...formData, title: e.target.value }); if (errors.title) setErrors({}) }} placeholder="Ex: Reunião com paciente" aria-invalid={errors.title ? true : undefined} autoFocus />
+                    <Input id="act-title" value={formData.title} onChange={(e) => { setFormData({ ...formData, title: e.target.value }); if (errors.title) setErrors({}) }} placeholder={`Ex: Reunião com ${v.pessoa}`} aria-invalid={errors.title ? true : undefined} autoFocus />
                 </FormField>
 
                 <FormField label="Tipo" htmlFor="act-type" required>
@@ -970,9 +973,9 @@ export default function AgendaPage() {
                 {/* Quem atende e o que se faz. Só aparecem quando a clínica
                     cadastrou especialista — numa clínica que não usa, dois
                     seletores vazios só ocupariam o formulário. */}
-                {especialistas.length > 0 ? (
+                {profissionais.length > 0 ? (
                     <div className="grid grid-cols-2 gap-3.5">
-                        <FormField label="Especialista" htmlFor="act-professional">
+                        <FormField label={v.Profissional} htmlFor="act-professional">
                             <Select
                                 value={formData.professionalId || 'none'}
                                 onValueChange={(v) => setFormData({ ...formData, professionalId: v === 'none' ? '' : v })}
@@ -982,7 +985,7 @@ export default function AgendaPage() {
                                 </SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="none">Ninguém</SelectItem>
-                                    {especialistas.map((e) => (
+                                    {profissionais.map((e) => (
                                         <SelectItem key={e.id} value={e.id}>{e.name}</SelectItem>
                                     ))}
                                 </SelectContent>
@@ -990,26 +993,26 @@ export default function AgendaPage() {
                         </FormField>
 
                         <FormField
-                            label="Procedimento"
+                            label={v.Servico}
                             htmlFor="act-procedure"
                             hint={
                                 // A duração sai daqui: dizer qual é evita a
                                 // pergunta "quanto tempo isso reserva?".
-                                procedimentos.find((p) => p.id === formData.productServiceId)?.durationMinutes
-                                    ? `${procedimentos.find((p) => p.id === formData.productServiceId)?.durationMinutes} min`
+                                servicos.find((p) => p.id === formData.productServiceId)?.durationMinutes
+                                    ? `${servicos.find((p) => p.id === formData.productServiceId)?.durationMinutes} min`
                                     : undefined
                             }
                         >
                             <Select
                                 value={formData.productServiceId || 'none'}
                                 onValueChange={(v) => {
-                                    const proc = procedimentos.find((p) => p.id === v)
+                                    const proc = servicos.find((p) => p.id === v)
                                     setFormData((f) => ({
                                         ...f,
                                         productServiceId: v === 'none' ? '' : v,
                                         // O título segue o procedimento enquanto
                                         // ninguém o tiver escrito à mão.
-                                        title: !f.title || procedimentos.some((p) => p.name === f.title)
+                                        title: !f.title || servicos.some((p) => p.name === f.title)
                                             ? proc?.name ?? f.title
                                             : f.title,
                                     }))
@@ -1020,7 +1023,7 @@ export default function AgendaPage() {
                                 </SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="none">Nenhum</SelectItem>
-                                    {procedimentos.map((p) => (
+                                    {servicos.map((p) => (
                                         <SelectItem key={p.id} value={p.id}>
                                             {p.name}
                                             {p.durationMinutes ? ` · ${p.durationMinutes} min` : ''}

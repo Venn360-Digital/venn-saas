@@ -10,6 +10,8 @@ import { RecordDialog, SummaryCard } from './RecordDialog'
 import { Input } from '@venn/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@venn/ui/select'
 import { formatPhone } from '../../lib/phone'
+import { useVocab } from '../../hooks/useVocab'
+import { comArtigo } from '../../lib/concordancia'
 
 /**
  * Abrir um negócio: dois campos e a fase.
@@ -35,6 +37,8 @@ export function NewDealDialog({
     defaultStageId?: string
     onCreated: (dealId: string) => void
 }) {
+    const v = useVocab()
+
     const [contact, setContact] = useState<PickOption | null>(null)
     const [results, setResults] = useState<PickOption[]>([])
     const [searching, setSearching] = useState(false)
@@ -72,7 +76,7 @@ export function NewDealDialog({
 
     // O mesmo texto que o webhook usa quando o paciente escreve primeiro: dois
     // caminhos criando negócios com títulos diferentes dariam duas convenções.
-    const title = titleOverride ?? (contact ? `Novo paciente - ${contact.name}` : '')
+    const title = titleOverride ?? (contact ? `${v.Pessoa} - ${contact.name}` : '')
 
     const search = (term: string) => {
         if (term.trim().length < 2) {
@@ -97,7 +101,7 @@ export function NewDealDialog({
     /** `again` = Criar e novo: grava, limpa e fica aberto. */
     const submit = async (again: boolean) => {
         const next: typeof errors = {}
-        if (!contact) next.contact = 'Escolha o paciente — ou cadastre um novo aqui mesmo.'
+        if (!contact) next.contact = `Escolha ${comArtigo(v, 'pessoa')} — ou cadastre aqui mesmo.`
         if (!title.trim()) next.title = 'Dê um título ao negócio.'
         if (!ownerId) next.owner = 'Escolha quem cuida deste negócio.'
         if (Object.keys(next).length) { setErrors(next); return }
@@ -155,7 +159,7 @@ export function NewDealDialog({
                     <SummaryCard className="flex-col items-start gap-1.5">
                         <span className="truncate text-sm font-semibold">{title.trim() || 'Título do negócio'}</span>
                         <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                            <User className="size-3" />{contact?.name ?? 'Sem paciente'}
+                            <User className="size-3" />{contact?.name ?? `Sem ${v.pessoa}`}
                         </span>
                         {stageName ? <span className="inline-flex h-[22px] items-center rounded-full bg-muted px-2 text-[11px] text-muted-foreground">{stageName}</span> : null}
                     </SummaryCard>
@@ -163,7 +167,7 @@ export function NewDealDialog({
                 </>
             }
         >
-            <FormField label="Paciente" htmlFor="new-deal-contact" required error={errors.contact} className="col-span-2">
+            <FormField label={v.Pessoa} htmlFor="new-deal-contact" required error={errors.contact} className="col-span-2">
                 <PickField
                     id="new-deal-contact"
                     value={contact}
@@ -172,8 +176,8 @@ export function NewDealDialog({
                     onSearch={search}
                     loading={searching}
                     leading={<User className="size-3.5 shrink-0 text-muted-foreground" />}
-                    placeholder="Buscar paciente"
-                    newPlaceholder="Nome do novo paciente"
+                    placeholder={`Buscar ${v.pessoa}`}
+                    newPlaceholder={`Nome ${comArtigo(v, 'pessoa', 'de')}`}
                     onSelect={(c) => { setContact(c); if (errors.contact) setErrors({}) }}
                     onCreate={async (name) => {
                         const res = await fetch('/api/contacts', {
@@ -183,7 +187,7 @@ export function NewDealDialog({
                         })
                         const data = await res.json().catch(() => ({}))
                         if (!res.ok) {
-                            toast.error(data.error || 'Não foi possível cadastrar o paciente')
+                            toast.error(data.error || `Não foi possível cadastrar ${comArtigo(v, 'pessoa')}`)
                             return null
                         }
                         return { id: data.id, name: data.name ?? name }
@@ -191,7 +195,7 @@ export function NewDealDialog({
                 />
             </FormField>
 
-            <FormField label="Título" htmlFor="new-deal-title" required error={errors.title} hint="Segue o nome do paciente até você mudar.">
+            <FormField label="Título" htmlFor="new-deal-title" required error={errors.title} hint={`Segue o nome ${comArtigo(v, 'pessoa', 'de')} até você mudar.`}>
                 <Input
                     id="new-deal-title"
                     value={title}

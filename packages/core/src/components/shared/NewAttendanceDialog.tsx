@@ -19,6 +19,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@venn/ui/textarea'
 import { cn } from '@venn/ui/utils'
 import { PhoneInput } from './PhoneInput'
+import { useVocab } from '../../hooks/useVocab'
+import { comArtigo } from '../../lib/concordancia'
 
 interface LookupResult {
     valid: boolean
@@ -75,6 +77,8 @@ export function NewAttendanceDialog({
     initialName?: string
     onDone: (result: IntakeResult) => void
 }) {
+    const v = useVocab()
+
     const [mode, setMode] = useState<'active' | 'call'>('active')
     const [phone, setPhone] = useState(initialPhone)
     const [name, setName] = useState(initialName)
@@ -216,7 +220,7 @@ export function NewAttendanceDialog({
                     <DialogTitle>Novo atendimento</DialogTitle>
                     <DialogDescription>
                         {mode === 'active'
-                            ? 'O paciente ainda não escreveu? Comece você.'
+                            ? `${comArtigo(v, 'Pessoa')} ainda não escreveu? Comece você.`
                             : 'Registre a ligação que acabou de chegar.'}
                     </DialogDescription>
                 </DialogHeader>
@@ -267,7 +271,7 @@ export function NewAttendanceDialog({
                             <div className="flex items-start gap-2 rounded-md bg-success-subtle px-2.5 py-2 text-xs text-success-subtle-foreground">
                                 <User className="mt-0.5 size-3.5 shrink-0" />
                                 <span>
-                                    <strong>{existing.name || 'Paciente cadastrado'}</strong> já está na base
+                                    <strong>{existing.name || `${v.Pessoa} cadastrado`}</strong> já está na base
                                     {existing.stageName ? (
                                         <> · negócio em <strong>{existing.stageName}</strong></>
                                     ) : null}
@@ -319,7 +323,7 @@ export function NewAttendanceDialog({
                             id="intake-name"
                             value={name}
                             onChange={(e) => setName(e.target.value)}
-                            placeholder="Como o paciente se apresentou"
+                            placeholder={`Como ${comArtigo(v, 'pessoa')} se apresentou`}
                         />
                         {!name.trim() ? (
                             <p className="text-xs text-muted-foreground">
@@ -367,7 +371,7 @@ export function NewAttendanceDialog({
                                 value={callNotes}
                                 onChange={(e) => setCallNotes(e.target.value)}
                                 rows={3}
-                                placeholder="Procurou por qual procedimento, o que ficou combinado…"
+                                placeholder={`Procurou por qual ${v.servico}, o que ficou combinado…`}
                             />
                             <p className="text-xs text-muted-foreground">
                                 Fica como atividade de Ligação e como nota interna na conversa.
@@ -379,9 +383,9 @@ export function NewAttendanceDialog({
                         <Route className="mt-0.5 size-3.5 shrink-0" />
                         <span>
                             {existing?.dealId
-                                ? 'O negócio aberto deste paciente é reaproveitado — nada é duplicado.'
-                                : 'Abre um negócio na primeira etapa do funil, como quando o paciente escreve primeiro.'}
-                            {mode === 'call' ? ' A fase se marca na Jornada do paciente, que abre em seguida.' : ''}
+                                ? `O negócio aberto ${comArtigo(v, 'pessoa', 'de')} é reaproveitado — nada é duplicado.`
+                                : `Abre um negócio na primeira etapa do funil, como quando ${comArtigo(v, 'pessoa')} escreve primeiro.`}
+                            {mode === 'call' ? ` A fase se marca na Jornada ${comArtigo(v, 'pessoa', 'de')}, que abre em seguida.` : ''}
                         </span>
                     </div>
                 </div>
