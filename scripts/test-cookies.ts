@@ -54,6 +54,9 @@ const PREFIXO_EM_PRODUCAO: Record<string, string> = {
     // 'stagent'` em `lib/auth/cookies.ts` do repositório dele, antes da
     // unificação. Trocar isto desloga todo mundo que está logado agora.
     stagent360: 'stagent',
+    // Lido do código que serve este produto hoje: `PREFIXO_DO_COOKIE =
+    // 'conecta'`.
+    conecta360: 'conecta',
 }
 
 console.log('\nO slug de cada app é o prefixo que os cookies já têm')

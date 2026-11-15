@@ -1,0 +1,268 @@
+{
+  "$comment": "Fonte unica de verdade dos recursos do Conecta360. IDs __FASE06__/__FASE07__ preenchidos nas Fases 06-08. Sem secrets. Arquitetura espelha o app de origem (vinext/Workers + Neon + R2 + Evolution no VPS); nomes pela convencao do runbook, hosts sob venn360.com. MIGRADO para o monorepo em 15/11/2026: o manifesto passou a ser um arquivo por app (`infra/manifest/<slug>.json`), e `app.repo` aponta para o repositório unificado. O nome do arquivo e `app.slug` TÊM de concordar — é do nome que as regras de isolamento derivam o dono.",
+  "app": {
+    "repo": "venn360/venn-saas",
+    "name": "Conecta360",
+    "slug": "conecta",
+    "segment": "none",
+    "cloudflareAccountId": "7ee4810a45580562977d68b86ec709e7"
+  },
+  "environments": {
+    "production": {
+      "hostnames": {
+        "app": "conecta.venn360.com",
+        "evolution": "evo-conecta.venn360.com",
+        "emailDomain": "mail.venn360.com",
+        "emailFrom": "noreply@mail.venn360.com",
+        "support": "suporte@conecta.venn360.com"
+      },
+      "cloudflare": {
+        "worker": "conecta",
+        "customDomain": "conecta.venn360.com",
+        "hyperdrive": [],
+        "r2": [
+          {
+            "binding": "PUBLICO",
+            "name": "conecta-prod-public"
+          },
+          {
+            "binding": "(via S3)",
+            "name": "conecta-prod-private"
+          }
+        ],
+        "kv": [],
+        "queues": [
+          {
+            "name": "conecta-prod-whatsapp-inbound"
+          },
+          {
+            "name": "conecta-prod-whatsapp-event"
+          },
+          {
+            "name": "conecta-prod-whatsapp-outbound"
+          },
+          {
+            "name": "conecta-prod-ai-reply"
+          },
+          {
+            "name": "conecta-prod-rag-index"
+          },
+          {
+            "name": "conecta-prod-agent-webhook"
+          },
+          {
+            "name": "conecta-prod-asaas-event"
+          },
+          {
+            "name": "conecta-prod-broadcast"
+          },
+          {
+            "name": "conecta-prod-cron"
+          }
+        ],
+        "durableObjects": [
+          {
+            "binding": "SALA_DO_WORKSPACE",
+            "class": "SalaDoWorkspace",
+            "id": "__FASE07__"
+          },
+          {
+            "binding": "AGENDA_DA_CONVERSA",
+            "class": "AgendaDaConversa",
+            "id": "__FASE07__"
+          },
+          {
+            "binding": "TRAVA_DE_CONTATO",
+            "class": "TravaDeContato",
+            "id": "__FASE07__"
+          }
+        ],
+        "email": {
+          "binding": "EMAIL",
+          "type": "send_email",
+          "from": "Conecta360 <noreply@mail.venn360.com>"
+        },
+        "turnstileSitekey": "",
+        "accessApps": [
+          {
+            "name": "evo-conecta",
+            "id": "55cb98b2-26ad-43cb-9f9a-63246f200e9c",
+            "aud": "cfe1ff3bd1594f7e593c01148276ee4bde25270f2fa33fb4a5497b1be2a3ef79",
+            "domain": "evo-conecta.venn360.com"
+          }
+        ],
+        "accessServiceTokens": [
+          {
+            "name": "conecta-worker-evo-prod",
+            "clientId": "7c701b76734c85eb97d645357d7c218a.access"
+          }
+        ]
+      },
+      "neon": {
+        "projectId": "twilight-forest-55489209",
+        "branch": "production",
+        "branchId": "br-winter-voice-b6ndduq1",
+        "endpointHost": "ep-morning-mouse-b6bkiolv.c-2.sa-east-1.aws.neon.tech",
+        "pgVersion": 18,
+        "database": "conecta",
+        "roles": {
+          "app": "conecta_app",
+          "migrator": "conecta_migrator"
+        }
+      },
+      "evolution": {
+        "image": "evolution-go:0.7.2-whatsmeow-nov",
+        "container": "evo-conecta-prod",
+        "composeProject": "evo-conecta-prod",
+        "directory": "/opt/evolution/evo-conecta-prod",
+        "vpsInstanceId": "0a5ffb7f-d14f-4842-999f-568037942885",
+        "vpsIp": "216.128.171.19",
+        "internalPort": 8080,
+        "database": "evo_conecta_prod",
+        "dbRole": "evo_conecta_prod",
+        "redisDb": null,
+        "redisPrefix": "conecta_prod",
+        "instancePrefix": "conecta-prod-",
+        "webhookUrl": "https://conecta.venn360.com/api/webhooks/evolution-go/<secret>",
+        "tunnelId": "bec63880-e83f-441c-b129-e0794b23a18d"
+      },
+      "integrations": {
+        "googleProjectId": "conecta360-prod",
+        "googleOAuthClientId": "",
+        "metaAppId": "",
+        "wabaId": "",
+        "whatsappPhoneNumberIds": []
+      }
+    },
+    "stg": {
+      "hostnames": {
+        "app": "homolog-conecta.venn360.com",
+        "evolution": "evo-conecta.venn360.com",
+        "emailDomain": "mail.venn360.com",
+        "emailFrom": "noreply@mail.venn360.com",
+        "support": "suporte@conecta.venn360.com"
+      },
+      "cloudflare": {
+        "worker": "conecta-stg",
+        "customDomain": "homolog-conecta.venn360.com",
+        "hyperdrive": [],
+        "r2": [
+          {
+            "binding": "PUBLICO",
+            "name": "conecta-stg-public"
+          },
+          {
+            "binding": "(via S3)",
+            "name": "conecta-stg-private"
+          }
+        ],
+        "kv": [],
+        "queues": [
+          {
+            "name": "conecta-stg-whatsapp-inbound"
+          },
+          {
+            "name": "conecta-stg-whatsapp-event"
+          },
+          {
+            "name": "conecta-stg-whatsapp-outbound"
+          },
+          {
+            "name": "conecta-stg-ai-reply"
+          },
+          {
+            "name": "conecta-stg-rag-index"
+          },
+          {
+            "name": "conecta-stg-agent-webhook"
+          },
+          {
+            "name": "conecta-stg-asaas-event"
+          },
+          {
+            "name": "conecta-stg-broadcast"
+          },
+          {
+            "name": "conecta-stg-cron"
+          }
+        ],
+        "durableObjects": [
+          {
+            "binding": "SALA_DO_WORKSPACE",
+            "class": "SalaDoWorkspace",
+            "id": "__FASE07__"
+          },
+          {
+            "binding": "AGENDA_DA_CONVERSA",
+            "class": "AgendaDaConversa",
+            "id": "__FASE07__"
+          },
+          {
+            "binding": "TRAVA_DE_CONTATO",
+            "class": "TravaDeContato",
+            "id": "__FASE07__"
+          }
+        ],
+        "email": {
+          "binding": "EMAIL",
+          "type": "send_email",
+          "from": "Conecta360 <noreply@mail.venn360.com>"
+        },
+        "turnstileSitekey": "",
+        "accessApps": [
+          {
+            "name": "conecta-stg-evo",
+            "id": "__FASE07__",
+            "domain": "stg-evo-conecta.venn360.com"
+          }
+        ],
+        "accessServiceTokens": [
+          {
+            "name": "conecta-worker-evo-stg",
+            "clientId": "85c792a9d641d0b3eed41d1b5c9bfde8.access"
+          },
+          {
+            "name": "conecta-ci-stg",
+            "clientId": "ca1fc66b3128ec5f683e99d414fd644f.access"
+          }
+        ]
+      },
+      "neon": {
+        "projectId": "twilight-forest-55489209",
+        "branch": "staging",
+        "branchId": "br-muddy-bar-b6n1i5ks",
+        "endpointHost": "ep-still-credit-b66bl8cs.c-2.sa-east-1.aws.neon.tech",
+        "pgVersion": 18,
+        "database": "conecta",
+        "roles": {
+          "app": "conecta_app",
+          "migrator": "conecta_migrator"
+        }
+      },
+      "evolution": {
+        "image": "evolution-go:0.7.2-whatsmeow-nov",
+        "container": "evo-conecta-prod",
+        "composeProject": "evo-conecta-prod",
+        "directory": "/opt/evolution/evo-conecta-prod",
+        "internalPort": 8080,
+        "database": "evo_conecta_prod",
+        "dbRole": "evo_conecta_prod",
+        "redisDb": null,
+        "redisPrefix": "conecta_stg",
+        "instancePrefix": "conecta-stg-",
+        "webhookUrl": "https://homolog-conecta.venn360.com/api/webhooks/evolution-go/<secret>",
+        "vpsInstanceId": "0a5ffb7f-d14f-4842-999f-568037942885",
+        "vpsIp": "216.128.171.19",
+        "tunnelId": "bec63880-e83f-441c-b129-e0794b23a18d",
+        "_nota": "Homolog compartilha o Evolution de produção (um contêiner por produto, nunca por ambiente). Os campos acima são os DA PRODUÇÃO de propósito; o que separa os ambientes é o nome da instância, que é `<slug>_<id-da-linha>` e é único por construção, e o webhook, que é por instância."
+      },
+      "integrations": {
+        "googleProjectId": "conecta360-stg",
+        "googleOAuthClientId": "",
+        "metaAppId": "",
+        "wabaId": "",
+        "whatsappPhoneNumberIds": []
+      }
+    }
+  }
+}

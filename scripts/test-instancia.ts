@@ -42,6 +42,8 @@ const PREFIXO_JA_CRIADO: Record<string, string> = {
     // `meta/route.ts` do repositório dele). Mudar isto não renomeia a instância
     // na Evolution: cria outra, e a linha já ligada deixa de ser encontrada.
     stagent360: 'stagent',
+    // Instâncias criadas como `conecta_<id>` no repositório dele.
+    conecta360: 'conecta',
 }
 
 
