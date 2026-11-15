@@ -2,6 +2,7 @@ import prisma from '@venn/db/cliente'
 import { laneWhere } from '../../../lib/deal-lanes'
 import { readAutomations } from '../../../lib/automations'
 import { createLogger } from '../../registro'
+import { vocab } from '../../../lib/vocabulario'
 
 const log = createLogger('CRON:FOLLOWUP')
 
@@ -97,7 +98,7 @@ export async function runFollowUp(): Promise<void> {
         for (const deal of candidates) {
             const since = deal.stageEntries[0]?.enteredAt ?? deal.createdAt
             const idle = Math.floor((now.getTime() - since.getTime()) / 86_400_000)
-            const who = deal.contact?.name || deal.contact?.phone || 'paciente'
+            const who = deal.contact?.name || deal.contact?.phone || `${vocab().pessoa}`
 
             await prisma.activity.create({
                 data: {
@@ -140,7 +141,7 @@ export async function runFollowUp(): Promise<void> {
                 userId,
                 kind: 'follow_up',
                 title: count === 1 ? '1 retomada para hoje' : `${count} retomadas para hoje`,
-                body: 'Pacientes parados sem nenhum retorno marcado.',
+                body: `${vocab().Pessoas} parados sem nenhum retorno marcado.`,
                 link: '/vendas/agenda',
             },
         })

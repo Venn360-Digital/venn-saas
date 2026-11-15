@@ -17,6 +17,7 @@ import { cn } from '@venn/ui/utils'
 import { Button } from '@venn/ui/button'
 import { KpiCard } from '../shared/KpiCard'
 import { EmptyState } from '../shared/EmptyState'
+import { vocab } from '../../lib/vocabulario'
 
 /**
  * A visão Dados — a que o painel sempre teve.
@@ -59,7 +60,7 @@ export async function DataView({
             <div className="min-w-0 space-y-4">
             <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 <KpiCard
-                    label="Pacientes novos"
+                    label={`${vocab().Pessoas} novos`}
                     value={kpis.contacts.value.toLocaleString('pt-BR')}
                     icon={Users}
                     delta={kpis.contacts.delta ?? undefined}

@@ -5,7 +5,7 @@ import prisma from '@venn/db/cliente'
 import { getWorkspaceLimits } from '../../lib/limits'
 import { apelidoDaLinha } from '../../lib/linha'
 import { isPlanId } from '../../lib/plan-limits'
-import { REDES_DO_PLANO, redesDoPlano } from '../../lib/plans'
+import { redesDoPlanoTodas, redesDoPlano } from '../../lib/plans'
 import { cn } from '@venn/ui/utils'
 
 /**
@@ -55,7 +55,7 @@ interface Operacao {
 /**
  * A rede comercial e a coluna `channel` da integração não se chamam igual.
  *
- * A lista que manda aqui é a **comercial** (`REDES_DO_PLANO`), não a técnica.
+ * A lista que manda aqui é a **comercial** (`redesDoPlanoTodas`), não a técnica.
  * Era a técnica, e o cartão contava canal que este plano não vende: um Digital
  * aparecia com "1 de 4 no ar" somando WhatsApp API, Instagram e site, que ele
  * não tem. O Andre leu os 4 como quatro WhatsApps em 2026-10-20, e a leitura
@@ -105,7 +105,7 @@ export async function lerOperacao(workspaceId: string): Promise<Operacao> {
      * `WhatsApp · Unidade Centro`, com o apelido da linha e, na falta dele, o
      * número.
      */
-    const canais = REDES_DO_PLANO.flatMap((rede): Linha[] => {
+    const canais = redesDoPlanoTodas().flatMap((rede): Linha[] => {
         const colunas = CANAL_NO_BANCO[rede.id] ?? []
         const registros = integracoes.filter((i) => colunas.includes(i.channel))
         const conectadas = registros.filter((i) => i.status === 'connected').length

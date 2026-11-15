@@ -9,6 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@venn/ui/switch'
 import { BandLayout, SettingsBand } from '../shared/TabsFrame'
 import { DEFAULT_AUTOMATIONS, type Automations } from '../../lib/automations'
+import { useVocab } from '../../hooks/useVocab'
+import { comArtigo } from '../../lib/concordancia'
 
 /**
  * O que a clínica deixa o sistema fazer sozinho.
@@ -22,6 +24,8 @@ import { DEFAULT_AUTOMATIONS, type Automations } from '../../lib/automations'
  * não tem modo de edição.
  */
 export function AutomacoesTab() {
+    const v = useVocab()
+
     const [config, setConfig] = useState<Automations | null>(null)
     const [saving, setSaving] = useState(false)
 
@@ -68,7 +72,7 @@ export function AutomacoesTab() {
         <BandLayout
             footer={
                 <p className="mr-auto text-xs leading-relaxed text-muted-foreground">
-                    Nenhuma destas chaves envia mensagem a paciente. Falar sozinho com quem está em
+                    Nenhuma destas chaves envia mensagem a {v.pessoa}. Falar sozinho com quem está em
                     atendimento é decisão de cada fase, em <strong>Negócios → Fases</strong>.
                     {saving ? ' · salvando…' : ''}
                 </p>
@@ -180,7 +184,7 @@ export function AutomacoesTab() {
                     <Line
                         icon={Sparkles}
                         title="Criar tarefa de retomada"
-                        hint="Todo dia de manhã, pacientes parados sem retorno marcado viram tarefa para o responsável. Usa o prazo de cada fase, definido em Negócios → Fases."
+                        hint={`Todo dia de manhã, ${v.pessoas} parados sem retorno marcado viram tarefa para o responsável. Usa o prazo de cada fase, definido em Negócios → Fases.`}
                         checked={config.followUpTasks}
                         onChange={(v) => void save({ followUpTasks: v })}
                     />
@@ -188,7 +192,7 @@ export function AutomacoesTab() {
                     <Line
                         icon={Sun}
                         title="Boletim da manhã"
-                        hint="Três números e os nomes de quem ligar primeiro, para quem abre a clínica."
+                        hint={`Três números e os nomes de quem ligar primeiro, para quem abre ${comArtigo(v, 'organizacao')}.`}
                         checked={config.briefing}
                         onChange={(v) => void save({ briefing: v })}
                         extra={

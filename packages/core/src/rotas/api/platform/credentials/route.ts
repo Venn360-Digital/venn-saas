@@ -47,7 +47,7 @@ export async function GET() {
     const admin = await getPlatformAdmin()
 
     const providers = await Promise.all(
-        PLATFORM_PROVIDERS.map(async (p) => {
+        PLATFORM_PROVIDERS().map(async (p) => {
             const estado = await estadoDoProvedor(p.provider)
 
             /**

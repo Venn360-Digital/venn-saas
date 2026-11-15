@@ -25,6 +25,8 @@ import {
 } from './plan-limits'
 import { InstagramIcon, WhatsAppIcon } from '../components/shared/BrandIcons'
 import { Globe } from 'lucide-react'
+import { vocab } from './vocabulario'
+import { comArtigo } from './concordancia'
 
 // Reexportados para quem já importava daqui — a definição mora em
 // `plan-limits.ts`, que o worker também lê.
@@ -33,7 +35,7 @@ export { type PlanId, type BillingCycle }
 /**
  * **Havia uma segunda lista de canais aqui, técnica, e ela foi removida em
  * 2026-10-20.** `PLAN_CHANNELS` e `CANAIS_EM_DESENVOLVIMENTO` existiam para o
- * painel, ao lado de `REDES_DO_PLANO`, que é a comercial — e as duas
+ * painel, ao lado de `redesDoPlanoTodas`, que é a comercial — e as duas
  * divergiram, como duas listas da mesma coisa sempre divergem.
  *
  * O que elas discordavam era grave na tela: a técnica trazia o Facebook, que
@@ -43,7 +45,7 @@ export { type PlanId, type BillingCycle }
  * — somando WhatsApp API, Instagram e o site, que é do Prime para cima — e
  * ainda pintava de vermelho a linha da Meta como se tivesse caído.
  *
- * Agora há uma lista só: `REDES_DO_PLANO`, filtrada por `redesDoPlano(plano)`.
+ * Agora há uma lista só: `redesDoPlanoTodas`, filtrada por `redesDoPlano(plano)`.
  * Quem precisa do nome da coluna no banco traduz na própria tela — é o que o
  * painel faz com `CANAL_NO_BANCO`.
  */
@@ -104,16 +106,29 @@ export interface RedeDoPlano {
  * que ninguém está construindo. O glifo continua em `BrandIcons` para quando
  * voltar.
  */
-export const REDES_DO_PLANO: RedeDoPlano[] = [
-    { id: 'site', label: 'Site da clínica', icon: Globe, planos: ['pro', 'advanced'] },
-    { id: 'whatsapp', label: 'WhatsApp', icon: WhatsAppIcon },
-    { id: 'whatsapp_api', label: 'WhatsApp API Oficial', icon: WhatsAppIcon, marca: 'API', emBreve: true },
-    { id: 'instagram', label: 'Instagram Direct', icon: InstagramIcon, emBreve: true },
-]
+/**
+ * Função memoizada, e não constante — `vocab()` lê a marca.
+ *
+ * `BRAND()` é fail-fast, e uma constante de nível de módulo é avaliada quando a
+ * Cloudflare VALIDA o script: ali não há requisição nem marca registrada, e a
+ * publicação reprova com `MarcaNaoRegistradaError`. Foi o que aconteceu cinco
+ * vezes nesta fase — e uma sexta aqui, quando o vocabulário entrou nos rótulos
+ * deste arquivo. O `check:marca-tardia` pegou antes do build.
+ */
+let redesCache: RedeDoPlano[] | null = null
+export function redesDoPlanoTodas(): RedeDoPlano[] {
+    if (redesCache === null) redesCache = [
+        { id: 'site', label: `Site ${comArtigo(vocab(), 'organizacao', 'de')}`, icon: Globe, planos: ['pro', 'advanced'] },
+        { id: 'whatsapp', label: 'WhatsApp', icon: WhatsAppIcon },
+        { id: 'whatsapp_api', label: 'WhatsApp API Oficial', icon: WhatsAppIcon, marca: 'API', emBreve: true },
+        { id: 'instagram', label: 'Instagram Direct', icon: InstagramIcon, emBreve: true },
+    ]
+    return redesCache
+}
 
 /** As conexões que este plano anuncia, na ordem da fileira. */
 export function redesDoPlano(planId: PlanId): RedeDoPlano[] {
-    return REDES_DO_PLANO.filter((rede) => !rede.planos || rede.planos.includes(planId))
+    return redesDoPlanoTodas().filter((rede) => !rede.planos || rede.planos.includes(planId))
 }
 
 export interface Plan {
@@ -167,21 +182,25 @@ export interface Plan {
     features: PlanFeature[]
 }
 
-export const PLANS: Record<PlanId, Plan> = {
+/** Memoizado pela mesma razão de `redesDoPlanoTodas`: as descrições leem a marca. */
+let plansCache: Record<PlanId, Plan> | null = null
+export function plans(): Record<PlanId, Plan> {
+    if (plansCache !== null) return plansCache
+    plansCache = {
     flow: {
         id: 'flow',
         icon: '/planos/digital.png',
         iconDark: '/planos/digital-escuro.png',
         name: PLAN_NAMES.flow,
         description:
-            'Para clínicas que precisam conectar pacientes, WhatsApp e atendimento em um só lugar.',
+            `Para ${vocab().organizacoes} que precisam conectar ${vocab().pessoas}, WhatsApp e atendimento em um só lugar.`,
         price: PLAN_PRICES.flow,
         limits: PLAN_LIMITS.flow,
         features: [
-            { text: '1 unidade (clínica)', strong: true },
+            { text: `1 unidade (${vocab().organizacao})`, strong: true },
             { text: '1 agente de atendimento IA' },
             { text: '1 número de WhatsApp' },
-            { text: 'CRM para clínicas com funil de vendas' },
+            { text: `CRM para ${vocab().organizacoes} com funil de vendas` },
             { text: 'Usuários ilimitados' },
             { text: 'Dashboard inteligente' },
             { text: 'Agenda integrada com Google Calendar' },
@@ -194,18 +213,18 @@ export const PLANS: Record<PlanId, Plan> = {
         iconDark: '/planos/prime-escuro.png',
         name: PLAN_NAMES.pro,
         description:
-            'Para clínicas que precisam distribuir conversas, ampliar o atendimento e administrar mais canais.',
+            `Para ${vocab().organizacoes} que precisam distribuir conversas, ampliar o atendimento e administrar mais canais.`,
         price: PLAN_PRICES.pro,
         badge: 'Mais escolhido',
         limits: PLAN_LIMITS.pro,
         features: [
-            { text: '1 unidade (clínica)', strong: true },
+            { text: `1 unidade (${vocab().organizacao})`, strong: true },
             { text: '2 agentes de atendimento IA' },
             { text: '4 números de WhatsApp' },
-            { text: 'CRM para clínicas com funil de vendas' },
+            { text: `CRM para ${vocab().organizacoes} com funil de vendas` },
             { text: 'Usuários ilimitados' },
             { text: 'Dashboard inteligente' },
-            { text: 'Agente de IA no site da clínica' },
+            { text: `Agente de IA no site ${comArtigo(vocab(), 'organizacao', 'de')}` },
             { text: 'Agenda integrada com Google Calendar' },
             { text: 'Integração com CliniCorp' },
             { text: '20.000 créditos de IA por mês', strong: true },
@@ -217,17 +236,17 @@ export const PLANS: Record<PlanId, Plan> = {
         iconDark: '/planos/multiclinica-escuro.png',
         name: PLAN_NAMES.advanced,
         description:
-            'Para clínicas com operações maiores, múltiplas unidades e maior fluxo de pacientes.',
+            `Para ${vocab().organizacoes} com operações maiores, múltiplas unidades e maior fluxo de ${vocab().pessoas}.`,
         price: PLAN_PRICES.advanced,
         limits: PLAN_LIMITS.advanced,
         features: [
-            { text: '3 unidades (clínicas)', strong: true },
+            { text: `3 unidades (${vocab().organizacoes})`, strong: true },
             { text: '3 agentes de atendimento IA' },
             { text: '6 números de WhatsApp' },
-            { text: 'CRM para clínicas com funil de vendas' },
+            { text: `CRM para ${vocab().organizacoes} com funil de vendas` },
             { text: 'Usuários ilimitados' },
             { text: 'Dashboard inteligente' },
-            { text: 'Agente de IA no site da clínica' },
+            { text: `Agente de IA no site ${comArtigo(vocab(), 'organizacao', 'de')}` },
             { text: 'Agenda integrada com Google Calendar' },
             { text: 'Integração com CliniCorp' },
             { text: 'Diagnóstico de LGPD (proteção de dados)', strong: true },
@@ -236,7 +255,15 @@ export const PLANS: Record<PlanId, Plan> = {
     },
 }
 
-export const PLAN_LIST: Plan[] = [PLANS.flow, PLANS.pro, PLANS.advanced]
+    return plansCache
+}
+
+/** Memoizado: deriva de `plans()`. */
+let listaCache: Plan[] | null = null
+export function planList(): Plan[] {
+    if (listaCache === null) listaCache = [plans().flow, plans().pro, plans().advanced]
+    return listaCache
+}
 
 /**
  * Os pacotes de recarga de crédito.
@@ -383,5 +410,5 @@ export function formatPrice(value: number): string {
 
 /** Falls back to the entry plan rather than throwing on unknown stored values. */
 export function planFor(id: string | null | undefined): Plan {
-    return id && id in PLANS ? PLANS[id as PlanId] : PLANS.flow
+    return id && id in plans ? plans()[id as PlanId] : plans().flow
 }

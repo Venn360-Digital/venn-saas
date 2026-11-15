@@ -8,6 +8,9 @@ import { toast } from 'sonner'
 import { Button } from '@venn/ui/button'
 import { ConfirmDialog } from '../../shared/ConfirmDialog'
 import { SettingsRow } from '../../shared/TabsFrame'
+import { useVocab } from '../../../hooks/useVocab'
+import { comArtigo } from '../../../lib/concordancia'
+import { useMarca } from '../../../marca-contexto'
 
 /**
  * O cartão que liga o Instagram da clínica — botão e orientação juntos.
@@ -73,6 +76,8 @@ interface Props {
  * enfeite.
  */
 function Preparos() {
+    const marca = useMarca()
+    const v = useVocab()
     return (
         <div className="rounded-md border border-border bg-muted/40 p-3.5">
             <p className="text-[12px] font-semibold">
@@ -86,7 +91,7 @@ function Preparos() {
                         conta profissional
                     </Caminho>
                     Serve Comercial ou Criador de conteúdo. Não é preciso Página do Facebook,
-                    nem gerenciador de negócios: a clínica entra com a própria conta do
+                    nem gerenciador de negócios: {comArtigo(v, 'organizacao')} entra com a própria conta do
                     Instagram.
                 </Passo>
 
@@ -95,7 +100,7 @@ function Preparos() {
                         Configurações e atividade → Mensagens e respostas de story → Controles de
                         mensagens → Ferramentas conectadas → Permitir acesso a mensagens
                     </Caminho>
-                    Autorizar aqui no OdontoBox360{' '}
+                    Autorizar aqui no {marca.name}{' '}
                     <strong className="font-semibold text-foreground">não</strong> liga essa
                     chave. Com ela desligada, a conexão aparece como ligada e nenhuma mensagem é
                     enviada.
@@ -170,6 +175,8 @@ function LembreteDeAcesso() {
 }
 
 export function InstagramConnect({ agentId, canManage, renderAcao }: Props) {
+    const v = useVocab()
+
     const [configurado, setConfigurado] = useState<boolean | null>(null)
     const [conta, setConta] = useState<Conta | null>(null)
     const [carregando, setCarregando] = useState(false)
@@ -349,7 +356,7 @@ export function InstagramConnect({ agentId, canManage, renderAcao }: Props) {
                         Instagram Direct
                     </span>
                 }
-                description="O Direct da conta profissional da clínica. A conta é escolhida numa janela da Meta; nenhuma credencial passa por aqui."
+                description={`O Direct da conta profissional ${comArtigo(v, 'organizacao', 'de')}. A conta é escolhida numa janela da Meta; nenhuma credencial passa por aqui.`}
                 action={acao}
             />
 
@@ -365,7 +372,7 @@ export function InstagramConnect({ agentId, canManage, renderAcao }: Props) {
                 title="Desligar o Instagram?"
                 description={
                     'O Direct para de chegar na hora. As conversas e o histórico ficam, e ' +
-                    'religar não pede nada ao paciente. A clínica continua respondendo pelo ' +
+                    `religar não pede nada ${comArtigo(v, 'pessoa', 'a')}. ${comArtigo(v, 'Organizacao')} continua respondendo pelo ` +
                     'aplicativo do Instagram normalmente.'
                 }
                 confirmLabel="Desligar"

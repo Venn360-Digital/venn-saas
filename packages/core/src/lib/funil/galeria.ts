@@ -1,4 +1,6 @@
 import type { Gatilho } from './gatilho'
+import { vocab } from '../vocabulario'
+import { comArtigo } from '../concordancia'
 
 /**
  * Funis de partida — desenhos prontos que a pessoa ajusta.
@@ -11,7 +13,7 @@ import type { Gatilho } from './gatilho'
  *
  * Isso é decisão, não preguiça. Um texto de partida escrito por nós sairia no
  * nome da clínica, prometendo o que nós não sabemos: preço, prazo, nome de
- * procedimento, condição de pagamento. É o mesmo raciocínio que já está
+ * servico, condição de pagamento. É o mesmo raciocínio que já está
  * registrado na mineração de lacunas — a sugestão traz a pergunta e um branco
  * marcado, porque escrever a resposta seria inventar preço.
  *
@@ -70,11 +72,19 @@ const espera = (id: string, order: number, dias: number, proximo?: string): Pass
     edges: proximo ? { padrao: proximo } : null,
 })
 
-export const GALERIA_DE_FUNIS: FunilDePartida[] = [
+/**
+ * Função memoizada, e não constante: o texto lê o vocabulário, e `BRAND()` é
+ * fail-fast. Constante de módulo é avaliada quando a Cloudflare VALIDA o
+ * script — sem requisição e sem marca registrada —, e a publicação reprova com
+ * `MarcaNaoRegistradaError`. A forma que já reprovou cinco publicações.
+ */
+let galeriaDeFunisCache: FunilDePartida[] | null = null
+export function GALERIA_DE_FUNIS(): FunilDePartida[] {
+    if (galeriaDeFunisCache === null) galeriaDeFunisCache = [
     {
         id: 'boas-vindas',
         nome: 'Boas-vindas em três tempos',
-        descricao: 'Apresenta a clínica a quem acabou de chegar, sem pressa.',
+        descricao: `Apresenta ${comArtigo(vocab(), 'organizacao')} a quem acabou de chegar, sem pressa.`,
         trigger: { tipo: 'contato_criado' },
         maxAtivos: null,
         passos: [
@@ -168,3 +178,5 @@ export const GALERIA_DE_FUNIS: FunilDePartida[] = [
         ],
     },
 ]
+    return galeriaDeFunisCache
+}

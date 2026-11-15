@@ -4,6 +4,8 @@ import { Input } from '@venn/ui/input'
 import { Textarea } from '@venn/ui/textarea'
 import { Label } from '@venn/ui/label'
 import { TrabalhoData } from '../../../../types/agent-creation'
+import { useVocab } from '../../../../hooks/useVocab'
+import type { Vocabulario } from '../../../../lib/vocabulario'
 
 interface TrabalhoTabProps {
     data: TrabalhoData
@@ -18,9 +20,21 @@ interface TrabalhoTabProps {
  * de uma clínica se descrever errado no prompt. O valor é fixo e aparece na
  * tela porque é informação que o Agente usa, não porque há o que decidir.
  */
-export const SETOR_PADRAO = 'Clínica odontológica'
+/**
+ * Função que recebe o vocabulário — e sem o adjetivo do nicho.
+ *
+ * Era `Clínica odontológica`. O substantivo sai pelo vocabulário; o adjetivo
+ * não tem eixo no contrato e não faria sentido ter um (seria um campo por
+ * especialidade). `${v.Organizacao}` sozinho já diz o que o Agente precisa, e
+ * é o que vale nos três produtos.
+ */
+export function setorPadrao(v: Vocabulario): string {
+    return v.Organizacao
+}
 
 export function TrabalhoTab({ data, onChange }: TrabalhoTabProps) {
+    const v = useVocab()
+
     return (
         <div className="space-y-6">
             <div>
@@ -79,7 +93,7 @@ export function TrabalhoTab({ data, onChange }: TrabalhoTabProps) {
                         <p className="text-xs text-muted-foreground">
                             Definido pelo produto, e informado ao Agente.
                         </p>
-                        <Input id="companySector" value={SETOR_PADRAO} readOnly disabled />
+                        <Input id="companySector" value={setorPadrao(v)} readOnly disabled />
                     </div>
                 </div>
 
@@ -107,7 +121,7 @@ export function TrabalhoTab({ data, onChange }: TrabalhoTabProps) {
                         <Input
                             id="companyWebsite"
                             type="url"
-                            placeholder="Ex: https://suaclinica.com.br"
+                            placeholder="Ex: https://suaexemplo.com.br"
                             value={data.companyWebsite || ''}
                             onChange={(e) => onChange({ companyWebsite: e.target.value })}
                         />

@@ -5,6 +5,7 @@ import { negocioEntrouNaEtapa, negocioFoiFechado } from '@venn/core/lib/funil/di
 import { conferirRelacoes } from '@venn/core/lib/auth/relacoes'
 import { usuarioDaSessao } from '@venn/core/lib/auth/sessao'
 import { Prisma } from '@venn/db'
+import { vocab } from '../../../../lib/vocabulario'
 
 const dealInclude = {
     contact: {
@@ -88,7 +89,7 @@ export async function PATCH(
             })
             if (existingOpenDeal) {
                 return NextResponse.json(
-                    { error: 'Este paciente já possui um negócio ativo.' },
+                    { error: `Este ${vocab().pessoa} já possui um negócio ativo.` },
                     { status: 409 }
                 )
             }

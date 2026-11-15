@@ -18,16 +18,18 @@ import { FormField } from '@venn/core/components/shared/FormField'
 import { RecordDialog } from '@venn/core/components/shared/RecordDialog'
 import { JanelasDialog } from '@venn/core/components/professionals/JanelasDialog'
 import { EspecialistaPanel } from '@venn/core/components/professionals/EspecialistaPanel'
+import { useVocab } from '@venn/core/hooks/useVocab'
+import { comArtigo } from '@venn/core/lib/concordancia'
 import { panelNeighbours, usePanelKeys } from '@venn/core/components/shared/RecordPanel'
 import { usePermissions } from '@venn/core/hooks/usePermissions'
 import { normalizeSearch } from '@venn/core/lib/search'
 import { PICKER_RAMP } from '@venn/core/lib/palette'
 
 import { useIndiceServidor } from '@venn/core/hooks/useIndiceServidor'
-import { INCLUIR_INATIVOS, type DadosIniciais, type Especialista } from './dados'
+import { INCLUIR_INATIVOS, type DadosIniciais, type Profissional } from './dados'
 
 /**
- * Quem executa os procedimentos da clínica.
+ * Quem executa os servicos da clínica.
  *
  * Cadastro irmão de Departamentos e Itens — e **não** a lista de usuários:
  * `Activity.userId` já significa "Responsável", quem da equipe cuida da tarefa.
@@ -42,12 +44,17 @@ import { INCLUIR_INATIVOS, type DadosIniciais, type Especialista } from './dados
  *
  * `PICKER_RAMP` existe em `palette.ts` para isto, e é o único lugar do `src/`
  * onde cor literal é permitida — o verificador de cores recusa hex solto em
- * qualquer outro arquivo. Reusá-la também faz o especialista combinar com a
+ * qualquer outro arquivo. Reusá-la também faz o profissional combinar com a
  * etiqueta e a fase do funil, em vez de inventar uma sexta paleta.
  */
 const CORES = PICKER_RAMP
 
 export function EspecialistasClient({ inicial }: { inicial: DadosIniciais }) {
+    // As palavras do nicho vêm da unidade; `comArtigo` monta o determinante
+    // pelo gênero declarado na marca. Frase com particípio ("Profissional
+    // atualizado") foi reescrita em forma neutra.
+    const v = useVocab()
+
     const { canEdit } = usePermissions()
 
     const [busca, setBusca] = useState('')
@@ -68,10 +75,10 @@ export function EspecialistasClient({ inicial }: { inicial: DadosIniciais }) {
     const buscar = useCallback(async () => {
         const res = await fetch(`/api/professionals?all=${INCLUIR_INATIVOS}`)
         if (!res.ok) {
-            toast.error('Não foi possível carregar os especialistas')
+            toast.error(`Não foi possível carregar ${comArtigo(v, 'profissionais')}`)
             return null
         }
-        const itens = (await res.json()) as Especialista[]
+        const itens = (await res.json()) as Profissional[]
         return { itens, total: itens.length, totalPages: 1 }
     }, [])
 
@@ -87,7 +94,7 @@ export function EspecialistasClient({ inicial }: { inicial: DadosIniciais }) {
         itens,
         carregando: loading,
         recarregar,
-    } = useIndiceServidor<Especialista>({
+    } = useIndiceServidor<Profissional>({
         inicial,
         /**
          * O recorte desta tela é só o `all`: não há paginação nem busca no
@@ -121,7 +128,7 @@ export function EspecialistasClient({ inicial }: { inicial: DadosIniciais }) {
     const [erro, setErro] = useState<string | null>(null)
     const [salvando, setSalvando] = useState(false)
 
-    const [excluindo, setExcluindo] = useState<Especialista | null>(null)
+    const [excluindo, setExcluindo] = useState<Profissional | null>(null)
     const [janelasDe, setJanelasDe] = useState<string | null>(null)
 
     const visiveis = busca.trim()
@@ -137,7 +144,7 @@ export function EspecialistasClient({ inicial }: { inicial: DadosIniciais }) {
         setDialogoAberto(true)
     }
 
-    const abrirEdicao = (e: Especialista) => {
+    const abrirEdicao = (e: Profissional) => {
         setEditandoId(e.id)
         setForm({ name: e.name, specialty: e.specialty ?? '', color: e.color, isActive: e.isActive })
         setErro(null)
@@ -147,7 +154,7 @@ export function EspecialistasClient({ inicial }: { inicial: DadosIniciais }) {
     const salvar = async (denovo: boolean) => {
         const name = form.name.trim()
         if (!name) {
-            setErro('Dê um nome ao especialista.')
+            setErro(`Dê um nome ${comArtigo(v, 'profissional', 'a')}.`)
             return
         }
         setSalvando(true)
@@ -167,7 +174,7 @@ export function EspecialistasClient({ inicial }: { inicial: DadosIniciais }) {
                 setErro(corpo.error ?? 'Não foi possível salvar')
                 return
             }
-            toast.success(editandoId ? 'Especialista atualizado' : 'Especialista criado')
+            toast.success(editandoId ? 'Cadastro atualizado' : 'Cadastro criado')
             if (denovo && !editandoId) {
                 setForm({ name: '', specialty: '', color: CORES[(itens.length + 1) % CORES.length], isActive: true })
             } else {
@@ -188,7 +195,7 @@ export function EspecialistasClient({ inicial }: { inicial: DadosIniciais }) {
             return
         }
         // Com agenda feita, a API desativa em vez de excluir — e diz por quê.
-        toast.success(corpo.deactivated ? corpo.message : 'Especialista excluído')
+        toast.success(corpo.deactivated ? corpo.message : 'Cadastro excluído')
         await recarregar()
     }
 
@@ -210,7 +217,7 @@ export function EspecialistasClient({ inicial }: { inicial: DadosIniciais }) {
     const excluirMarcados = async () => {
         const ok = await deleteEach(marcados, (id) => `/api/professionals/${id}`)
         if (ok > 0) {
-            toast.success(`${ok} especialista${ok === 1 ? '' : 's'} excluído${ok === 1 ? '' : 's'}`)
+            toast.success(`${ok} registro${ok === 1 ? '' : 's'} excluído${ok === 1 ? '' : 's'}`)
         }
         if (ok < marcados.length) {
             toast.error(`${marcados.length - ok} não puderam ser excluídos`)
@@ -219,7 +226,7 @@ export function EspecialistasClient({ inicial }: { inicial: DadosIniciais }) {
         await recarregar()
     }
 
-    const colunas: Column<Especialista>[] = [
+    const colunas: Column<Profissional>[] = [
         {
             id: 'name',
             header: 'Nome',
@@ -254,7 +261,7 @@ export function EspecialistasClient({ inicial }: { inicial: DadosIniciais }) {
                 e.windowCount > 0 ? (
                     <span className="num text-muted-foreground">{e.windowCount}</span>
                 ) : (
-                    // Sem janela o especialista não aparece como disponível em
+                    // Sem janela o profissional não aparece como disponível em
                     // lugar nenhum — vale dizer, não deixar em branco.
                     <span className="text-warning-subtle-foreground">sem horário</span>
                 ),
@@ -285,11 +292,11 @@ export function EspecialistasClient({ inicial }: { inicial: DadosIniciais }) {
                         />
                     ) : null
                 }
-                title="Especialistas"
+                title={v.Profissionais}
                 primary={
                     canEdit ? (
                         <Button size="sm" className="h-8 gap-1.5" onClick={abrirNovo}>
-                            <Plus className="size-3.5" /> Novo especialista
+                            <Plus className="size-3.5" /> Adicionar {v.profissional}
                         </Button>
                     ) : null
                 }
@@ -313,7 +320,7 @@ export function EspecialistasClient({ inicial }: { inicial: DadosIniciais }) {
                     bulkActions={(ids) => (
                         <BulkBar
                             count={ids.length}
-                            noun={['especialista', 'especialistas']}
+                            noun={[v.profissional, v.profissionais]}
                             onDelete={() => setExcluindoLote(true)}
                             onClear={() => setMarcados([])}
                         />
@@ -361,9 +368,9 @@ export function EspecialistasClient({ inicial }: { inicial: DadosIniciais }) {
             <RecordDialog
                 open={dialogoAberto}
                 onOpenChange={setDialogoAberto}
-                title={editandoId ? 'Editar especialista' : 'Novo especialista'}
-                description="Quem executa os procedimentos. Os horários dele se definem depois, em Janelas."
-                submitLabel={editandoId ? 'Salvar especialista' : 'Criar especialista'}
+                title={editandoId ? `Editar ${v.profissional}` : `Adicionar ${v.profissional}`}
+                description={`Quem executa ${comArtigo(v, 'servicos')}. Os horários se definem depois, em Janelas.`}
+                submitLabel={editandoId ? 'Salvar' : `Criar ${v.profissional}`}
                 hideAgain={Boolean(editandoId)}
                 submitting={salvando}
                 onSubmit={salvar}
@@ -423,7 +430,7 @@ export function EspecialistasClient({ inicial }: { inicial: DadosIniciais }) {
             <ConfirmDialog
                 open={excluindo !== null}
                 onOpenChange={(a) => !a && setExcluindo(null)}
-                title="Excluir especialista"
+                title={`Excluir ${v.profissional}`}
                 description={
                     `"${excluindo?.name ?? ''}" sai do cadastro e as janelas dele vão junto. ` +
                     'Se ele já atendeu alguém, será apenas desativado — o histórico da agenda ' +
@@ -439,7 +446,7 @@ export function EspecialistasClient({ inicial }: { inicial: DadosIniciais }) {
             <ConfirmDialog
                 open={excluindoLote}
                 onOpenChange={(aberto) => !aberto && setExcluindoLote(false)}
-                title={`Excluir ${marcados.length} ${marcados.length === 1 ? 'especialista' : 'especialistas'}`}
+                title={`Excluir ${marcados.length} ${marcados.length === 1 ? v.profissional : v.profissionais}`}
                 description="Quem tiver compromisso na agenda é desativado em vez de excluído — ele continua explicando o que já atendeu."
                 confirmLabel="Excluir"
                 destructive

@@ -7,6 +7,8 @@ import { Button } from '@venn/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@venn/ui/popover'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@venn/ui/tooltip'
 import { cn } from '@venn/ui/utils'
+import { useVocab } from '../../hooks/useVocab'
+import type { Vocabulario } from '../../lib/vocabulario'
 
 /**
  * Seletor de emojis do compositor.
@@ -18,7 +20,11 @@ import { cn } from '@venn/ui/utils'
  * absorve o resto. O glifo é o próprio caractere Unicode, renderizado pela
  * fonte do sistema, então o que a atendente vê é o que o paciente recebe.
  */
-const GROUPS: { label: string; emojis: string[] }[] = [
+/** Função, não constante: o texto usa o vocabulário da unidade, que vem do
+ * hook no componente. No cliente `vocab()` não serve — `BRAND()` lança no
+ * navegador —, e hook não alcança nível de módulo. */
+function GROUPS(v: Vocabulario): { label: string; emojis: string[] }[] {
+    return [
     {
         label: 'Sorrisos',
         emojis: ['😀', '😁', '😊', '🙂', '😉', '😍', '🥰', '😘', '😎', '🤗', '🤔', '😅', '😂', '🙏', '😢', '😮', '🤩', '😴', '🤒', '😷'],
@@ -28,7 +34,7 @@ const GROUPS: { label: string; emojis: string[] }[] = [
         emojis: ['👍', '👎', '👏', '🙌', '👋', '🤝', '✌️', '🤞', '💪', '👉', '👈', '☝️', '✋', '🫶', '❤️', '💙', '💚', '💛', '🧡', '💜'],
     },
     {
-        label: 'Clínica',
+        label: `${v.Organizacao}`,
         emojis: ['🦷', '🪥', '😁', '🩺', '💉', '🏥', '🧑‍⚕️', '👩‍⚕️', '📅', '🗓️', '⏰', '📍', '📞', '💬', '📋', '📝', '💊', '🧴', '🪞', '🚗'],
     },
     {
@@ -36,6 +42,7 @@ const GROUPS: { label: string; emojis: string[] }[] = [
         emojis: ['✅', '❌', '⚠️', '❗', '❓', '✨', '⭐', '🎉', '🎁', '🔔', '💰', '💳', '🧾', '📎', '🔗', '➡️', '⬅️', '🔄', '🆗', '🆕'],
     },
 ]
+}
 
 const RECENT_KEY = 'odontobox.inbox.emoji.recent'
 const RECENT_MAX = 16
@@ -57,6 +64,8 @@ interface EmojiPickerProps {
 }
 
 export function EmojiPicker({ onSelect, disabled, className }: EmojiPickerProps) {
+    const v = useVocab()
+
     const [open, setOpen] = useState(false)
     const [recent, setRecent] = useState<string[]>([])
 
@@ -79,7 +88,7 @@ export function EmojiPicker({ onSelect, disabled, className }: EmojiPickerProps)
         }
     }
 
-    const groups = recent.length > 0 ? [{ label: 'Recentes', emojis: recent }, ...GROUPS] : GROUPS
+    const groups = recent.length > 0 ? [{ label: 'Recentes', emojis: recent }, ...GROUPS(v)] : GROUPS(v)
 
     return (
         <Popover open={open} onOpenChange={handleOpenChange}>

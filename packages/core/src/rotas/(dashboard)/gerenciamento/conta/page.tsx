@@ -6,14 +6,17 @@ import { CalendarOff, CreditCard, Hospital, Plug, Plus, User, Users, Zap } from 
 
 import { Button } from '@venn/ui/button'
 import { TabsFrame, type FrameTab } from '@venn/core/components/shared/TabsFrame'
-import { AgendaClinicaTab } from '@venn/core/components/management/AgendaClinicaTab'
+import { AgendaDaUnidadeTab } from '@venn/core/components/management/AgendaDaUnidadeTab'
 import { AutomacoesTab } from '@venn/core/components/account/AutomacoesTab'
 import { PerfilTab } from '@venn/core/components/account/PerfilTab'
-import { ContaClinicaTab } from '@venn/core/components/account/ContaClinicaTab'
+import { ContaDaUnidadeTab } from '@venn/core/components/account/ContaDaUnidadeTab'
 import { PlanoTab } from '@venn/core/components/account/PlanoTab'
 import { UsersPanel, type UsersPanelHandle } from '@venn/core/components/management/UsersPanel'
 import { IntegrationsPanel } from '@venn/core/components/management/IntegrationsPanel'
 import { usePermissions } from '@venn/core/hooks/usePermissions'
+import { useVocab } from '../../../../hooks/useVocab'
+import { comArtigo } from '../../../../lib/concordancia'
+import type { Vocabulario } from '../../../../lib/vocabulario'
 
 /**
  * Conta — a Tela 03: uma tela, várias guias.
@@ -22,7 +25,11 @@ import { usePermissions } from '@venn/core/hooks/usePermissions'
  * "automacoes" tinha gatilho e conteúdo, mas faltava aqui — clicar levava de
  * volta ao perfil, e a aba parecia não abrir.
  */
-const TABS: FrameTab[] = [
+/** Função, não constante: o texto usa o vocabulário da unidade, que vem do
+ * hook no componente. No cliente `vocab()` não serve — `BRAND()` lança no
+ * navegador —, e hook não alcança nível de módulo. */
+function TABS(v: Vocabulario): FrameTab[] {
+    return [
     { id: 'perfil', label: 'Perfil do usuário', icon: User },
     /**
      * "Clínica" e "Unidades" viraram uma guia em 2026-10-18, por decisão do
@@ -33,17 +40,19 @@ const TABS: FrameTab[] = [
      * O id continua "empresa": é o que está nos links de ?tab= já salvos, e
      * "unidades" cai aqui pelo apelido logo abaixo.
      */
-    { id: 'empresa', label: 'Conta da Clínica', icon: Hospital },
+    { id: 'empresa', label: `Conta da ${v.Organizacao}`, icon: Hospital },
     { id: 'usuarios', label: 'Usuários', icon: Users },
-    // Vale para todos os especialistas e sobrepõe as janelas deles — por isso
-    // mora na Conta, e não na ficha de um especialista.
-    { id: 'agenda', label: 'Agenda da clínica', icon: CalendarOff },
+    // Vale para todos os profissionais e sobrepõe as janelas deles — por isso
+    // mora na Conta, e não na ficha de um profissional.
+    { id: 'agenda', label: `Agenda ${comArtigo(v, 'organizacao', 'de')}`, icon: CalendarOff },
     { id: 'integracoes', label: 'Integrações', icon: Plug },
     { id: 'automacoes', label: 'Automações', icon: Zap },
     { id: 'plano', label: 'Assinatura', icon: CreditCard },
 ]
+}
 
 function ContaContent() {
+    const v = useVocab()
     const router = useRouter()
     const pathname = usePathname()
     const searchParams = useSearchParams()
@@ -82,7 +91,7 @@ function ContaContent() {
      */
     const APELIDOS: Record<string, string> = { unidades: 'empresa' }
     const pedida = requested ? (APELIDOS[requested] ?? requested) : null
-    const guias = TABS.filter((t) => t.id !== 'usuarios' || podeVerUsuarios)
+    const guias = TABS(v).filter((t) => t.id !== 'usuarios' || podeVerUsuarios)
     // Um `?tab=usuarios` guardado por quem não pode ver cai no Perfil, como
     // qualquer outro valor fora da lista branca.
     const activeTab = pedida && guias.some((t) => t.id === pedida) ? pedida : 'perfil'
@@ -124,9 +133,9 @@ function ContaContent() {
                 dados próprios, e carregá-los sempre tornaria a tela de perfil
                 responsável por três requisições que ninguém pediu. */}
             {activeTab === 'perfil' ? <PerfilTab formId="perfil-form" /> : null}
-            {activeTab === 'empresa' ? <ContaClinicaTab formId="empresa-form" /> : null}
+            {activeTab === 'empresa' ? <ContaDaUnidadeTab formId="empresa-form" /> : null}
             {activeTab === 'usuarios' && podeVerUsuarios ? <UsersPanel ref={users} /> : null}
-            {activeTab === 'agenda' ? <AgendaClinicaTab /> : null}
+            {activeTab === 'agenda' ? <AgendaDaUnidadeTab /> : null}
             {activeTab === 'integracoes' ? <IntegrationsPanel /> : null}
             {activeTab === 'automacoes' ? <AutomacoesTab /> : null}
             {activeTab === 'plano' ? <PlanoTab /> : null}
@@ -135,6 +144,7 @@ function ContaContent() {
 }
 
 export default function ContaPage() {
+
     return (
         <Suspense fallback={null}>
             <ContaContent />

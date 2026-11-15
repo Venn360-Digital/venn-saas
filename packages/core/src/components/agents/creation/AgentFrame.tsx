@@ -13,6 +13,8 @@ import { ConfirmDialog } from '../../shared/ConfirmDialog'
 import { marcarSujo, useEdicaoNaoSalva } from './unsaved'
 import { usePermissions } from '../../../hooks/usePermissions'
 import { cn } from '@venn/ui/utils'
+import { useVocab } from '../../../hooks/useVocab'
+import { comArtigo } from '../../../lib/concordancia'
 
 /**
  * A moldura das sete seções do agente, na Tela 03.
@@ -91,15 +93,25 @@ const ICONE_DO_DOCUMENTO: Record<string, LucideIcon> = {
  * André. `Instruções` saiu: a instrução livre dela foi substituída por
  * Instruções centrais, e o modelo e a criatividade foram para o Perfil.
  */
-const GUIAS_DE_TREINAMENTO: FrameTab[] = [
+/**
+ * Função memoizada, e não constante: o texto lê o vocabulário, e `BRAND()` é
+ * fail-fast. Constante de módulo é avaliada quando a Cloudflare VALIDA o
+ * script — sem requisição e sem marca registrada —, e a publicação reprova com
+ * `MarcaNaoRegistradaError`. A forma que já reprovou cinco publicações.
+ */
+let guiasDeTreinamentoCache: FrameTab[] | null = null
+function GUIAS_DE_TREINAMENTO(): FrameTab[] {
+    if (guiasDeTreinamentoCache === null) guiasDeTreinamentoCache = [
     { id: 'perfil', label: 'Perfil', icon: UserRound },
-    ...DOCUMENTOS.filter((doc) => doc.item !== 'Perfil').map((doc) => ({
+    ...DOCUMENTOS().filter((doc) => doc.item !== 'Perfil').map((doc) => ({
         id: doc.slug,
         label: doc.item,
         icon: ICONE_DO_DOCUMENTO[doc.slug] ?? FileText,
     })),
     { id: 'cerebro', label: 'Cérebro', icon: Database },
 ]
+    return guiasDeTreinamentoCache
+}
 
 /**
  * Ensaio, Lacunas e Voz **subiram** para a barra de seções.
@@ -122,7 +134,15 @@ const GUIAS_DE_TREINAMENTO: FrameTab[] = [
  * anuncia. Os links já guardados continuam valendo — `?tab=voz` abre Voz, agora
  * com a seção Voz marcada em vez de Treinamento.
  */
-export const SECOES: Secao[] = [
+/**
+ * Função memoizada, e não constante: o texto lê o vocabulário, e `BRAND()` é
+ * fail-fast. Constante de módulo é avaliada quando a Cloudflare VALIDA o
+ * script — sem requisição e sem marca registrada —, e a publicação reprova com
+ * `MarcaNaoRegistradaError`. A forma que já reprovou cinco publicações.
+ */
+let secoesCache: Secao[] | null = null
+export function SECOES(): Secao[] {
+    if (secoesCache === null) secoesCache = [
     /**
      * **Canais de atendimento vem primeiro** — pedido do Andre em 2026-11-09.
      *
@@ -157,7 +177,7 @@ export const SECOES: Secao[] = [
         label: 'Treinamento',
         icon: UserRound,
         rota: '/atendimento/agentes/novo',
-        tabs: GUIAS_DE_TREINAMENTO,
+        tabs: GUIAS_DE_TREINAMENTO(),
     },
     /**
      * As três de seção única. Sem índice à esquerda — uma calha de 208px para
@@ -211,6 +231,8 @@ export const SECOES: Secao[] = [
         ],
     },
 ]
+    return secoesCache
+}
 
 interface AgenteResumo {
     name: string
@@ -232,10 +254,11 @@ export function AgentFrame({
     dica?: string
     children: React.ReactNode
 }) {
+    const v = useVocab()
     const router = useRouter()
     const params = useSearchParams()
     const agentId = params.get('id')
-    const atual = SECOES.find((s) => s.id === secao) ?? SECOES[0]
+    const atual = SECOES().find((s) => s.id === secao) ?? SECOES()[0]
     const tab = params.get('tab') ?? atual.tabs[0].id
 
     const [agente, setAgente] = useState<AgenteResumo | null>(null)
@@ -343,7 +366,7 @@ export function AgentFrame({
         : 'Novo agente'
 
     /** As quatro seções são as guias da linha 2 — a navegação de primeiro nível. */
-    const guiasDeSecao: FrameTab[] = SECOES.map((sec) => ({
+    const guiasDeSecao: FrameTab[] = SECOES().map((sec) => ({
         id: sec.id,
         label: sec.label,
         icon: sec.icon,
@@ -433,7 +456,7 @@ export function AgentFrame({
             tabs={guiasDeSecao}
             active={secao}
             onChange={(id) => {
-                const alvo = SECOES.find((sec) => sec.id === id)
+                const alvo = SECOES().find((sec) => sec.id === id)
                 if (alvo) irParaSecao(alvo.rota, alvo.tabs[0].id)
             }}
             fill
@@ -459,7 +482,7 @@ export function AgentFrame({
                                 <strong className="font-semibold text-foreground">
                                     Alterar a configuração é do dono ou do administrador
                                 </strong>{' '}
-                                da clínica — peça a eles o que precisar mudar.
+                                {comArtigo(v, 'organizacao', 'de')} — peça a eles o que precisar mudar.
                             </p>
                         </div>
                     ) : null}

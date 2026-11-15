@@ -6,6 +6,8 @@ import { MANAGER_ROLES, getWorkspaceMember } from '@venn/core/lib/auth/workspace
 import { TTS_MODELS } from '@venn/core/lib/llm/models'
 import { VOZES_IDS } from '@venn/core/lib/voz'
 import { OPENAI_BASE_URL } from '@venn/core/lib/llm/base-url'
+import { vocab } from '../../../../lib/vocabulario'
+import { comArtigo } from '../../../../lib/concordancia'
 
 
 const schema = z.object({
@@ -23,7 +25,20 @@ const schema = z.object({
     instructions: z.string().trim().max(2000).optional(),
 })
 
-const FALLBACK = 'Olá! Sou o assistente da clínica. Como posso ajudar você hoje?'
+/**
+ * Função memoizada, e não constante: o texto lê o vocabulário, e `BRAND()` é
+ * fail-fast. Constante de módulo é avaliada quando a Cloudflare VALIDA o
+ * script — sem requisição e sem marca registrada —, e a publicação reprova com
+ * `MarcaNaoRegistradaError`. A forma que já reprovou cinco publicações.
+ */
+function montarFallback() {
+    return `Olá! Sou o assistente ${comArtigo(vocab(), 'organizacao', 'de')}. Como posso ajudar você hoje?`
+}
+let fallbackCache: ReturnType<typeof montarFallback> | null = null
+function FALLBACK(): ReturnType<typeof montarFallback> {
+    if (fallbackCache === null) fallbackCache = montarFallback()
+    return fallbackCache
+}
 
 /**
  * Os modelos vêm do catálogo, em ordem de tentativa.

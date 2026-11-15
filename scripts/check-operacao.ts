@@ -14,7 +14,7 @@
 // código do core e o core PEDE a marca. Ver `./lib/marca-de-teste.ts`.
 import './lib/marca-de-teste.ts'
 
-import { REDES_DO_PLANO, redesDoPlano } from '@venn/core/lib/plans'
+import { redesDoPlanoTodas, redesDoPlano } from '@venn/core/lib/plans'
 import { isPlanId, type PlanId } from '@venn/core/lib/plan-limits'
 import { apelidoDaLinha } from '@venn/core/lib/linha'
 
@@ -47,7 +47,7 @@ function canaisDe(integracoes: Integracao[], planId: string | null) {
     const plano: PlanId = isPlanId(planId) ? planId : 'flow'
     const doPlano = new Set(redesDoPlano(plano).map((r) => r.id))
 
-    const canais = REDES_DO_PLANO.flatMap((rede): Linha[] => {
+    const canais = redesDoPlanoTodas().flatMap((rede): Linha[] => {
         const colunas = CANAL_NO_BANCO[rede.id] ?? []
         const registros = integracoes.filter((i) => colunas.includes(i.channel))
         const conectadas = registros.filter((i) => i.status === 'connected').length

@@ -35,6 +35,9 @@ import { apelidoDaLinha } from '../../../../lib/linha'
 import { formatPhone } from '../../../../lib/phone'
 import { cn } from '@venn/ui/utils'
 import { WhatsAppQRModal } from '../WhatsAppQRModal'
+import { useVocab } from '../../../../hooks/useVocab'
+import { comArtigo } from '../../../../lib/concordancia'
+import type { Vocabulario } from '../../../../lib/vocabulario'
 
 /**
  * Os canais do agente — e, no WhatsApp, as **linhas** dele.
@@ -88,14 +91,19 @@ interface CanaisTabProps {
  * Instagram — que passou a ter cartão próprio, logo abaixo. Sobrou o Facebook,
  * que é de verdade o único ainda por fazer.
  */
-const OUTROS_CANAIS = [
+/** Função, não constante: o texto usa o vocabulário da unidade, que vem do
+ * hook no componente. No cliente `vocab()` não serve — `BRAND()` lança no
+ * navegador —, e hook não alcança nível de módulo. */
+function OUTROS_CANAIS(v: Vocabulario) {
+    return [
     {
         id: 'facebook',
         name: 'Messenger',
-        description: 'Mensagens da página da clínica no Facebook',
+        description: `Mensagens da página ${comArtigo(v, 'organizacao', 'de')} no Facebook`,
         icon: Facebook,
     },
 ]
+}
 
 
 
@@ -270,6 +278,8 @@ function SeletorSolto({
 
 
 export function CanaisTab({ agentId, canManage = true }: CanaisTabProps) {
+    const v = useVocab()
+
     const [lines, setLines] = useState<Line[]>([])
     const [departments, setDepartments] = useState<{ id: string; name: string }[]>([])
     const [origins, setOrigins] = useState<{ id: string; name: string }[]>([])
@@ -885,7 +895,7 @@ export function CanaisTab({ agentId, canManage = true }: CanaisTabProps) {
 
                 {!canManage ? (
                     <p className="px-5 pb-4 text-xs text-muted-foreground">
-                        Conectar e desconectar números é do dono ou do administrador da clínica.
+                        Conectar e desconectar números é do dono ou do administrador {comArtigo(v, 'organizacao', 'de')}.
                     </p>
                 ) : semVaga ? (
                     <p className="px-5 pb-4 text-xs text-muted-foreground">
@@ -925,7 +935,7 @@ export function CanaisTab({ agentId, canManage = true }: CanaisTabProps) {
                             title={
                                 <span className="flex items-center gap-2">
                                     <Globe className="size-4 text-muted-foreground" aria-hidden="true" />
-                                    Site da clínica
+                                    Site {comArtigo(v, 'organizacao', 'de')}
                                 </span>
                             }
                             description={
@@ -936,7 +946,7 @@ export function CanaisTab({ agentId, canManage = true }: CanaisTabProps) {
                             action={
                                 <div className="flex items-center gap-2.5">
                                     {site?.connected
-                                        ? atribuicaoDoCanal('site', 'Site da clínica')
+                                        ? atribuicaoDoCanal('site', `Site ${comArtigo(v, 'organizacao', 'de')}`)
                                         : null}
                                     {site?.connected ? <Fio /> : null}
                                     <Chave
@@ -1146,7 +1156,7 @@ export function CanaisTab({ agentId, canManage = true }: CanaisTabProps) {
                     {/* O QUE AINDA NÃO EXISTE: a chave fica, apagada. Chave que
                         não se move diz "existe, mas não agora" melhor que um
                         botão cinza — e mantém a vertical das outras sete. */}
-                    {OUTROS_CANAIS.map((canal) => {
+                    {OUTROS_CANAIS(v).map((canal) => {
                         const Icone = canal.icon
                         return (
                             <div key={canal.id} className="px-5 py-2.5">

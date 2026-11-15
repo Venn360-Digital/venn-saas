@@ -10,6 +10,8 @@ import { FormField } from '../shared/FormField'
 import { RecordDialog, SummaryCard } from '../shared/RecordDialog'
 import { SettingsCard, SettingsRow } from '../shared/TabsFrame'
 import { BILLING_UPDATED } from '../layout/AppSidebar'
+import { useVocab } from '../../hooks/useVocab'
+import { comArtigo } from '../../lib/concordancia'
 
 /**
  * Encerrar a conta — e por que mora aqui, na Conta da Clínica.
@@ -46,6 +48,8 @@ interface Resumo {
 }
 
 export function CancelarAssinaturaCard() {
+    const v = useVocab()
+
     const [resumo, setResumo] = useState<Resumo | null>(null)
     const [adminEmail, setAdminEmail] = useState('')
     const [aberto, setAberto] = useState(false)
@@ -205,7 +209,7 @@ export function CancelarAssinaturaCard() {
                 <SettingsCard title="Assinatura cancelada">
                     <SettingsRow
                         title={`O acesso continua até ${ateLabel}`}
-                        description="Nada mais será cobrado. Depois dessa data a clínica fica em somente-leitura: o histórico continua inteiro e exportável. Dá para desfazer o cancelamento enquanto este período não terminar."
+                        description={`Nada mais será cobrado. Depois dessa data ${comArtigo(v, 'organizacao')} fica em somente-leitura: o histórico continua inteiro e exportável. Dá para desfazer o cancelamento enquanto este período não terminar.`}
                         action={
                             <Button
                                 variant="outline"
@@ -307,8 +311,8 @@ export function CancelarAssinaturaCard() {
                             <li className="flex items-start gap-2">
                                 <Check className="mt-0.5 size-3.5 shrink-0 text-primary" />
                                 <span>
-                                    As conversas, os pacientes e os negócios continuam guardados, e
-                                    voltam inteiros se a clínica assinar de novo.
+                                    As conversas, {comArtigo(v, 'pessoas')} e os negócios continuam guardados, e
+                                    voltam inteiros se {comArtigo(v, 'organizacao')} assinar de novo.
                                 </span>
                             </li>
                         </ul>
@@ -331,7 +335,7 @@ export function CancelarAssinaturaCard() {
                             autoComplete="off"
                             value={digitado}
                             onChange={(e) => setDigitado(e.target.value)}
-                            placeholder="voce@clinica.com.br"
+                            placeholder="voce@exemplo.com.br"
                         />
                     </FormField>
                 </div>

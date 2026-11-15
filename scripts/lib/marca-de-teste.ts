@@ -66,11 +66,28 @@ export const MARCA_DE_TESTE: Brand = {
     og: '/logos/logo-wordmark-light.png',
     emailFooter: 'Produto de Teste · marca fictícia',
     vocabulario: {
+        genero: {
+            organizacao: 'f',
+            pessoa: 'f',
+            profissional: 'm',
+            servico: 'm',
+        },
         organizacao: 'organização',
         Organizacao: 'Organização',
         organizacoes: 'organizações',
+        Organizacoes: 'Organizações',
         pessoa: 'pessoa',
+        Pessoa: 'Pessoa',
         pessoas: 'pessoas',
+        Pessoas: 'Pessoas',
+        profissional: 'profissional',
+        Profissional: 'Profissional',
+        profissionais: 'profissionais',
+        Profissionais: 'Profissionais',
+        servico: 'serviço',
+        Servico: 'Serviço',
+        servicos: 'serviços',
+        Servicos: 'Serviços',
     },
 }
 

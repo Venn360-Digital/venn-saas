@@ -7,6 +7,7 @@ import { PanelField, PanelSection, RecordPanel, usePanelSave } from '../shared/R
 import { Switch } from '@venn/ui/switch'
 import { PICKER_RAMP } from '../../lib/palette'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@venn/ui/tooltip'
+import { useVocab } from '../../hooks/useVocab'
 
 export interface EspecialistaPanelItem {
     id: string
@@ -18,9 +19,9 @@ export interface EspecialistaPanelItem {
 }
 
 /**
- * A ficha do especialista — a terceira coluna que esta tela não tinha.
+ * A ficha do profissional — a terceira coluna que esta tela não tinha.
  *
- * A tela de especialistas nasceu com índice e diálogo, e pulou a ficha: clicar
+ * A tela de profissionais nasceu com índice e diálogo, e pulou a ficha: clicar
  * na linha abria direto a grade de horários, que é outra coisa. O Andre
  * apontou em 2026-10-20, e a Tela 01 (DESIGN.md §5) é explícita — clicar na
  * linha abre a ficha, o diálogo fica para o Novo e para o lápis.
@@ -54,6 +55,8 @@ export function EspecialistaPanel({
     /** A grade de horários dele, que é uma tela à parte. */
     onJanelas: (id: string) => void
 }) {
+    const v = useVocab()
+
     const { save, saved, local } = usePanelSave<EspecialistaPanelItem>(
         `/api/professionals/${item.id}`,
         onChanged,
@@ -63,7 +66,7 @@ export function EspecialistaPanel({
 
     return (
         <RecordPanel
-            label={`Ficha do especialista ${e.name}`}
+            label={`Ficha do profissional ${e.name}`}
             title={e.name || 'Sem nome'}
             avatar={
                 <span
@@ -161,7 +164,7 @@ export function EspecialistaPanel({
                             checked={e.isActive}
                             disabled={!canEdit}
                             onCheckedChange={(v) => void save('isActive', { isActive: v })}
-                            aria-label="Especialista ativo"
+                            aria-label={`${v.Profissional} ativo`}
                         />
                         <span className="text-[11px] text-muted-foreground">
                             {e.isActive

@@ -23,6 +23,7 @@ import {
 import type { SugestaoDeDmarc } from '@venn/core/lib/marketing/dmarc'
 
 import type { DadosIniciais, RemetenteItem } from './dados'
+import { useVocab } from '../../../../hooks/useVocab'
 
 const RECORTE_INTEIRO = 'workspace-inteiro'
 
@@ -36,6 +37,7 @@ const FORM_VAZIO = { domain: '', fromLocal: 'contato', fromName: '', replyTo: ''
 type CampoDoForm = keyof typeof FORM_VAZIO
 
 export function RemetentesClient({ inicial }: { inicial: DadosIniciais }) {
+
     // A marca desce pelo React: no navegador o registro de módulo não existe
     // (quem o faz roda no servidor). Ver `marca-contexto.tsx`.
     const marca = useMarca()
@@ -199,6 +201,7 @@ function FichaDoDominio({
     onSalvo: () => Promise<unknown> | void
     onCriado: (novo: RemetenteItem) => void
 }) {
+    const v = useVocab()
     // A marca desce pelo React: no navegador o registro de módulo não existe
     // (quem o faz roda no servidor). Ver `marca-contexto.tsx`.
     const marca = useMarca()
@@ -390,7 +393,7 @@ function FichaDoDominio({
                 className="col-span-2"
                 hint={
                     ehNovo
-                        ? 'Só o domínio, sem https:// e sem @. Recomendamos um subdomínio como mkt.clinica.com.br, assim separa a reputação do seu e-mail.'
+                        ? 'Só o domínio, sem https:// e sem @. Recomendamos um subdomínio como mkt.exemplo.com.br, assim separa a reputação do seu e-mail.'
                         : 'O domínio não muda: no provedor de e-mail ele É a identidade, e trocá-lo exigiria publicar outros três registros. Para usar outro, cadastre um novo.'
                 }
             >
@@ -398,7 +401,7 @@ function FichaDoDominio({
                     id="rem-domain"
                     value={form.domain}
                     onChange={(e) => mudar('domain', e.target.value)}
-                    placeholder="clinica.com.br"
+                    placeholder="exemplo.com.br"
                     autoFocus={ehNovo}
                     /**
                      * Travado fora da criação, e a razão está no `hint` acima —
@@ -447,7 +450,7 @@ function FichaDoDominio({
                     id="rem-name"
                     value={form.fromName}
                     onChange={(e) => mudar('fromName', e.target.value)}
-                    placeholder="Clínica Sorriso Claro"
+                    placeholder={`${v.Organizacao} Sorriso Claro`}
                     disabled={!podeEditar}
                 />
             </FormField>
@@ -465,7 +468,7 @@ function FichaDoDominio({
                     type="email"
                     value={form.replyTo}
                     onChange={(e) => mudar('replyTo', e.target.value)}
-                    placeholder="contato@clinica.com.br"
+                    placeholder="contato@exemplo.com.br"
                     disabled={!podeEditar}
                 />
             </FormField>

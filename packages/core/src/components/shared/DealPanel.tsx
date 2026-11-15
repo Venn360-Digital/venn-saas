@@ -36,6 +36,8 @@ import { canalComApelido } from '../../lib/linha'
 import { formatPhone } from '../../lib/phone'
 import { cn } from '@venn/ui/utils'
 import { useMoeda } from '../../hooks/useMoeda'
+import { useVocab } from '../../hooks/useVocab'
+import { comArtigo } from '../../lib/concordancia'
 
 /**
  * Por onde o paciente entrou, em uma linha.
@@ -143,6 +145,7 @@ export function DealPanel<T extends PanelDeal>({
     onOutcome?: (side: 'won' | 'lost') => void
     onDelete: (deal: T) => void
 }) {
+    const v = useVocab()
     const [mode, setMode] = useState<Mode>('ficha')
     const [saved, setSaved] = useState(false)
     const closed = deal.status !== 'open'
@@ -321,7 +324,7 @@ export function DealPanel<T extends PanelDeal>({
                         </div>
 
                         <div>
-                            <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Paciente</Label>
+                            <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">{v.Pessoa}</Label>
                             <PickField
                                 className="mt-1"
                                 value={deal.contact ? {
@@ -334,8 +337,8 @@ export function DealPanel<T extends PanelDeal>({
                                 loading={searchingContacts}
                                 disabled={closed}
                                 leading={<User className="size-3.5 shrink-0 text-muted-foreground" />}
-                                placeholder="Escolher paciente"
-                                newPlaceholder="Nome do novo paciente"
+                                placeholder={`Escolher ${v.pessoa}`}
+                                newPlaceholder={`Nome ${comArtigo(v, 'pessoa', 'de')}`}
                                 onSelect={(option) => void save({ contactId: option?.id ?? null })}
                                 onCreate={async (name) => {
                                     const res = await fetch('/api/contacts', {
@@ -345,7 +348,7 @@ export function DealPanel<T extends PanelDeal>({
                                     })
                                     const data = await res.json().catch(() => ({}))
                                     if (!res.ok) {
-                                        toast.error(data.error || 'Não foi possível cadastrar o paciente')
+                                        toast.error(data.error || `Não foi possível cadastrar ${comArtigo(v, 'pessoa')}`)
                                         return null
                                     }
                                     const option = { id: data.id, name: data.name ?? name }
@@ -457,7 +460,7 @@ export function DealPanel<T extends PanelDeal>({
                     <ActivityForm
                         key={deal.id}
                         contactId={deal.contact.id}
-                        contactName={deal.contact.name || formatPhone(deal.contact.phone) || 'paciente'}
+                        contactName={deal.contact.name || formatPhone(deal.contact.phone) || v.pessoa}
                         dealId={deal.id}
                         dealTitle={deal.title}
                         onScheduled={() => {

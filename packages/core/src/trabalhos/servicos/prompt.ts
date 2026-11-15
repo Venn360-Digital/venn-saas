@@ -7,8 +7,10 @@ import {
 } from '../../types/agent-preferences'
 import { semComentarios } from '../../lib/rag/secoes'
 import { documentosDeProcedimento, documentosDoPrompt } from '../../lib/treinamento/documentos'
-import { catalogoDeCenarios, lerCenarios, procedimentoParaOPrompt } from '../../lib/treinamento/cenarios'
+import { catalogoDeCenarios, lerCenarios, servicoParaOPrompt } from '../../lib/treinamento/cenarios'
 import { resumoParaOPrompt } from '../../lib/conversas/resumo'
+import { vocab } from '../../lib/vocabulario'
+import { comArtigo } from '../../lib/concordancia'
 
 export interface KnowledgeChunk {
     title: string
@@ -17,8 +19,8 @@ export interface KnowledgeChunk {
     /**
      * O tipo do trecho — `treinamento`, `cenario`, `doc`, `faq`, `website`.
      *
-     * Existe para o prompt poder separar **fato** de **procedimento**: um fato
-     * recuperado é fonte de verdade para responder, um procedimento é ordem de
+     * Existe para o prompt poder separar **fato** de **servico**: um fato
+     * recuperado é fonte de verdade para responder, um servico é ordem de
      * execução. Sem a distinção, os passos de um cenário entrariam em "Base de
      * conhecimento" e o modelo os leria *para* o paciente em vez de executá-los.
      */
@@ -54,7 +56,11 @@ export function readPreferences(agent: Agent): AgentPreferences {
  * clínica espera que fosse — a diferença entre um agente que qualifica e agenda
  * e um que resolve e não empurra venda.
  */
-const POSTURA: Record<string, string> = {
+/** Memoizado: um dos textos lê o vocabulário, e `BRAND()` é fail-fast. */
+let posturaCache: Record<string, string> | null = null
+function POSTURA(): Record<string, string> {
+    if (posturaCache !== null) return posturaCache
+    posturaCache = {
     sdr_atendimento:
         'Seu objetivo é entender o que a pessoa precisa e levá-la a agendar uma avaliação. ' +
         'Faça uma pergunta de cada vez, confirme o que entendeu e proponha horário quando fizer sentido.',
@@ -62,8 +68,10 @@ const POSTURA: Record<string, string> = {
         'Seu objetivo é esclarecer dúvidas sobre tratamentos, valores e formas de pagamento, e fechar o agendamento. ' +
         'Seja direto sobre preço quando souber a informação, e nunca invente valor que não esteja na sua base.',
     suporte:
-        'Seu objetivo é resolver a dúvida ou o problema de quem já é paciente. ' +
+        `Seu objetivo é resolver a dúvida ou o problema de quem já é ${vocab().pessoa}. ` +
         'Não force venda: se a pessoa só precisa de uma informação, entregue a informação.',
+}
+    return posturaCache
 }
 
 /**
@@ -143,9 +151,9 @@ function blocosDeTreinamento(docs: DocumentoNoPrompt[]): {
      * **A ordem inclui os Cenários, pelo nome, e isso era uma falta.**
      *
      * A lista saía de `documentosDoPrompt()`, que filtra modo `prompt`. Cenários
-     * é modo `procedimento`, então ele **não aparecia em posição nenhuma** —
+     * é modo `servico`, então ele **não aparecia em posição nenhuma** —
      * enquanto o corpo dele chega no bloco volátil, na posição de maior
-     * recência, dizendo "execute os passos". Um procedimento pré-escrito era,
+     * recência, dizendo "execute os passos". Um servico pré-escrito era,
      * na prática, a instrução menos subordinada do conjunto.
      *
      * Ele entra pela precedência que o catálogo declara (4), ordenado junto dos
@@ -225,7 +233,7 @@ export function buildSystemPrompt(
      *
      * Se ele entrasse na lista de comportamento, `blocosDeTreinamento` o
      * emitiria inteiro no bloco estável — exatamente o que o modo
-     * `procedimento` existe para evitar. Separado, só o catálogo sai daqui, e
+     * `servico` existe para evitar. Separado, só o catálogo sai daqui, e
      * é impossível somá-lo por acidente.
      */
     cenariosCru: string | null = null,
@@ -245,7 +253,7 @@ export function buildSystemPrompt(
      *
      * Volátil porque muda quando a compactação roda. Primeira porque é o
      * **passado**: tudo o que vem depois fala do agora — o relógio, quem está do
-     * outro lado, o procedimento desta situação, os trechos desta pergunta. Pôr
+     * outro lado, o servico desta situação, os trechos desta pergunta. Pôr
      * o passado no fim faria o modelo ler o resumo como a última coisa dita, e
      * responder ao que foi combinado há trinta mensagens como se fosse novidade.
      */
@@ -270,7 +278,7 @@ export function buildSystemPrompt(
     }
 
     const atribuicoes = [
-        agent.agentFunction && POSTURA[agent.agentFunction],
+        agent.agentFunction && POSTURA()[agent.agentFunction],
         agent.jobDescription,
     ].filter(Boolean)
 
@@ -322,7 +330,7 @@ export function buildSystemPrompt(
             '## O que você pode fazer\n' +
             'Você tem ferramentas. Use-as quando a conversa pedir, e nunca invente o ' +
             'resultado delas.\n' +
-            `As fases do funil desta clínica são, em ordem: ${context.stages.join(' → ')}. ` +
+            `As fases do funil ${comArtigo(vocab(), 'organizacao', 'este')} são, em ordem: ${context.stages.join(' → ')}. ` +
             'Ao mover o negócio, use o nome exato de uma delas.\n' +
             'Você consegue **consultar** compromissos já marcados.'
         )
@@ -334,7 +342,7 @@ export function buildSystemPrompt(
      * Estável de propósito, e é por isso que ele é só o catálogo. Os passos de
      * vinte cenários num prompt que vai em toda mensagem seriam milhares de
      * tokens para um agente que usa dois por dia. O título e o gatilho custam
-     * ~30 tokens cada e fazem o agente **saber que o procedimento existe** —
+     * ~30 tokens cada e fazem o agente **saber que o servico existe** —
      * divulgação progressiva, o padrão das Agent Skills.
      *
      * O corpo chega pela busca, na seção volátil "Procedimento para esta
@@ -365,7 +373,7 @@ export function buildSystemPrompt(
      *
      * **Estável, e fora do `if (context)` acima de propósito.** As outras
      * ferramentas dependem do cadastro da conta (as fases do funil, os
-     * procedimentos marcáveis); estas três valem em qualquer clínica, inclusive
+     * servicos marcáveis); estas três valem em qualquer clínica, inclusive
      * na que acabou de assinar e não cadastrou nada. Amarrá-las ao contexto
      * deixaria o agente de uma conta nova sem como escalar — exatamente a conta
      * em que escalar é mais provável.
@@ -376,11 +384,11 @@ export function buildSystemPrompt(
     estaveis.push(
         '## Quando a conversa passa de você\n' +
         'Use `passar_para_equipe` para entregar o atendimento a uma pessoa. Faça isso ' +
-        'quando o paciente pedir para falar com alguém, quando houver dor ou urgência, ' +
+        `quando ${comArtigo(vocab(), 'pessoa')} pedir para falar com alguém, quando houver dor ou urgência, ` +
         'quando for reclamação, e quando você já prometeu confirmar algo e não tem como. ' +
         '**Depois de chamar, você não responde mais nesta conversa** — então diga a frase ' +
         'que a ferramenta devolve e pare.\n' +
-        'Quando o procedimento desta situação disser para quem passar — a recepção, a coordenação, o especialista —, ' +
+        `Quando ${comArtigo(vocab(), 'servico')} desta situação disser para quem passar — a recepção, a coordenação, ${comArtigo(vocab(), 'profissional')} —, ` +
         'informe isso em `area`: a frase de despedida passa a citar essa área em vez de ' +
         'dizer "a nossa equipe".\n' +
         'Use `nao_encontrei` quando a base de conhecimento desta conversa trouxe material ' +
@@ -398,25 +406,25 @@ export function buildSystemPrompt(
      * sabe dizer que a equipe retorna, em vez de prometer um horário que não
      * tem como marcar.
      *
-     * **Estável**: procedimentos e especialistas são cadastro da conta.
+     * **Estável**: servicos e profissionais são cadastro da conta.
      */
     if (context) {
-        const { procedimentos, especialistas } = context.bookable
-        if (procedimentos.length > 0 && especialistas.length > 0) {
+        const { servicos, profissionais } = context.bookable
+        if (servicos.length > 0 && profissionais.length > 0) {
             estaveis.push(
                 '## Agendamento\n' +
-                `Você pode marcar: ${procedimentos.join(', ')}.\n` +
-                `Com: ${especialistas.join(', ')}.\n` +
+                `Você pode marcar: ${servicos.join(', ')}.\n` +
+                `Com: ${profissionais.join(', ')}.\n` +
                 'Sempre consulte os horários livres antes de oferecer qualquer data, e marque ' +
-                'só depois de o paciente confirmar qual horário quer. **Nunca invente horário** ' +
+                `só depois de ${comArtigo(vocab(), 'pessoa')} confirmar qual horário quer. **Nunca invente horário** ` +
                 'e nunca ofereça data que não tenha aparecido na consulta.\n' +
-                'Para qualquer outro procedimento, ou qualquer pedido de remarcar ou cancelar, ' +
+                `Para qualquer outro ${vocab().servico}, ou qualquer pedido de remarcar ou cancelar, ` +
                 'diga que vai passar para a equipe — você não faz isso.'
             )
         } else {
             estaveis.push(
                 '## Agendamento\n' +
-                'Você **não** marca, remarca nem cancela horário. Quando o paciente quiser um ' +
+                `Você **não** marca, remarca nem cancela horário. Quando ${comArtigo(vocab(), 'pessoa')} quiser um ` +
                 'horário, diga que vai passar para a equipe e não prometa data nenhuma.'
             )
         }
@@ -437,7 +445,7 @@ export function buildSystemPrompt(
      * o modelo. É o resultado típico de duas instruções em disputa — o modelo não
      * desobedeceu, ele escolheu uma delas.
      *
-     * A tabela de precedência do catálogo (`DOCUMENTOS[].precedencia`) ordena os
+     * A tabela de precedência do catálogo (`DOCUMENTOS()[].precedencia`) ordena os
      * oito documentos entre si e **não** alcança as seções que o produto escreve.
      * Então a precedência contra a empresa tem de ser dita aqui, onde a seção
      * mora.
@@ -481,8 +489,8 @@ export function buildSystemPrompt(
         'responda por dedução.\n' +
         'Nunca invente valor, horário, prazo ou condição de pagamento. É melhor ' +
         'prometer confirmação do que acertar por sorte.\n' +
-        'Se o paciente pedir para falar com uma pessoa, **chame `passar_para_equipe`** ' +
-        'em vez de só dizer que vai passar. Dizer sem chamar deixa o paciente esperando ' +
+        `Se ${comArtigo(vocab(), 'pessoa')} pedir para falar com uma pessoa, **chame \`passar_para_equipe\`** ` +
+        `em vez de só dizer que vai passar. Dizer sem chamar deixa ${comArtigo(vocab(), 'pessoa')} esperando ` +
         'alguém que não foi avisado.'
     )
 
@@ -511,7 +519,7 @@ export function buildSystemPrompt(
         }
 
         if (context.dealStage) {
-            linhas.push(`No funil da clínica, este atendimento está na fase "${context.dealStage}".`)
+            linhas.push(`No funil ${comArtigo(vocab(), 'organizacao', 'de')}, este atendimento está na fase "${context.dealStage}".`)
         }
 
         if (context.upcoming.length > 0) {
@@ -531,22 +539,22 @@ export function buildSystemPrompt(
      * o que o cliente escreveu.
      */
     /**
-     * **Procedimento e fato são seções diferentes, e a ordem é procedimento
+     * **Procedimento e fato são seções diferentes, e a ordem é servico
      * primeiro.**
      *
      * O cenário diz o que fazer; o fato diz o que é verdade. Quando os dois
      * chegam na mesma recuperação — "quanto custa remarcar?" traz o preço e o
-     * cenário de remarcação —, o procedimento tem de ser lido antes, senão o
+     * cenário de remarcação —, o servico tem de ser lido antes, senão o
      * modelo responde o fato e ignora a instrução de passar para a equipe.
      *
      * É também a precedência declarada no catálogo: Cenários é 4, Serviços e FAQ
      * são 7 e 8.
      */
-    const procedimentos = knowledge.filter((c) => c.type === 'cenario')
+    const servicos = knowledge.filter((c) => c.type === 'cenario')
     const fatos = knowledge.filter((c) => c.type !== 'cenario')
 
-    const procedimento = procedimentoParaOPrompt(procedimentos)
-    if (procedimento) volateis.push(procedimento)
+    const servico = servicoParaOPrompt(servicos)
+    if (servico) volateis.push(servico)
 
     if (fatos.length > 0) {
         const corpus = fatos

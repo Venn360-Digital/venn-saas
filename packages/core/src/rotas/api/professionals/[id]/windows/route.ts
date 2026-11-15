@@ -3,9 +3,11 @@ import { SCHEDULABLE_CATEGORIES } from '@venn/core/lib/product-categories'
 import { z } from 'zod'
 import prisma from '@venn/db/cliente'
 import { PERMISSION_DENIED, getWorkspaceMember, hasEditorRole } from '@venn/core/lib/auth/workspace'
+import { vocab } from '../../../../../lib/vocabulario'
+import { comArtigo } from '../../../../../lib/concordancia'
 
 /**
- * As faixas de horário em que um especialista atende.
+ * As faixas de horário em que um profissional atende.
  *
  * O corpo traz a lista **inteira** e substitui a anterior. Uma janela não tem
  * identidade para quem edita — a pessoa mexe numa grade de horários, não em
@@ -58,12 +60,12 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         return NextResponse.json({ error: PERMISSION_DENIED }, { status: 403 })
     }
 
-    const especialista = await prisma.professional.findFirst({
+    const profissional = await prisma.professional.findFirst({
         where: { id, workspaceId: auth.member.workspaceId },
         select: { id: true },
     })
-    if (!especialista) {
-        return NextResponse.json({ error: 'Especialista não encontrado' }, { status: 404 })
+    if (!profissional) {
+        return NextResponse.json({ error: `${vocab().Profissional} não encontrado` }, { status: 404 })
     }
 
     const parsed = corpoSchema.safeParse(await request.json().catch(() => ({})))
@@ -79,7 +81,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (conflito) return NextResponse.json({ error: conflito }, { status: 400 })
 
     /**
-     * Os procedimentos têm que ser desta clínica e ser procedimentos.
+     * Os servicos têm que ser desta clínica e ser servicos.
      *
      * Liberar um Item que é produto (um creme dental) não tem duração e o agente
      * não saberia quanto tempo reservar.
@@ -96,7 +98,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         })
         if (validos.length !== pedidos.length) {
             return NextResponse.json(
-                { error: 'Um dos procedimentos não existe ou não é um procedimento.' },
+                { error: `Um dos ${vocab().servicos} não existe ou não é ${comArtigo(vocab(), 'servico', 'um')}.` },
                 { status: 400 }
             )
         }

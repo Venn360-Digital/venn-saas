@@ -33,6 +33,7 @@ import {
     SidebarMenuSubItem,
 } from '@venn/ui/sidebar'
 import { navSections, type NavSection } from '../../lib/nav'
+import { useVocab } from '../../hooks/useVocab'
 import { usePermissions } from '../../hooks/usePermissions'
 import { NavSecondary } from './NavSecondary'
 import { NavUser } from './NavUser'
@@ -62,13 +63,21 @@ export function AppSidebar({ marca }: { marca?: UnidadeAberta | null }) {
      * confere por conta própria. Mesma decisão de "Agentes de IA fora do menu
      * do atendente": o menu sumido soma ao portão, não o substitui.
      */
+    /*
+     * As palavras do nicho vêm da unidade: a mesma tela é "Pacientes" numa
+     * clínica e "Clientes" num estúdio do mesmo ramo. Resolvido no servidor e
+     * entregue pelo provedor, para o primeiro paint já sair certo.
+     */
+    const vocabulario = useVocab()
+    const secoes = useMemo(() => navSections(vocabulario), [vocabulario])
+
     const secaoDaPlataforma: NavSection | null = daPlataforma
         ? { label: 'Plataforma', icon: Building2, href: '/plataforma' }
         : null
 
     const sections = useMemo(
         () =>
-            navSections
+            secoes
                 .filter((section) => {
                     if (!section.allowedRoles?.length) return true
                     if (loading || !role) return false
@@ -98,7 +107,7 @@ export function AppSidebar({ marca }: { marca?: UnidadeAberta | null }) {
                     return items.length === section.items.length ? section : { ...section, items }
                 })
                 .filter((section) => !section.items || section.items.length > 0),
-        [role, loading, daPlataforma]
+        [role, loading, daPlataforma, secoes]
     )
 
     /**
@@ -111,13 +120,13 @@ export function AppSidebar({ marca }: { marca?: UnidadeAberta | null }) {
      * own, the dashboard included.
      */
     const sectionForRoute = useMemo(() => {
-        const owner = navSections.find(
+        const owner = secoes.find(
             (s) =>
                 s.label !== 'Favoritos' &&
                 s.items?.some((i) => pathname.startsWith(i.href))
         )
         return owner?.label ?? 'Favoritos'
-    }, [pathname])
+    }, [pathname, secoes])
 
     // One open section at a time: opening any other closes the previous one.
     const [openSection, setOpenSection] = useState<string | null>(sectionForRoute)

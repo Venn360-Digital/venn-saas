@@ -60,7 +60,7 @@ export async function runDailyBriefing(): Promise<void> {
         const base = { workspaceId: workspace.id, status: 'open' }
 
         const counts = await Promise.all(
-            DEAL_LANES.map((lane) => prisma.deal.count({ where: { ...base, ...laneWhere(lane.id, now, fuso) } }))
+            DEAL_LANES().map((lane) => prisma.deal.count({ where: { ...base, ...laneWhere(lane.id, now, fuso) } }))
         )
         const total = counts.reduce((sum, n) => sum + n, 0)
         if (total === 0) continue

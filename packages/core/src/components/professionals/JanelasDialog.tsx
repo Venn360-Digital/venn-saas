@@ -17,9 +17,11 @@ import {
     SelectValue,
 } from '@venn/ui/select'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@venn/ui/tooltip'
+import { useVocab } from '../../hooks/useVocab'
+import { comArtigo } from '../../lib/concordancia'
 
 /**
- * A grade de horários de um especialista.
+ * A grade de horários de um profissional.
  *
  * **Uma lista só, e a permissão do agente é um campo dela.** A tentação era
  * separar "horário de trabalho" de "janela liberada para a IA"; aí os dois
@@ -32,7 +34,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@venn/ui/tooltip'
 
 export const DIAS = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado']
 
-interface Procedimento {
+interface Servico {
     id: string
     name: string
     durationMinutes: number | null
@@ -46,7 +48,7 @@ interface Janela {
     procedureIds: string[]
 }
 
-interface Especialista {
+interface Profissional {
     id: string
     name: string
 }
@@ -59,13 +61,15 @@ export function JanelasDialog({
 }: {
     open: boolean
     onOpenChange: (open: boolean) => void
-    /** Quando vem nulo, o diálogo pede o especialista — é a entrada pela Agenda. */
+    /** Quando vem nulo, o diálogo pede o profissional — é a entrada pela Agenda. */
     professionalId?: string | null
     onSaved?: () => void
 }) {
+    const v = useVocab()
+
     const [escolhido, setEscolhido] = useState<string | null>(professionalId ?? null)
-    const [especialistas, setEspecialistas] = useState<Especialista[]>([])
-    const [procedimentos, setProcedimentos] = useState<Procedimento[]>([])
+    const [profissionais, setProfissionais] = useState<Profissional[]>([])
+    const [servicos, setServicos] = useState<Servico[]>([])
     const [janelas, setJanelas] = useState<Janela[]>([])
     const [carregando, setCarregando] = useState(false)
     const [salvando, setSalvando] = useState(false)
@@ -74,12 +78,12 @@ export function JanelasDialog({
         if (open) setEscolhido(professionalId ?? null)
     }, [open, professionalId])
 
-    // A lista de especialistas só é necessária quando o diálogo precisa perguntar.
+    // A lista de profissionais só é necessária quando o diálogo precisa perguntar.
     useEffect(() => {
         if (!open || professionalId) return
         fetch('/api/professionals')
             .then((r) => (r.ok ? r.json() : []))
-            .then(setEspecialistas)
+            .then(setProfissionais)
             .catch(() => undefined)
     }, [open, professionalId])
 
@@ -87,7 +91,7 @@ export function JanelasDialog({
         if (!open) return
         fetch('/api/products?schedulable=true&limit=200')
             .then((r) => (r.ok ? r.json() : null))
-            .then((d) => setProcedimentos(d?.data ?? d ?? []))
+            .then((d) => setServicos(d?.data ?? d ?? []))
             .catch(() => undefined)
     }, [open])
 
@@ -152,7 +156,7 @@ export function JanelasDialog({
         }
     }
 
-    const semProcedimentos = procedimentos.length === 0
+    const semServicos = servicos.length === 0
 
     /**
      * A moldura é a do sistema, não um `Dialog` solto.
@@ -168,7 +172,7 @@ export function JanelasDialog({
             open={open}
             onOpenChange={onOpenChange}
             title="Janelas de atendimento"
-            description="As faixas em que o especialista atende. Marque quais o agente de IA pode preencher sozinho — e quais procedimentos cabem em cada uma."
+            description={`As faixas em que ${comArtigo(v, 'profissional')} atende. Marque quais o agente de IA pode preencher sozinho — e quais ${v.servicos} cabem em cada uma.`}
             size="wide"
             hideAgain
             submitLabel="Salvar grade"
@@ -180,13 +184,13 @@ export function JanelasDialog({
 
                 {!professionalId ? (
                     <div className="flex items-center gap-2">
-                        <span className="shrink-0 text-xs text-muted-foreground">Especialista:</span>
+                        <span className="shrink-0 text-xs text-muted-foreground">{v.Profissional}:</span>
                         <Select value={escolhido ?? ''} onValueChange={setEscolhido}>
                             <SelectTrigger className="h-9 flex-1">
                                 <SelectValue placeholder="Escolha de quem é a grade" />
                             </SelectTrigger>
                             <SelectContent>
-                                {especialistas.map((e) => (
+                                {profissionais.map((e) => (
                                     <SelectItem key={e.id} value={e.id}>
                                         {e.name}
                                     </SelectItem>
@@ -198,7 +202,7 @@ export function JanelasDialog({
 
                 {!escolhido ? (
                     <p className="py-8 text-center text-sm text-muted-foreground">
-                        Escolha um especialista para ver a grade dele.
+                        Escolha {comArtigo(v, 'profissional', 'um')} para ver a grade.
                     </p>
                 ) : carregando ? (
                     <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
@@ -209,7 +213,7 @@ export function JanelasDialog({
                     <div className="flex flex-col gap-3">
                         {janelas.length === 0 ? (
                             <p className="rounded-lg border border-dashed border-border py-8 text-center text-sm text-muted-foreground">
-                                Nenhuma faixa ainda. Sem janela, este especialista não aparece como
+                                Nenhuma faixa ainda. Sem janela, {comArtigo(v, 'profissional', 'este')} não aparece como
                                 disponível em lugar nenhum.
                             </p>
                         ) : null}
@@ -257,16 +261,16 @@ export function JanelasDialog({
                                                 </span>
                                                 <Switch
                                                     checked={j.agentCanBook}
-                                                    disabled={semProcedimentos}
+                                                    disabled={semServicos}
                                                     onCheckedChange={(v) => alterar(i, { agentCanBook: v })}
                                                     aria-label="O agente de IA pode marcar nesta janela"
                                                 />
                                             </span>
                                         </TooltipTrigger>
                                         <TooltipContent>
-                                            {semProcedimentos
-                                                ? 'Cadastre um Item com categoria "Procedimento" e duração antes de liberar o agente.'
-                                                : 'Ligado, o agente marca sozinho aqui — só os procedimentos marcados abaixo.'}
+                                            {semServicos
+                                                ? `Cadastre um Item com categoria "${v.Servico}" e duração antes de liberar o agente.`
+                                                : `Ligado, o agente marca sozinho aqui — só ${comArtigo(v, 'servicos')} marcados abaixo.`}
                                         </TooltipContent>
                                     </Tooltip>
 
@@ -280,20 +284,20 @@ export function JanelasDialog({
                                     </Button>
                                 </div>
 
-                                {/* A lista de procedimentos só importa quando o agente
+                                {/* A lista de servicos só importa quando o agente
                                     pode marcar: para a recepção, a janela é só horário. */}
                                 {j.agentCanBook ? (
                                     <div className="mt-3 border-t border-border pt-3">
                                         <p className="mb-2 text-xs text-muted-foreground">
                                             O agente pode marcar, nesta janela:
                                         </p>
-                                        {semProcedimentos ? (
+                                        {semServicos ? (
                                             <p className="text-xs text-warning-subtle-foreground">
-                                                Nenhum procedimento cadastrado ainda.
+                                                Nenhum {v.servico} cadastrado ainda.
                                             </p>
                                         ) : (
                                             <div className="flex flex-wrap gap-x-4 gap-y-2">
-                                                {procedimentos.map((p) => {
+                                                {servicos.map((p) => {
                                                     const marcado = j.procedureIds.includes(p.id)
                                                     return (
                                                         <label

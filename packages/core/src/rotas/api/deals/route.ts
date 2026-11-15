@@ -9,6 +9,7 @@ import { isDealLane, laneWhere } from '@venn/core/lib/deal-lanes'
 import { fusoDaUnidade } from '@venn/core/lib/fuso-da-unidade'
 import { periodWhere } from '@venn/core/lib/deal-filters'
 import { currentMembership, dealScope, getWorkspaceMember } from '@venn/core/lib/auth/workspace'
+import { vocab } from '../../../lib/vocabulario'
 
 const dealSchema = z.object({
     title: z.string().min(1),
@@ -215,7 +216,7 @@ export async function POST(request: NextRequest) {
             })
             if (existingOpenDeal) {
                 return NextResponse.json(
-                    { error: 'Este paciente já possui um negócio ativo. Finalize-o antes de criar outro.' },
+                    { error: `Este ${vocab().pessoa} já possui um negócio ativo. Finalize-o antes de criar outro.` },
                     { status: 409 }
                 )
             }

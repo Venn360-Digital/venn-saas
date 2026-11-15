@@ -22,9 +22,16 @@
  * serem ajustados: o que é específico de cada uma (preço, convênio, horário)
  * mora no Cérebro, não aqui.
  */
-export const MODELOS_DE_TEXTO = {
+/**
+ * Função memoizada, e não constante: o texto lê o vocabulário, e `BRAND()` é
+ * fail-fast. Constante de módulo é avaliada quando a Cloudflare VALIDA o
+ * script — sem requisição e sem marca registrada —, e a publicação reprova com
+ * `MarcaNaoRegistradaError`. A forma que já reprovou cinco publicações.
+ */
+function montarModelosDeTexto() {
+    return {
     initialMessage:
-        'Olá! Sou o assistente virtual da clínica. 😊\n\n' +
+        `Olá! Sou o assistente virtual ${comArtigo(vocab(), 'organizacao', 'de')}. 😊\n\n` +
         'Posso tirar dúvidas sobre tratamentos, valores e convênios, e também ' +
         'agendar sua avaliação.\n\n' +
         'Como posso ajudar você hoje?',
@@ -32,16 +39,16 @@ export const MODELOS_DE_TEXTO = {
     jobDescription:
         'Atender quem chega pelo WhatsApp, entender o que a pessoa precisa e ' +
         'conduzi-la até o agendamento de uma avaliação.\n\n' +
-        '- Responder dúvidas sobre os tratamentos que a clínica oferece\n' +
+        `- Responder dúvidas sobre os tratamentos que ${comArtigo(vocab(), 'organizacao')} oferece\n` +
         '- Informar valores e formas de pagamento quando constarem na base de conhecimento\n' +
-        '- Confirmar se a clínica atende o convênio da pessoa\n' +
+        `- Confirmar se ${comArtigo(vocab(), 'organizacao')} atende o convênio da pessoa\n` +
         '- Oferecer horários e registrar o interesse em agendar\n' +
         '- Encaminhar para a equipe quando o assunto for clínico ou uma reclamação',
 
     companyDescription:
-        'Clínica odontológica que atende [especialidades: ortodontia, implante, ' +
-        'clínica geral]. Atendemos de [dia] a [dia], das [hora] às [hora].\n\n' +
-        'Nosso diferencial é [o que a clínica faz melhor que as outras].',
+        `${vocab().Organizacao} odontológica que atende [especialidades: ortodontia, implante, ` +
+        `${vocab().organizacao} geral]. Atendemos de [dia] a [dia], das [hora] às [hora].\n\n` +
+        `Nosso diferencial é [o que ${comArtigo(vocab(), 'organizacao')} faz melhor que as outras].`,
 
     systemPrompt:
         'Fale com acolhimento e vá direto ao ponto.\n\n' +
@@ -51,6 +58,12 @@ export const MODELOS_DE_TEXTO = {
         '- Se a pessoa relatar dor, acolha primeiro e ofereça encaixe no mesmo dia\n' +
         '- Peça o nome quando ainda não souber, uma única vez\n' +
         '- Reclamação ou assunto clínico vai para a equipe, sem tentar resolver sozinho',
+}
+}
+let modelosDeTextoCache: ReturnType<typeof montarModelosDeTexto> | null = null
+export function MODELOS_DE_TEXTO(): ReturnType<typeof montarModelosDeTexto> {
+    if (modelosDeTextoCache === null) modelosDeTextoCache = montarModelosDeTexto()
+    return modelosDeTextoCache
 }
 
 export const PADROES_DO_AGENTE = {
@@ -248,6 +261,8 @@ export interface KnowledgeDocument {
  */
 export type { RuleCondition, RuleAction } from './rules'
 import type { RuleCondition, RuleAction } from './rules'
+import { vocab } from '../lib/vocabulario'
+import { comArtigo } from '../lib/concordancia'
 
 export interface RuleData {
     id?: string

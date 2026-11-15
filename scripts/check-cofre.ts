@@ -121,7 +121,7 @@ async function main() {
     )
 
     const derivados = new Set<string>()
-    for (const p of PLATFORM_PROVIDERS) {
+    for (const p of PLATFORM_PROVIDERS()) {
         const v = variaveisDoProvedor(p.provider)
         derivados.add(v.id)
         derivados.add(v.segredo)

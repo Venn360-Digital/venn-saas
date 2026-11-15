@@ -6,6 +6,8 @@ import { Copy, Loader2, Power, Trash2 } from 'lucide-react'
 import { Button } from '@venn/ui/button'
 import { ConfirmDialog } from '../../../shared/ConfirmDialog'
 import { SettingsCard, SettingsRow } from '../../../shared/TabsFrame'
+import { useVocab } from '../../../../hooks/useVocab'
+import { comArtigo } from '../../../../lib/concordancia'
 
 /**
  * As ações sobre o agente, na guia de ajustes da Tela 03.
@@ -41,6 +43,8 @@ export function AcoesTab({
     onDelete,
     canManage = true,
 }: AcoesTabProps) {
+    const v = useVocab()
+
     const [duplicando, setDuplicando] = useState(false)
     const [alternando, setAlternando] = useState(false)
     const [excluindo, setExcluindo] = useState(false)
@@ -68,7 +72,7 @@ export function AcoesTab({
         return (
             <SettingsCard
                 title="Ações do agente"
-                description="Duplicar, pausar e excluir são do dono ou do administrador da clínica."
+                description={`Duplicar, pausar e excluir são do dono ou do administrador ${comArtigo(v, 'organizacao', 'de')}.`}
             >
                 <SettingsRow
                     title={isActive ? 'Este agente está ativo' : 'Este agente está pausado'}

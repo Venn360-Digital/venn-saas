@@ -33,14 +33,14 @@ export interface ConversationContext {
      */
     stages: string[]
     /**
-     * Os procedimentos que o agente pode marcar, e com quem.
+     * Os servicos que o agente pode marcar, e com quem.
      *
      * Mesma razão das fases: `marcar_consulta` exige o nome exato. E sem saber o
      * que existe, o modelo promete "limpeza" numa clínica que só cadastrou
      * avaliação — que é pior que não marcar, porque o paciente já desligou
      * achando que tinha horário.
      */
-    bookable: { procedimentos: string[]; especialistas: string[] }
+    bookable: { servicos: string[]; profissionais: string[] }
     /** Data e hora de agora, por extenso, no fuso da clínica. */
     agora: string
 }
@@ -102,9 +102,9 @@ function quandoCurto(dueDate: Date, startTime: string | null, tz: string): strin
  */
 async function cadastroDoWorkspace(workspaceId: string): Promise<{
     stages: string[]
-    bookable: { procedimentos: string[]; especialistas: string[] }
+    bookable: { servicos: string[]; profissionais: string[] }
 }> {
-    const [fases, procedimentos, especialistas] = await Promise.all([
+    const [fases, servicos, profissionais] = await Promise.all([
         prisma.pipelineStage.findMany({
             where: { workspaceId },
             orderBy: { order: 'asc' },
@@ -113,7 +113,7 @@ async function cadastroDoWorkspace(workspaceId: string): Promise<{
         /**
          * Só o que o agente pode de fato marcar.
          *
-         * Um procedimento sem duração não dá para reservar, e um que nenhuma
+         * Um servico sem duração não dá para reservar, e um que nenhuma
          * janela liberada aceita ele não vai conseguir marcar — listar qualquer
          * um dos dois no prompt seria convidá-lo a prometer o que não cumpre.
          */
@@ -137,8 +137,8 @@ async function cadastroDoWorkspace(workspaceId: string): Promise<{
     return {
         stages: fases.map((f) => f.name),
         bookable: {
-            procedimentos: procedimentos.map((p) => p.name),
-            especialistas: especialistas.map((e) => e.name),
+            servicos: servicos.map((p) => p.name),
+            profissionais: profissionais.map((e) => e.name),
         },
     }
 }
@@ -158,7 +158,7 @@ export async function loadConversationContext(
             },
         })
 
-        if (!conversa?.contact) return { upcoming: [], stages: [], bookable: { procedimentos: [], especialistas: [] }, agora }
+        if (!conversa?.contact) return { upcoming: [], stages: [], bookable: { servicos: [], profissionais: [] }, agora }
 
         const { contact, workspaceId } = conversa
 
@@ -202,7 +202,7 @@ export async function loadConversationContext(
         }
     } catch (error) {
         log.warn(`não foi possível montar o contexto da conversa ${conversationId}`, error)
-        return { upcoming: [], stages: [], bookable: { procedimentos: [], especialistas: [] }, agora }
+        return { upcoming: [], stages: [], bookable: { servicos: [], profissionais: [] }, agora }
     }
 }
 
@@ -235,6 +235,6 @@ export async function carregarContextoDoEnsaio(
         return { upcoming: [], agora, ...cadastro }
     } catch (error) {
         log.warn(`não foi possível montar o contexto do ensaio de ${workspaceId}`, error)
-        return { upcoming: [], stages: [], bookable: { procedimentos: [], especialistas: [] }, agora }
+        return { upcoming: [], stages: [], bookable: { servicos: [], profissionais: [] }, agora }
     }
 }

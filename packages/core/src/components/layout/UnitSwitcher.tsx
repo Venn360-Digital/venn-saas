@@ -15,6 +15,7 @@ import {
 } from '@venn/ui/dropdown-menu'
 import { cn } from '@venn/ui/utils'
 import { trocarDeUnidade, useUnidades, type UnidadeAberta } from '../../hooks/useUnidades'
+import { useVocab } from '../../hooks/useVocab'
 
 /**
  * Em qual clínica o sistema está — e, com mais de uma, o seletor.
@@ -32,6 +33,8 @@ import { trocarDeUnidade, useUnidades, type UnidadeAberta } from '../../hooks/us
  * tela pela primeira vez.
  */
 export function UnitSwitcher({ inicial }: { inicial?: UnidadeAberta | null }) {
+    const v = useVocab()
+
     const { dados, carregando } = useUnidades(inicial)
     const [trocando, setTrocando] = useState(false)
 
@@ -93,7 +96,7 @@ export function UnitSwitcher({ inicial }: { inicial?: UnidadeAberta | null }) {
                 <Button
                     variant="ghost"
                     disabled={trocando}
-                    aria-label={`Clínica atual: ${dados.name}. Trocar de clínica`}
+                    aria-label={`${v.Organizacao} atual: ${dados.name}. Trocar de ${v.organizacao}`}
                     className="gap-1.5 px-2 text-primary-subtle-foreground hover:bg-primary-subtle hover:text-primary-subtle-foreground"
                 >
                     <Hospital className="size-4 shrink-0" aria-hidden="true" />

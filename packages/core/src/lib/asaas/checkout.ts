@@ -1,6 +1,6 @@
 import prisma from '@venn/db/cliente'
 import { asaas } from './client'
-import { PLANS, type PlanId } from '../plans'
+import { plans, type PlanId } from '../plans'
 import { UNIDADE_ADICIONAL } from '../plans'
 import { CICLOS, TREINAMENTO, valorDaFatura, type BillingCycle } from '../plan-limits'
 
@@ -21,7 +21,7 @@ import { CICLOS, TREINAMENTO, valorDaFatura, type BillingCycle } from '../plan-l
 
 /** Quanto o plano custa por mês, somadas as unidades adicionais já contratadas. */
 export function mensalidadeDoPlano(plan: PlanId, adicionais: number): number {
-    return PLANS[plan].price + adicionais * UNIDADE_ADICIONAL.price
+    return plans()[plan].price + adicionais * UNIDADE_ADICIONAL.price
 }
 
 /**
@@ -161,7 +161,7 @@ export async function criarCheckoutDePlano(opcoes: {
 
     const proporcional = valorProporcional !== undefined
     const valor = proporcional ? valorProporcional : valorDaFatura(plan, adicionais, ciclo)
-    const planConfig = PLANS[plan]
+    const planConfig = plans()[plan]
     const anual = ciclo === 'annual'
 
     /**

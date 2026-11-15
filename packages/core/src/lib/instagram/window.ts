@@ -1,3 +1,5 @@
+import { vocab } from '../vocabulario'
+import { comArtigo } from '../concordancia'
 /**
  * A janela de 24 horas do Instagram, que é regra de produto e não de API.
  *
@@ -84,7 +86,7 @@ export function decidirEnvioNoInstagram(input: {
             tipo: 'recusar',
             motivo:
                 'No Instagram só é possível responder a quem escreveu primeiro. ' +
-                'Esta conversa ainda não tem mensagem do paciente.',
+                `Esta conversa ainda não tem mensagem ${comArtigo(vocab(), 'pessoa', 'de')}.`,
         }
     }
 
@@ -96,7 +98,7 @@ export function decidirEnvioNoInstagram(input: {
         return {
             tipo: 'recusar',
             motivo:
-                'Passaram mais de 24 horas desde a última mensagem do paciente, e o ' +
+                `Passaram mais de 24 horas desde a última mensagem ${comArtigo(vocab(), 'pessoa', 'de')}, e o ` +
                 'Instagram só permite resposta automática dentro desse prazo. Um ' +
                 'atendente ainda pode responder por aqui, até 7 dias.',
         }
@@ -107,7 +109,7 @@ export function decidirEnvioNoInstagram(input: {
     return {
         tipo: 'recusar',
         motivo:
-            'Passaram mais de 7 dias desde a última mensagem do paciente, e o Instagram ' +
+            `Passaram mais de 7 dias desde a última mensagem ${comArtigo(vocab(), 'pessoa', 'de')}, e o Instagram ` +
             'não permite mais escrever nesta conversa. Ela volta a abrir se ele escrever ' +
             'de novo.',
     }

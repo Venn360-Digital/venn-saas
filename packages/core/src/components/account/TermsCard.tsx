@@ -270,7 +270,7 @@ function TermsText({ onReachEnd, className }: { onReachEnd?: () => void; classNa
             {/* A leitura num quadro largo: duas colunas de texto cansam menos
                 que uma linha de 1000px. */}
             <div className="columns-1 gap-8 space-y-5 p-5 lg:columns-2">
-                {TERMS.map((section) => (
+                {TERMS().map((section) => (
                     <section key={section.title} className="break-inside-avoid">
                         <h3 className="text-h4">{section.title}</h3>
                         {section.body.map((paragraph) => (

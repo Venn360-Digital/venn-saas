@@ -17,8 +17,8 @@
  * ## Por que não basta imprimir o registro e pedir para colar
  *
  * O DMARC é **herdado pelo subdomínio**. Se a recomendação é usar
- * `mkt.clinica.com.br` (e é — separa a reputação da campanha da do e-mail do
- * dia a dia), então uma política em `clinica.com.br` já cobre o envio, e pedir
+ * `mkt.exemplo.com.br` (e é — separa a reputação da campanha da do e-mail do
+ * dia a dia), então uma política em `exemplo.com.br` já cobre o envio, e pedir
  * um segundo registro seria pedir trabalho inútil. Pior: duas políticas, uma
  * no subdomínio e outra na raiz, divergem com o tempo e a do subdomínio ganha —
  * então sugerir às cegas pode *afrouxar* uma política que já era boa.
@@ -70,7 +70,7 @@ const SUFIXOS_COMPOSTOS = new Set([
 /**
  * Onde a política DMARC deste domínio mora, por herança.
  *
- * `mkt.clinica.com.br` → `clinica.com.br`. `clinica.com.br` → ele mesmo (já é o
+ * `mkt.exemplo.com.br` → `exemplo.com.br`. `exemplo.com.br` → ele mesmo (já é o
  * registrável; não existe pai a consultar). Devolve `null` quando o próprio
  * domínio já é o organizacional, para a rota não fazer uma segunda consulta
  * idêntica à primeira.

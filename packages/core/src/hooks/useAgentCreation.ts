@@ -9,8 +9,11 @@ import {
     PADROES_DO_AGENTE, MODELOS_DE_TEXTO,
 } from '../types/agent-creation'
 import { ENTONACAO_PADRAO, VOZ_PADRAO } from '../lib/voz'
-import { SETOR_PADRAO } from '../components/agents/creation/tabs/TrabalhoTab'
+import { setorPadrao } from '../components/agents/creation/tabs/TrabalhoTab'
+import { useVocab } from './useVocab'
 import { acharDocumento, DOCUMENTOS } from '../lib/treinamento/documentos'
+import { comArtigo } from '../lib/concordancia'
+import type { Vocabulario } from '../lib/vocabulario'
 
 /**
  * A instrução livre com que um agente novo nasce — curta de propósito.
@@ -20,12 +23,16 @@ import { acharDocumento, DOCUMENTOS } from '../lib/treinamento/documentos'
  * que fazia o modelo receber a mesma informação duas vezes: uma em texto corrido
  * vindo deste modelo, outra em seções vindas do worker.
  */
-const PROMPT_INICIAL =
-    'Você é o assistente de atendimento desta clínica. Responda com base nas informações ' +
-    'da empresa e na sua base de conhecimento. Quando não souber, diga que vai verificar ' +
-    'com a equipe em vez de inventar.'
+function promptInicial(v: Vocabulario): string {
+    return (
+        `Você é o assistente de atendimento ${comArtigo(v, 'organizacao', 'este')}. Responda com base nas informações ` +
+        'da empresa e na sua base de conhecimento. Quando não souber, diga que vai verificar ' +
+        'com a equipe em vez de inventar.'
+    )
+}
 
 export function useAgentCreation(workspaceId: string) {
+    const v = useVocab()
     const router = useRouter()
     const [isSaving, setIsSaving] = useState(false)
 
@@ -36,12 +43,12 @@ export function useAgentCreation(workspaceId: string) {
         voiceTone: PADROES_DO_AGENTE.voiceTone,
         language: PADROES_DO_AGENTE.language,
         timezone: PADROES_DO_AGENTE.timezone,
-        initialMessage: MODELOS_DE_TEXTO.initialMessage,
+        initialMessage: MODELOS_DE_TEXTO().initialMessage,
     })
 
     const [trabalho, setTrabalho] = useState<TrabalhoData>({
-        jobDescription: MODELOS_DE_TEXTO.jobDescription,
-        companyDescription: MODELOS_DE_TEXTO.companyDescription,
+        jobDescription: MODELOS_DE_TEXTO().jobDescription,
+        companyDescription: MODELOS_DE_TEXTO().companyDescription,
     })
 
     const [cerebro, setCerebro] = useState<CerebroData>({
@@ -73,7 +80,7 @@ export function useAgentCreation(workspaceId: string) {
      */
     const [documentos, setDocumentos] = useState<Record<string, DocumentoGravado>>(() =>
         Object.fromEntries(
-            DOCUMENTOS.map((doc) => [
+            DOCUMENTOS().map((doc) => [
                 doc.slug,
                 { content: '', indexedAt: null, indexedChunks: null, desatualizado: false },
             ])
@@ -174,7 +181,7 @@ export function useAgentCreation(workspaceId: string) {
     const [instrucoes, setInstrucoes] = useState<InstrucoesData>({
         llmModel: PADROES_DO_AGENTE.llmModel,
         temperature: PADROES_DO_AGENTE.temperature,
-        systemPrompt: MODELOS_DE_TEXTO.systemPrompt,
+        systemPrompt: MODELOS_DE_TEXTO().systemPrompt,
     })
 
     const handleSave = async (agentId?: string | null) => {
@@ -207,7 +214,7 @@ export function useAgentCreation(workspaceId: string) {
                 companyName: trabalho.companyName,
                 // Fixo: o produto atende clínicas odontológicas. Gravar sempre
                 // normaliza também o agente criado antes desta decisão.
-                companySector: SETOR_PADRAO,
+                companySector: setorPadrao(v),
                 companyWebsite: trabalho.companyWebsite,
                 companyDescription: trabalho.companyDescription,
                 companyAddress: trabalho.companyAddress,
@@ -267,7 +274,7 @@ export function useAgentCreation(workspaceId: string) {
                         // Agente novo sem instrução escrita nasce com a curta
                         // padrão: o schema exige um prompt, e um texto que
                         // repetisse empresa e tom duplicaria o que o worker monta.
-                        systemPrompt: instrucoes.systemPrompt?.trim() || PROMPT_INICIAL,
+                        systemPrompt: instrucoes.systemPrompt?.trim() || promptInicial(v),
                     }),
                 })
             }

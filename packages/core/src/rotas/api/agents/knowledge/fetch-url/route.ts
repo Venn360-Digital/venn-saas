@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { MANAGER_ROLES, requireRole } from '@venn/core/lib/auth/workspace'
 import { htmlToText, isPrivateHost, pageTitle } from '@venn/core/lib/rag/page-text'
+import { vocab } from '../../../../../lib/vocabulario'
+import { comArtigo } from '../../../../../lib/concordancia'
+import { BRAND } from '../../../../../marca'
 
 export const runtime = 'nodejs'
 
@@ -59,7 +62,7 @@ export async function POST(request: NextRequest) {
 
         if (isPrivateHost(target.hostname)) {
             return NextResponse.json(
-                { error: 'Esse endereço não é público. Informe o site da clínica.' },
+                { error: `Esse endereço não é público. Informe o site ${comArtigo(vocab(), 'organizacao', 'de')}.` },
                 { status: 400 }
             )
         }
@@ -69,7 +72,7 @@ export async function POST(request: NextRequest) {
             signal: AbortSignal.timeout(TIMEOUT_MS),
             headers: {
                 // Algumas hospedagens devolvem 403 para cliente sem identificação.
-                'User-Agent': 'OdontoBox360/1.0 (+leitor de base de conhecimento)',
+                'User-Agent': `${BRAND().name}/1.0 (+leitor de base de conhecimento)`,
                 Accept: 'text/html,application/xhtml+xml,text/plain;q=0.9',
             },
         }).catch(() => null)

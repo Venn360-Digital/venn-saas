@@ -12,6 +12,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@venn/ui/textarea'
 import { ACTIVITY_TYPES, activityType } from '../../lib/activity-types'
 import { useNow } from '../../hooks/useNow'
+import { useVocab } from '../../hooks/useVocab'
+import { useMarca } from '../../marca-contexto'
 
 const DURATIONS = [15, 30, 45, 60, 90, 120]
 
@@ -55,6 +57,9 @@ export function ActivityForm({
     onScheduled?: (info: { date: string; time: string }) => void
     onCancel?: () => void
 }) {
+    const marca = useMarca()
+    const v = useVocab()
+
     const [kind, setKind] = useState('meeting')
     /** `null` enquanto ninguém editou: o título segue o tipo e o paciente. */
     const [titleOverride, setTitleOverride] = useState<string | null>(null)
@@ -133,7 +138,7 @@ export function ActivityForm({
             toast.success(
                 connected.length > 0
                     ? `Agendado e enviado para ${connected.map((t) => t.label).join(' e ')}`
-                    : 'Agendado na Agenda do OdontoBox360'
+                    : `Agendado na Agenda do ${marca.name}`
             )
             onScheduled?.({ date, time })
             setNotes('')
@@ -224,7 +229,7 @@ export function ActivityForm({
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
                     rows={2}
-                    placeholder="Procedimento, preparo, o que levar…"
+                    placeholder={`${v.Servico}, preparo, o que levar…`}
                 />
             </div>
 
@@ -251,7 +256,7 @@ export function ActivityForm({
                     ? 'Verificando as agendas conectadas…'
                     : connected.length > 0
                         ? `Vai para a Agenda e para ${connected.map((t) => t.label).join(' e ')}.`
-                        : 'Fica na Agenda do OdontoBox360. Conecte o Google Calendar ou o Clinicorp em Integrações para enviar também para lá.'}
+                        : 'Fica na Agenda do ${marca.name}. Conecte o Google Calendar ou o Clinicorp em Integrações para enviar também para lá.'}
             </p>
         </div>
     )

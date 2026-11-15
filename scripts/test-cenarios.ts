@@ -5,12 +5,12 @@
  *
  * Duas propriedades valem mais que as outras:
  *
- *   - **o catálogo vai no prompt, o corpo não.** Vinte procedimentos num prompt
+ *   - **o catálogo vai no prompt, o corpo não.** Vinte servicos num prompt
  *     que vai em toda mensagem seriam milhares de tokens para um agente que usa
  *     dois por dia. O que o teste protege é que `catalogoDeCenarios` devolve
  *     título e gatilho, e **nunca** os passos.
- *   - **procedimento não é fato.** Um fato recuperado é fonte de verdade para
- *     responder; um procedimento é ordem de execução. Sem a distinção o modelo
+ *   - **servico não é fato.** Um fato recuperado é fonte de verdade para
+ *     responder; um servico é ordem de execução. Sem a distinção o modelo
  *     leria os passos *para* o paciente em vez de executá-los.
  */
 // PRIMEIRO de todos: registra uma marca fictícia, porque este script roda
@@ -21,7 +21,7 @@ import {
     MAX_NO_CATALOGO,
     catalogoDeCenarios,
     lerCenarios,
-    procedimentoParaOPrompt,
+    servicoParaOPrompt,
 } from '@venn/core/lib/treinamento/cenarios'
 import {
     COMPACTAR_A_PARTIR_DE,
@@ -34,6 +34,8 @@ import { acharDocumento, documentosDeFato, documentosDoAcervo, documentosDoPromp
 import { buildSystemPrompt } from '@venn/core/trabalhos/servicos/prompt'
 import type { Agent } from '@venn/db'
 import { tipoDoAcervo, ehDeTreinamento, TIPO_DE_CENARIO, TIPO_DE_TREINAMENTO } from '@venn/core/lib/treinamento/indexar'
+import { BRAND } from '@venn/core/marca'
+import { comArtigo } from '@venn/core/lib/concordancia'
 
 let passou = 0
 let falhou = 0
@@ -140,11 +142,15 @@ const catalogo = catalogoDeCenarios(cenarios)!
 conferir('traz os títulos', catalogo.includes('**Paciente quer remarcar**'), true)
 conferir('traz o gatilho, em minúscula depois de "quando"', catalogo.includes('— quando o paciente pede'), true)
 conferir(
-    'NUNCA traz os passos — é o ponto do modo procedimento',
+    'NUNCA traz os passos — é o ponto do modo servico',
     catalogo.includes('Chame passar_para_equipe') || catalogo.includes('Informe o telefone'),
     false
 )
-conferir('diz ao modelo onde o procedimento aparece', catalogo.includes('Procedimento para esta situação'), true)
+conferir(
+    'diz ao modelo onde o passo a passo aparece',
+    catalogo.includes(`${BRAND().vocabulario.Servico} para esta situação`),
+    true
+)
 conferir('sem cenário válido devolve nulo, para a seção não sair vazia', catalogoDeCenarios([]), null)
 conferir(
     'o catálogo tem teto — ele vai em toda mensagem',
@@ -158,17 +164,17 @@ conferir(
     MAX_NO_CATALOGO
 )
 
-console.log('\nO procedimento recuperado')
+console.log('\nO servico recuperado')
 
-const proc = procedimentoParaOPrompt([{ title: 'cenarios', content: '### Remarcar\nPassos:\n1. a' }])!
+const proc = servicoParaOPrompt([{ title: 'cenarios', content: '### Remarcar\nPassos:\n1. a' }])!
 
-conferir('manda EXECUTAR, não ler', proc.includes('Não os leia para o paciente'), true)
+conferir('manda EXECUTAR, não ler', proc.includes(`Não os leia para ${comArtigo(BRAND().vocabulario, 'pessoa')}`), true)
 conferir('traz o corpo', proc.includes('Passos:'), true)
-conferir('sem trecho devolve nulo', procedimentoParaOPrompt([]), null)
+conferir('sem trecho devolve nulo', servicoParaOPrompt([]), null)
 
 console.log('\nO catálogo e o acervo')
 
-conferir('o oitavo documento existe', acharDocumento('cenarios')?.modo, 'procedimento')
+conferir('o oitavo documento existe', acharDocumento('cenarios')?.modo, 'servico')
 conferir(
     'ele é indexado: entra em documentosDoAcervo',
     documentosDoAcervo().map((d) => d.slug).includes('cenarios'),
@@ -184,7 +190,7 @@ conferir(
     documentosDoPrompt().map((d) => d.slug).includes('cenarios'),
     false
 )
-conferir('o trecho dele leva tipo próprio', tipoDoAcervo('procedimento'), TIPO_DE_CENARIO)
+conferir('o trecho dele leva tipo próprio', tipoDoAcervo('servico'), TIPO_DE_CENARIO)
 conferir('o de rag leva o de treinamento', tipoDoAcervo('rag'), TIPO_DE_TREINAMENTO)
 conferir('os dois contam como de treinamento — o Cérebro não os lista nem os apaga', [
     ehDeTreinamento(TIPO_DE_TREINAMENTO),
@@ -245,9 +251,9 @@ console.log('\nCenários entra na precedência escrita')
 
 /**
  * A lista saía de `documentosDoPrompt()`, que filtra modo `prompt`. Cenários é
- * `procedimento`, então não aparecia em posição nenhuma — enquanto o corpo dele
+ * `servico`, então não aparecia em posição nenhuma — enquanto o corpo dele
  * chega no bloco volátil, na posição de maior recência, dizendo "execute os
- * passos". Um procedimento pré-escrito era a instrução menos subordinada do
+ * passos". Um servico pré-escrito era a instrução menos subordinada do
  * conjunto.
  */
 const comPrecedencia = buildSystemPrompt(
@@ -317,27 +323,39 @@ console.log('\nA transcrição')
 
 const quando = new Date('2026-10-30T12:00:00Z')
 
+/*
+ * Os rótulos vêm do VOCABULÁRIO, não de literais.
+ *
+ * A transcrição é o que o modelo lê para resumir a conversa, e quem falou é
+ * dito com a palavra do nicho — num app de viagem o modelo precisa ler
+ * "Cliente:", não "Paciente:". Escrever o literal esperado aqui prenderia o
+ * teste ao primeiro nicho e, pior, aprovaria um código que também o prendesse.
+ * Derivado, ele reprova se o rótulo deixar de seguir o vocabulário.
+ */
+const QUEM_ENTRA = BRAND().vocabulario.Pessoa
+const QUEM_RESPONDE = BRAND().vocabulario.Organizacao
+
 conferir(
     'quem falou e o que falou',
     transcrever([
         { direction: 'inbound', content: 'oi', transcript: null, contentType: 'text', createdAt: quando },
         { direction: 'outbound', content: 'olá', transcript: null, contentType: 'text', createdAt: quando },
     ]),
-    '2026-10-30 Paciente: oi\n2026-10-30 Clínica: olá'
+    `2026-10-30 ${QUEM_ENTRA}: oi\n2026-10-30 ${QUEM_RESPONDE}: olá`
 )
 conferir(
     'ÁUDIO entra pela transcrição — senão o resumo veria uma sequência de nada',
     transcrever([
         { direction: 'inbound', content: '🎵 Áudio', transcript: 'quanto custa', contentType: 'audio', createdAt: quando },
     ]),
-    '2026-10-30 Paciente: quanto custa'
+    `2026-10-30 ${QUEM_ENTRA}: quanto custa`
 )
 conferir(
     'mídia sem texto nem transcrição mostra o tipo',
     transcrever([
         { direction: 'inbound', content: null, transcript: null, contentType: 'image', createdAt: quando },
     ]),
-    '2026-10-30 Paciente: [image]'
+    `2026-10-30 ${QUEM_ENTRA}: [image]`
 )
 conferir('nada devolve vazio', transcrever([]), '')
 

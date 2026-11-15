@@ -1,3 +1,5 @@
+import { vocab } from '../vocabulario'
+import { comArtigo } from '../concordancia'
 /**
  * Os modelos de cada documento — o que o botão "Inserir modelo" escreve.
  *
@@ -55,7 +57,16 @@
  */
 
 /** O aviso que abre todo modelo. Igual nos oito, por isso mora aqui. */
-const AVISO = `<!--
+/**
+ * Função memoizada, e não constante: o texto lê o vocabulário, e `BRAND()` é
+ * fail-fast. Constante de módulo é avaliada quando a Cloudflare VALIDA o
+ * script — sem requisição e sem marca registrada — e a publicação reprova com
+ * `MarcaNaoRegistradaError`. O `check:marca-tardia` apontou este arquivo no
+ * instante em que o vocabulário entrou no prompt.
+ */
+let avisoCache: string | null = null
+function aviso(): string {
+    if (avisoCache === null) avisoCache = `<!--
   MODELO. Substitua cada comentário pelo seu texto; o que ficar em comentário
   não chega à inteligência artificial.
 
@@ -63,6 +74,8 @@ const AVISO = `<!--
   não os fatos do seu negócio. Preço, prazo, convênio, política e endereço são
   seus, e só você pode confirmá-los.
 -->`
+    return avisoCache
+}
 
 /**
  * Modelo por slug. Ausente = sem modelo escrito ainda.
@@ -71,10 +84,18 @@ const AVISO = `<!--
  * nas seções que o catálogo declara para aquele documento.
  * `npm run test:treinamento` reprova a divergência.
  */
-export const MODELOS: Readonly<Record<string, string>> = {
+/**
+ * Função memoizada: os modelos interpolam o vocabulário, e `BRAND()` é
+ * fail-fast. Constante de módulo é avaliada na validação do script, sem marca
+ * registrada — a forma que já reprovou cinco publicações nesta fase.
+ */
+let modelosCache: Readonly<Record<string, string>> | null = null
+export function MODELOS(): Readonly<Record<string, string>> {
+    if (modelosCache !== null) return modelosCache
+    modelosCache = {
     'instrucoes-centrais': `# Instruções gerais
 
-${AVISO}
+${aviso()}
 
 ## Identidade do agente
 
@@ -85,7 +106,7 @@ ${AVISO}
 
   Exemplo de forma:
   "Você é <NOME>, atendente virtual da <EMPRESA>. Fala por WhatsApp com quem
-  procura a clínica pela primeira vez. Você não é dentista e não substitui a
+  procura ${comArtigo(vocab(), 'organizacao')} pela primeira vez. Você não substitui a
   avaliação de um profissional."
 -->
 
@@ -148,7 +169,7 @@ ${AVISO}
 
     empresa: `# Informações sobre a empresa
 
-${AVISO}
+${aviso()}
 
 ## Identificação da empresa
 
@@ -156,7 +177,7 @@ ${AVISO}
   Nome como a empresa é conhecida, e o que ela é em uma linha.
 
   Exemplo de forma:
-  "<EMPRESA> — clínica odontológica especializada em <ESPECIALIDADE>."
+  "<EMPRESA> — ${vocab().organizacao} odontológica especializada em <ESPECIALIDADE>."
 -->
 
 ## Endereço
@@ -201,7 +222,7 @@ ${AVISO}
   resposta pronta, de três a quatro linhas — não a história institucional.
 
   Exemplo de forma:
-  "Somos uma clínica em <BAIRRO>, com foco em <ESPECIALIDADE>. Atendemos por
+  "Somos ${comArtigo(vocab(), 'organizacao', 'um')} em <BAIRRO>, com foco em <ESPECIALIDADE>. Atendemos por
   agendamento, e a primeira conversa é uma avaliação para entender seu caso."
 -->
 
@@ -234,7 +255,7 @@ ${AVISO}
 
     servicos: `# Serviços e Produtos
 
-${AVISO}
+${aviso()}
 
 ## Regra geral
 
@@ -246,7 +267,7 @@ ${AVISO}
   "- Não informe valor, parcela, desconto nem estimativa. O valor sai da
      avaliação, e quem passa é a equipe.
    - Não prometa prazo de tratamento: depende do caso.
-   - Não indique procedimento nem diga que a pessoa 'precisa' de algo. Quem
+   - Não indique ${vocab().servico} nem diga que a pessoa 'precisa' de algo. Quem
      indica é o profissional, na avaliação."
 -->
 
@@ -283,7 +304,7 @@ ${AVISO}
   Exemplo de forma:
   "- <TECNOLOGIA OU TÉCNICA> em todos os casos de <SERVIÇO>.
    - <O QUE ESTÁ INCLUÍDO> sem custo adicional.
-   - Acompanhamento por <PERÍODO> após o procedimento."
+   - Acompanhamento por <PERÍODO> após ${comArtigo(vocab(), 'servico')}."
 -->
 
 ## Exemplos de resposta
@@ -307,7 +328,7 @@ ${AVISO}
 
     'processo-comercial': `# Processo e regras do comercial
 
-${AVISO}
+${aviso()}
 
 ## Objetivo comercial
 
@@ -405,7 +426,7 @@ ${AVISO}
 
     'tecnicas-de-venda': `# Metodologia de venda
 
-${AVISO}
+${aviso()}
 
 ## Princípios
 
@@ -428,7 +449,7 @@ ${AVISO}
   não.
 
   Exemplo de forma:
-  "- 'O que te fez procurar a clínica agora?'
+  "- 'O que te fez procurar ${comArtigo(vocab(), 'organizacao')} agora?'
    - 'Isso te atrapalha no dia a dia de que jeito?'
    - 'Você já tentou resolver antes? Como foi?'
    Ouça a resposta antes da próxima pergunta. Não encadeie duas."
@@ -458,7 +479,7 @@ ${AVISO}
   ### Tenho medo
 
   Reconheça o medo, não minimize. Diga o que acontece na avaliação — que é
-  conversa e exame, sem procedimento.
+  conversa e exame, sem ${vocab().servico}.
 
   ### Vi mais barato em outro lugar
 
@@ -485,7 +506,7 @@ ${AVISO}
 
     faq: `# Sinônimos e FAQ
 
-${AVISO}
+${aviso()}
 
 ## Sinônimos e expressões comuns
 
@@ -494,7 +515,7 @@ ${AVISO}
   precisa achar o assunto pelo nome popular, não pelo nome técnico.
 
   Escreva uma linha por termo: o jeito que a pessoa fala, seguido do termo que a
-  clínica usa.
+  ${vocab().organizacao} usa.
 
   Exemplo de forma:
   "- 'dente de porcelana', 'capa' -> <TERMO TÉCNICO>
@@ -555,7 +576,7 @@ ${AVISO}
 
     privacidade: `# Informações e privacidade
 
-${AVISO}
+${aviso()}
 
 ## Limites clínicos
 
@@ -565,7 +586,7 @@ ${AVISO}
   ganha.
 
   Exemplo de forma:
-  "- Não diagnostique, não dê opinião clínica, não sugira tratamento.
+  "- Não diagnostique, não dê opinião ${vocab().organizacao}, não sugira tratamento.
    - Não prescreva nem recomende medicamento, nem analgésico comum.
    - Não interprete exame, foto ou sintoma que a pessoa descrever.
    - Não prometa resultado, nem diga que 'costuma dar certo'.
@@ -576,13 +597,13 @@ ${AVISO}
 ## Pós-venda
 
 <!--
-  O que fazer quando quem escreve já é paciente — queixa, dúvida depois do
-  procedimento, retorno. Costuma ser o caso mais delicado.
+  O que fazer quando quem escreve já é ${vocab().pessoa} — queixa, dúvida depois do
+  ${vocab().servico}, retorno. Costuma ser o caso mais delicado.
 
   Exemplo de forma:
   "- Não avalie a queixa e não diga se é normal ou não.
    - Acolha, registre o que a pessoa relatou com as palavras dela, e passe para a
-     equipe clínica.
+     equipe ${vocab().organizacao}.
    - Se houver qualquer sinal de urgência, passe na hora."
 -->
 
@@ -595,7 +616,7 @@ ${AVISO}
   Exemplo de forma:
   "- Não peça CPF, RG, cartão, endereço completo nem data de nascimento.
    - Não peça foto da boca, exame nem documento.
-   - Não repita dado de outro paciente, em nenhuma hipótese.
+   - Não repita dado de outro ${vocab().pessoa}, em nenhuma hipótese.
    - Se a pessoa pedir para apagar os dados dela, confirme o pedido e passe para
      a equipe — você não apaga nada.
    - Dado coletado serve ao atendimento e nada mais."
@@ -627,14 +648,14 @@ ${AVISO}
   agora. Já estou passando seu contato como urgente."
 
   Pessoa: "Me manda uma foto de um caso parecido com o meu."
-  Agente: "Não posso compartilhar imagem nem informação de outro paciente. Mas
+  Agente: "Não posso compartilhar imagem nem informação de outro ${vocab().pessoa}. Mas
   posso te encaminhar uma avaliação para você ver o seu caso com a equipe."
 -->
 `,
 
     cenarios: `# Cenários de atendimento
 
-${AVISO}
+${aviso()}
 
 ## Cenários
 
@@ -688,11 +709,11 @@ ${AVISO}
 
   ### Pede serviço que a empresa não faz
 
-  Quando: a pessoa pergunta por procedimento fora do que a clínica oferece.
+  Quando: a pessoa pergunta por ${vocab().servico} fora do que ${comArtigo(vocab(), 'organizacao')} oferece.
   Passos:
-  1. Diga com clareza que a clínica não faz, sem rodeio.
+  1. Diga com clareza que ${comArtigo(vocab(), 'organizacao')} não faz, sem rodeio.
   2. Não indique concorrente e não sugira onde procurar.
-  3. Ofereça o que a clínica faz, se houver relação com o caso.
+  3. Ofereça o que ${comArtigo(vocab(), 'organizacao')} faz, se houver relação com o caso.
 
   ### Pede para apagar os dados
 
@@ -715,7 +736,9 @@ ${AVISO}
 -->
 `,
 }
+    return modelosCache
+}
 
 export function modeloEscrito(slug: string): string | undefined {
-    return MODELOS[slug]
+    return MODELOS()[slug]
 }

@@ -333,7 +333,7 @@ function construir() {
             sendResetPassword: async ({ user, url }) => {
                 const resultado = await sendEmail({
                     to: user.email,
-                    subject: 'Redefinir sua senha — OdontoBox360',
+                    subject: `Redefinir sua senha — ${BRAND().name}`,
                     html: renderEmail({
                         headline: 'Redefinir sua senha',
                         body: [

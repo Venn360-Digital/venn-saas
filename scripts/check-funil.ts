@@ -432,7 +432,7 @@ console.log('── A galeria de partida passa pelas próprias guardas ──')
  * ordem repetida. Nada disso daria erro em tempo de execução — daria funil
  * mudo, ou funil em laço.
  */
-for (const partida of GALERIA_DE_FUNIS) {
+for (const partida of GALERIA_DE_FUNIS()) {
     const passos = partida.passos as unknown as PassoDoFunil[]
 
     ok(`${partida.id}: sem ciclo`, cicloNoDesenho(passos) === null, (cicloNoDesenho(passos) ?? []).join(' → '))
@@ -494,21 +494,21 @@ for (const partida of GALERIA_DE_FUNIS) {
 /** Nomes distintos: o seletor da tela usa o id, e a pessoa escolhe pelo nome. */
 ok(
     'a galeria não tem id repetido',
-    new Set(GALERIA_DE_FUNIS.map((g) => g.id)).size === GALERIA_DE_FUNIS.length
+    new Set(GALERIA_DE_FUNIS().map((g) => g.id)).size === GALERIA_DE_FUNIS().length
 )
 ok(
     'nem nome repetido',
-    new Set(GALERIA_DE_FUNIS.map((g) => g.nome)).size === GALERIA_DE_FUNIS.length
+    new Set(GALERIA_DE_FUNIS().map((g) => g.nome)).size === GALERIA_DE_FUNIS().length
 )
 
 /**
  * Nenhum passo de mensagem traz texto pronto.
  *
  * Texto escrito por nós sairia no nome da clínica prometendo o que não sabemos
- * — preço, prazo, nome de procedimento. É a mesma regra da mineração de
+ * — preço, prazo, nome de servico. É a mesma regra da mineração de
  * lacunas: a sugestão traz a pergunta e um branco marcado.
  */
-for (const partida of GALERIA_DE_FUNIS) {
+for (const partida of GALERIA_DE_FUNIS()) {
     for (const p of partida.passos.filter((x) => x.type === 'mensagem')) {
         const c = p.config as Record<string, unknown>
         ok(

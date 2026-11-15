@@ -10,6 +10,8 @@ import { useEdicaoNaoSalva } from '../unsaved'
 import { cn } from '@venn/ui/utils'
 import { SettingsCard } from '../../../shared/TabsFrame'
 import { FOLGA_MINIMA, PISO_PADRAO } from '../../../../lib/rag/parametros'
+import { useVocab } from '../../../../hooks/useVocab'
+import { comArtigo } from '../../../../lib/concordancia'
 
 /**
  * O console de ensaio — homologação dinâmica, sem passar por canal nenhum.
@@ -277,6 +279,7 @@ function DetalheDaResposta({
 }
 
 export function EnsaioTab({ agentId, canManage = true }: EnsaioTabProps) {
+    const v = useVocab()
     const [turnos, setTurnos] = useState<Turno[]>([])
     const [pergunta, setPergunta] = useState('')
     const [enviando, setEnviando] = useState(false)
@@ -373,7 +376,7 @@ export function EnsaioTab({ agentId, canManage = true }: EnsaioTabProps) {
     if (!canManage) {
         return (
             <p className="text-sm text-muted-foreground">
-                Ensaiar o agente é do dono ou do administrador da clínica — a conversa de teste
+                Ensaiar o agente é do dono ou do administrador {comArtigo(v, 'organizacao', 'de')} — a conversa de teste
                 consome crédito de IA da conta.
             </p>
         )

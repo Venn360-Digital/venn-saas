@@ -5,6 +5,9 @@ import Link from 'next/link'
 import { Logo } from '../brand/Logo'
 import { cn } from '@venn/ui/utils'
 import { useUnidades, type UnidadeAberta } from '../../hooks/useUnidades'
+import { useVocab } from '../../hooks/useVocab'
+import { comArtigo } from '../../lib/concordancia'
+import { useMarca } from '../../marca-contexto'
 
 /** Reexportado de onde o evento mora agora, para quem já importava daqui. */
 export { WORKSPACE_UPDATED } from '../../hooks/useUnidades'
@@ -47,6 +50,9 @@ export { WORKSPACE_UPDATED } from '../../hooks/useUnidades'
  * discorda de si mesmo.
  */
 export function ClinicBrand({ inicial }: { inicial?: UnidadeAberta | null }) {
+    const marca = useMarca()
+    const v = useVocab()
+
     const { dados } = useUnidades(inicial)
     const { logo, name } = dados
 
@@ -57,7 +63,7 @@ export function ClinicBrand({ inicial }: { inicial?: UnidadeAberta | null }) {
         // estado visível.
         <Link
             href="/dashboard"
-            aria-label={logo ? (name ?? 'Início') : 'OdontoBox360'}
+            aria-label={logo ? (name ?? 'Início') : marca.name}
             className={cn(
                 'flex w-full items-center gap-2 rounded-md p-2 outline-hidden transition-colors',
                 'hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring',
@@ -81,12 +87,12 @@ export function ClinicBrand({ inicial }: { inicial?: UnidadeAberta | null }) {
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                     src={logo}
-                    alt={name ?? 'Logo da clínica'}
+                    alt={name ?? `Logo ${comArtigo(v, 'organizacao', 'de')}`}
                     className="h-auto max-h-[112px] w-[120px] object-contain group-data-[collapsible=icon]:hidden"
                 />
             ) : (
                 <span className="grid flex-1 text-left leading-tight">
-                    <span className="truncate text-sm font-semibold">OdontoBox360</span>
+                    <span className="truncate text-sm font-semibold">{marca.name}</span>
                     <span className="truncate text-xs text-sidebar-foreground/70">
                         Atendimento com IA
                     </span>

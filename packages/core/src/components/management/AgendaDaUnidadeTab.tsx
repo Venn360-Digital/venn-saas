@@ -14,11 +14,13 @@ import { EmptyState } from '../shared/EmptyState'
 import { FormField } from '../shared/FormField'
 import { RecordDialog } from '../shared/RecordDialog'
 import { usePermissions } from '../../hooks/usePermissions'
+import { useVocab } from '../../hooks/useVocab'
+import { comArtigo } from '../../lib/concordancia'
 
 /**
  * O calendário da clínica: quando ela não atende.
  *
- * Vale para **todos** os especialistas e ganha das janelas deles — é a camada
+ * Vale para **todos** os profissionais e ganha das janelas deles — é a camada
  * que sobrepõe a agenda.
  *
  * Duas listas, e a diferença importa. Os **feriados nacionais** já vêm: a lista
@@ -70,7 +72,9 @@ const VAZIO = {
     blocks: true,
 }
 
-export function AgendaClinicaTab() {
+export function AgendaDaUnidadeTab() {
+    const v = useVocab()
+
     const { canEdit } = usePermissions()
     const [ano, setAno] = useState(new Date().getFullYear())
     const [feriados, setFeriados] = useState<Feriado[]>([])
@@ -189,7 +193,7 @@ export function AgendaClinicaTab() {
             <SettingsBand
                 className="flex min-h-0 flex-1 flex-col"
                 title="Feriados nacionais"
-                description="Já vêm prontos e bloqueiam a agenda de todos os especialistas. Desligue os que a clínica atende."
+                description={`Já vêm prontos e bloqueiam a agenda de todos os profissionais. Desligue os que ${comArtigo(v, 'organizacao')} atende.`}
                 aside={
                     <span className="flex items-center gap-1">
                         <Button variant="ghost" size="sm" onClick={() => setAno((a) => a - 1)}>
@@ -229,7 +233,7 @@ export function AgendaClinicaTab() {
                                             <Switch
                                                 checked={!f.blocks}
                                                 disabled={!canEdit}
-                                                aria-label={`A clínica atende no ${f.name}`}
+                                                aria-label={`${comArtigo(v, 'Organizacao')} atende no ${f.name}`}
                                                 onCheckedChange={(v) => void decidirFeriado(f, !v)}
                                             />
                                         </span>
@@ -245,7 +249,7 @@ export function AgendaClinicaTab() {
             <SettingsBand
                 className="flex min-h-0 flex-1 flex-col"
                 last
-                title="Fechamentos da clínica"
+                title={`Fechamentos ${comArtigo(v, 'organizacao', 'de')}`}
                 description="Recesso, congresso, dedetização — o que fecha a agenda e não é feriado nacional."
             >
                 {fechamentos.length === 0 ? (
@@ -308,7 +312,7 @@ export function AgendaClinicaTab() {
                 open={dialogo}
                 onOpenChange={setDialogo}
                 title="Novo fechamento"
-                description="Vale para todos os especialistas e sobrepõe as janelas deles."
+                description="Vale para todos os profissionais e sobrepõe as janelas deles."
                 submitLabel="Criar fechamento"
                 hideAgain
                 submitting={salvando}

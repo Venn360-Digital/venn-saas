@@ -177,7 +177,7 @@ export type MotivoDaEntrega =
     | 'regra'
 
 /**
- * O destino genérico, quando o procedimento não disse para quem passar.
+ * O destino genérico, quando o servico não disse para quem passar.
  *
  * "A nossa equipe" é a frase que serve a qualquer empresa e a qualquer motivo —
  * e era a única que existia até a área entrar.
@@ -187,7 +187,7 @@ const EQUIPE = 'a nossa equipe'
 /**
  * O teto da área citada na despedida.
  *
- * Sessenta caracteres cabem "o especialista que calcula o preço dessa peça" com
+ * Sessenta caracteres cabem "o profissional que calcula o preço dessa peça" com
  * folga. O teto não é economia de token: é o que impede o modelo de escrever uma
  * frase inteira aqui e produzir uma despedida de duas orações emendadas, que é o
  * defeito que aparece quando texto livre do modelo entra no meio de uma frase
@@ -230,7 +230,7 @@ export function areaDaDespedida(area?: string | null): string | null {
 /**
  * A frase que o modelo devolve ao paciente quando a entrega acontece.
  *
- * `area` é opcional e vem do modelo, que a tira do procedimento da situação.
+ * `area` é opcional e vem do modelo, que a tira do servico da situação.
  * Sem ela — ou com uma que não passa em `areaDaDespedida` — a frase é a de
  * sempre.
  *

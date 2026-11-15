@@ -52,7 +52,7 @@ export interface Candidato {
      * O tipo do trecho no acervo (`treinamento`, `cenario`, `website`, `doc`…).
      *
      * **Não entra na nota da fusão**, e isso é deliberado: ranquear por tipo
-     * desequilibraria a pergunta de fato para favorecer procedimento que não vem
+     * desequilibraria a pergunta de fato para favorecer servico que não vem
      * ao caso. Serve só a `reservarVagaParaProcedimento`, que age depois do
      * corte.
      */
@@ -174,7 +174,7 @@ export function termosLexicais(texto: string, maxTermos = 10): string | null {
 }
 
 /**
- * Garante uma vaga ao **procedimento**, quando ele foi recuperável e perdeu.
+ * Garante uma vaga ao **servico**, quando ele foi recuperável e perdeu.
  *
  * ## Por que o cenário perde, e por que isso é aritmética e não azar
  *
@@ -201,8 +201,8 @@ export function termosLexicais(texto: string, maxTermos = 10): string | null {
  * colocado: a troca mínima que existe, um de cinco.
  *
  * Isso é diferente de ranquear por tipo, que desequilibraria a pergunta de fato
- * ("quanto custa?") para favorecer procedimento que não vem ao caso. O
- * procedimento só entra se a busca já o tinha achado — ele estava na lista e
+ * ("quanto custa?") para favorecer servico que não vem ao caso. O
+ * servico só entra se a busca já o tinha achado — ele estava na lista e
  * ficou de fora pelo corte.
  *
  * A vaga livre é preenchida sem tirar nada de ninguém: num acervo pequeno a
@@ -216,7 +216,7 @@ export function reservarVagaParaProcedimento<T extends { tipo?: string | null }>
 ): T[] {
     if (limite <= 0) return escolhidos
 
-    // Já há procedimento entre os escolhidos: nada a fazer, e é o caso comum.
+    // Já há servico entre os escolhidos: nada a fazer, e é o caso comum.
     if (escolhidos.some((e) => e.tipo === tipoDoProcedimento)) return escolhidos
 
     const dentro = new Set(escolhidos)
@@ -224,7 +224,7 @@ export function reservarVagaParaProcedimento<T extends { tipo?: string | null }>
         (c) => c.tipo === tipoDoProcedimento && !dentro.has(c)
     )
 
-    // A busca não achou procedimento nenhum: não há o que reservar.
+    // A busca não achou servico nenhum: não há o que reservar.
     if (!melhorProcedimento) return escolhidos
 
     // Sobrou vaga: entra sem tirar ninguém.
@@ -235,7 +235,7 @@ export function reservarVagaParaProcedimento<T extends { tipo?: string | null }>
      *
      * O último é o que o próprio RRF considerou o menos relevante dos que
      * entraram, então é a troca de menor custo possível. Trocar o primeiro
-     * entregaria o procedimento no lugar do melhor fato da resposta.
+     * entregaria o servico no lugar do melhor fato da resposta.
      */
     return [...escolhidos.slice(0, limite - 1), melhorProcedimento]
 }

@@ -36,10 +36,10 @@ export async function PATCH(
         const { name, description, sku, category, price, group, durationMinutes } = body
 
         /**
-         * Duração só existe em procedimento.
+         * Duração só existe em servico.
          *
          * Mudar a categoria para "produto" tem que zerar a duração junto —
-         * senão ela fica pendurada num creme dental, e a janela do especialista
+         * senão ela fica pendurada num creme dental, e a janela do profissional
          * passaria a oferecer um item que ninguém executa.
          */
         const categoriaFinal = category ?? existingProduct.category

@@ -24,6 +24,8 @@ import './lib/marca-de-teste.ts'
 import { buildSystemPrompt, type DocumentoNoPrompt } from '@venn/core/trabalhos/servicos/prompt'
 import { acharDocumento } from '@venn/core/lib/treinamento/documentos'
 import type { Agent } from '@venn/db'
+import { BRAND } from '@venn/core/marca'
+import { comArtigo } from '@venn/core/lib/concordancia'
 
 let passou = 0
 let falhou = 0
@@ -134,10 +136,10 @@ conferir(
         /**
          * Cenários entrou na hierarquia em 2026-10-31, e isto era uma falta.
          *
-         * Ele é modo `procedimento`, então não saía de `documentosDoPrompt()` e
+         * Ele é modo `servico`, então não saía de `documentosDoPrompt()` e
          * **não aparecia em posição nenhuma** — enquanto o corpo dele chega no
          * bloco volátil, na posição de maior recência, dizendo "execute os
-         * passos". Um procedimento pré-escrito era a instrução menos
+         * passos". Um servico pré-escrito era a instrução menos
          * subordinada do conjunto. Entra pela precedência 4 do catálogo, sem o
          * texto: no prompt dele continua só o catálogo de títulos e gatilhos.
          */
@@ -222,7 +224,7 @@ const contextoBase = {
     contactId: 'c1',
     upcoming: [],
     stages: ['Novo', 'Qualificado', 'Fechado'],
-    bookable: { procedimentos: ['Limpeza'], especialistas: ['Dra. Ana'] },
+    bookable: { servicos: ['Limpeza'], profissionais: ['Dra. Ana'] },
 }
 
 const TREINO = 'Nunca prometer resultado de tratamento.'
@@ -369,7 +371,7 @@ const comCenarios = buildSystemPrompt(agenteDeTeste(), [], undefined, [], CENARI
 conferir('o catálogo de cenários entra', comCenarios.includes('## Cenários disponíveis'), true)
 conferir('com o título e o gatilho', comCenarios.includes('**Remarcação** — quando o paciente quer mudar a data.'), true)
 conferir(
-    'e SEM os passos — é o ponto inteiro do modo procedimento',
+    'e SEM os passos — é o ponto inteiro do modo servico',
     comCenarios.includes('Passe para a equipe'),
     false
 )
@@ -412,12 +414,12 @@ const comProcedimento = buildSystemPrompt(
 
 conferir(
     'trecho de cenário vai para a seção de PROCEDIMENTO, não para a de fato',
-    comProcedimento.includes('## Procedimento para esta situação'),
+    comProcedimento.includes(`## ${BRAND().vocabulario.Servico} para esta situação`),
     true
 )
 conferir(
     'e manda executar, não ler para o paciente',
-    comProcedimento.includes('Não os leia para o paciente'),
+    comProcedimento.includes(`Não os leia para ${comArtigo(BRAND().vocabulario, 'pessoa')}`),
     true
 )
 conferir(
@@ -427,7 +429,7 @@ conferir(
 )
 conferir(
     'PROCEDIMENTO antes de FATO: senão o modelo responde o preço e ignora o passo a passo',
-    comProcedimento.indexOf('## Procedimento para esta situação') <
+    comProcedimento.indexOf(`## ${BRAND().vocabulario.Servico} para esta situação`) <
         comProcedimento.indexOf('## Base de conhecimento'),
     true
 )

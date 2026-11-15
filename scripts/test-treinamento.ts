@@ -66,7 +66,7 @@ console.log('\nOs slugs — chave de gravação, conferida literal')
 
 conferir(
     'os oito slugs, nesta grafia — `cenarios` é o do passo 6',
-    DOCUMENTOS.map((d) => d.slug),
+    DOCUMENTOS().map((d) => d.slug),
     [
         'instrucoes-centrais',
         'empresa',
@@ -79,10 +79,10 @@ conferir(
     ]
 )
 
-conferir('slugs únicos', new Set(DOCUMENTOS.map((d) => d.slug)).size, DOCUMENTOS.length)
+conferir('slugs únicos', new Set(DOCUMENTOS().map((d) => d.slug)).size, DOCUMENTOS().length)
 conferir(
     'slug é seguro para URL e para nome de arquivo',
-    DOCUMENTOS.every((d) => /^[a-z0-9-]+$/.test(d.slug)),
+    DOCUMENTOS().every((d) => /^[a-z0-9-]+$/.test(d.slug)),
     true
 )
 conferir('acharDocumento encontra pelo slug', acharDocumento('faq')?.titulo, 'Sinônimos e FAQ')
@@ -110,14 +110,14 @@ console.log('\nModo e precedência')
  * **Sete no prompt, um no acervo, e nenhum documento de fato é recuperado.**
  *
  * `servicos` e `faq` saíram do acervo em 2026-11-12, por decisão do Andre. Sobra
- * `cenarios`, de modo `procedimento`: ele é indexado (o corpo chega por busca),
+ * `cenarios`, de modo `servico`: ele é indexado (o corpo chega por busca),
  * mas não é fonte de verdade — é ordem de execução. Por isso `documentosDoAcervo`
  * o inclui e `documentosDeFato` não, e é essa distinção que o prompt usa para pôr
  * os passos numa seção própria em vez de em "Base de conhecimento".
  *
  * `documentosDeFato()` vazio é o estado **correto** agora, não um defeito: todo
  * fato que a empresa escreve viaja no prompt. A função fica porque a distinção
- * fato/procedimento continua valendo — é ela que decide a seção do prompt.
+ * fato/servico continua valendo — é ela que decide a seção do prompt.
  */
 conferir(
     'sete no prompt, um no acervo, e nenhum de fato é recuperado',
@@ -140,7 +140,7 @@ conferir(
 )
 
 conferir(
-    'no acervo sobrou só o procedimento; de fato, nenhum',
+    'no acervo sobrou só o servico; de fato, nenhum',
     [documentosDeFato().map((d) => d.slug), documentosDoAcervo().map((d) => d.slug)],
     [[], ['cenarios']]
 )
@@ -178,13 +178,13 @@ conferir(
 
 conferir(
     'precedências únicas — empate devolve a decisão ao acidente',
-    new Set(DOCUMENTOS.map((d) => d.precedencia)).size,
-    DOCUMENTOS.length
+    new Set(DOCUMENTOS().map((d) => d.precedencia)).size,
+    DOCUMENTOS().length
 )
 
 conferir(
     'Privacidade tem a maior precedência de todas',
-    Math.min(...DOCUMENTOS.map((d) => d.precedencia)),
+    Math.min(...DOCUMENTOS().map((d) => d.precedencia)),
     acharDocumento('privacidade')!.precedencia
 )
 
@@ -212,7 +212,7 @@ const orc = (chars: Record<string, number>) =>
     )
 
 conferir(
-    'soma só os documentos de modo prompt — cenarios é procedimento e fica fora',
+    'soma só os documentos de modo prompt — cenarios é servico e fica fora',
     orc({ 'instrucoes-centrais': 100, privacidade: 50, cenarios: 99999 }).usado,
     150
 )
@@ -306,12 +306,12 @@ console.log('\nA seção reservada')
 
 conferir(
     'todos os sete oferecem a seção de exemplos',
-    DOCUMENTOS.every((d) => d.secoes.includes(SECAO_EXEMPLOS)),
+    DOCUMENTOS().every((d) => d.secoes.includes(SECAO_EXEMPLOS)),
     true
 )
 conferir(
     'e ela é sempre a última, para não se misturar aos fatos',
-    DOCUMENTOS.every((d) => d.secoes.at(-1) === SECAO_EXEMPLOS),
+    DOCUMENTOS().every((d) => d.secoes.at(-1) === SECAO_EXEMPLOS),
     true
 )
 
@@ -339,7 +339,7 @@ console.log('\nOs modelos fornecidos — cabeçalhos têm de casar com o catálo
 
 conferir(
     'nenhum modelo escrito divergiu das seções do catálogo',
-    Object.entries(MODELOS)
+    Object.entries(MODELOS())
         .map(([slug, texto]) => {
             const doc = acharDocumento(slug)
             if (!doc) return `${slug}: slug não existe no catálogo`
@@ -356,7 +356,7 @@ conferir(
 
 conferir(
     'e todo modelo escrito abre com o título do catálogo',
-    Object.entries(MODELOS)
+    Object.entries(MODELOS())
         .filter(([slug, texto]) => !texto.startsWith(`# ${acharDocumento(slug)?.titulo}`))
         .map(([slug]) => slug),
     []
@@ -394,7 +394,7 @@ conferir(
  */
 conferir(
     'nenhum modelo produz corpo: depois de semComentarios sobram só cabeçalhos',
-    Object.entries(MODELOS)
+    Object.entries(MODELOS())
         .map(([slug, texto]) => {
             const comConteudo = secionarMarkdown(semComentarios(texto)).filter(
                 (sec) => sec.corpo.trim() !== ''
@@ -419,7 +419,7 @@ conferir(
  */
 conferir(
     'todo modelo escrito traz orientação em comentário, uma por seção',
-    Object.entries(MODELOS)
+    Object.entries(MODELOS())
         .map(([slug, texto]) => {
             const doc = acharDocumento(slug)!
             const comentarios = (texto.match(/<!--/g) ?? []).length
@@ -494,7 +494,7 @@ console.log('\nO título dos trechos é o slug — e isso é deliberado')
 conferir('tituloDoAcervo devolve o slug, não o título humano', tituloDoAcervo('servicos'), 'servicos')
 conferir(
     'o slug NUNCA é o título da tela — se fosse, um rename orfanaria o acervo',
-    DOCUMENTOS.every((d) => tituloDoAcervo(d.slug) !== d.titulo),
+    DOCUMENTOS().every((d) => tituloDoAcervo(d.slug) !== d.titulo),
     true
 )
 conferir('slugConhecido aceita o do catálogo', slugConhecido('privacidade'), true)

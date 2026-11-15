@@ -7,6 +7,8 @@ import { adicionaisCobraveis, adicionaisVivos, contaDoMaster, unidadesDaConta, u
 import { tetoDeUnidades } from '@venn/core/lib/plan-limits'
 import { lerFusoDasConfiguracoes } from '@venn/core/lib/fuso-da-unidade'
 import { planFor } from '@venn/core/lib/plans'
+import { vocab } from '../../../../lib/vocabulario'
+import { comArtigo } from '../../../../lib/concordancia'
 
 /**
  * As unidades da conta: listar e criar.
@@ -166,7 +168,7 @@ export async function GET() {
             createdAt: u.createdAt,
             suspendedAt: u.suspendedAt,
             usuarios: u._count.users,
-            pacientes: u._count.contacts,
+            contatos: u._count.contacts,
             agentes: u._count.agents,
             conversas: u._count.conversations,
             canais: canaisPorUnidade.get(u.id) ?? 0,
@@ -300,7 +302,7 @@ export async function POST(request: NextRequest) {
                         error.canceladas > 0
                             ? `Você tem ${error.canceladas} contratação${error.canceladas === 1 ? '' : 'ões'} adicional${error.canceladas === 1 ? '' : 'is'} cancelada${error.canceladas === 1 ? '' : 's'}, ` +
                               `que vale${error.canceladas === 1 ? '' : 'm'} só até ${ate}. ` +
-                              `Criar uma clínica agora deixaria ela sem contratação depois dessa data. ` +
+                              `Criar ${comArtigo(vocab(), 'organizacao', 'um')} agora deixaria ela sem contratação depois dessa data. ` +
                               `Restaure a contratação em Assinatura → Alterar adicionais, ou contrate outra.`
                             : `Seu plano cabe ${error.max} unidade${error.max === 1 ? '' : 's'} e você já tem ${error.existentes}. ` +
                               `Contrate uma unidade adicional em Gerenciamento → Conta → Assinatura → Comprar adicionais.`,

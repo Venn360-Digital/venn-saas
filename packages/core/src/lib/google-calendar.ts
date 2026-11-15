@@ -1,6 +1,8 @@
 import prisma from '@venn/db/cliente'
 import { resolveGoogleOAuthClient, type GoogleCalendarCredentials } from './google-oauth-client'
 import { fusoDaUnidade } from './fuso-da-unidade'
+import { vocab } from './vocabulario'
+import { BRAND } from '../marca'
 
 
 /**
@@ -133,10 +135,10 @@ async function getValidAccessToken(
 function buildCalendarEvent(activity: SyncableActivity, timeZone: string) {
     const description = [
         activity.description || '',
-        activity.contact?.name ? `Paciente: ${activity.contact.name} ${activity.contact.phone || ''}` : '',
+        activity.contact?.name ? `${vocab().Pessoa}: ${activity.contact.name} ${activity.contact.phone || ''}` : '',
         activity.deal?.title ? `Negócio: ${activity.deal.title}` : '',
         `Tipo: ${activity.type}`,
-        'Criado no OdontoBox360',
+        `Criado no ${BRAND().name}`,
     ].filter(Boolean).join('\n')
 
     if (activity.dueDate && activity.startTime) {
