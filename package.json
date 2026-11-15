@@ -94,6 +94,7 @@
         "lint:caminhos": "node scripts/lint-caminhos.mjs",
         "gerar:rotas": "tsx scripts/gerar-rotas.ts",
         "check:rotas-sync": "tsx scripts/gerar-rotas.ts --check",
+        "check:vocabulario-marca": "tsx scripts/check-vocabulario-marca.ts",
         "check:recursos": "tsx scripts/check-recursos.ts",
         "test:vocabulario": "tsx scripts/test-vocabulario.ts",
         "test:concordancia": "tsx scripts/test-concordancia.ts",

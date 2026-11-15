@@ -184,6 +184,11 @@ const PROVAS = [
     'check:marca-tardia',
     // Nomes de recurso: a regra 3 do audit nunca validou nada sem wrangler.
     'check:recursos',
+    // Coerência entre as quatro formas de cada eixo do vocabulário. Entrou por
+    // um defeito em produção: as formas minúsculas de dois eixos ficaram com a
+    // palavra NEUTRA (e `servico` sem cedilha) enquanto as maiúsculas eram as do
+    // nicho — "Nenhum servico cadastrado ainda" na tela. Nada lançava.
+    'check:vocabulario-marca',
     'check:cofre',
     'check:storage',
     'check:tempo-real',
