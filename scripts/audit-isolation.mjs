@@ -423,12 +423,27 @@ for (const { rel, binary } of files) {
  * que lê a chave nova e, na ausência dela, migra a velha. Apagar a linha
  * apagaria a preferência de quem já usa o produto.
  */
-const CHAVES_DE_MIGRACAO = [
-  'packages/core/src/hooks/useSoundEnabled.ts',
-  'packages/core/src/components/shared/EmojiPicker.tsx',
-  'packages/core/src/components/layout/Topbar.tsx',
-  'packages/core/src/rotas/(dashboard)/atendimento/conversas/page.tsx',
-];
+/*
+ * VAZIA — e isso é o estado certo, não um esquecimento.
+ *
+ * Ela nasceu com quatro arquivos: os que citavam a chave antiga do PRIMEIRO app
+ * (`odontobox360-sound-enabled` e companhia) porque a leitura dupla precisa
+ * citar o nome que está no navegador de quem usa o produto. Era a exceção certa
+ * para um app.
+ *
+ * Com o segundo app ela deixou de ser exceção e passou a ser DEFEITO: o core
+ * migraria a preferência de um produto e apagaria a do outro em silêncio. A
+ * medição nos três mostrou que as chaves antigas seguem a mesma forma
+ * (`<slug>360-sound-enabled`, `<slug>360-last-reminder-count`,
+ * `<slug>.inbox.emoji.recent`), então o sufixo ficou no core e o slug vem da
+ * marca, por `armazenamento.anterior()`.
+ *
+ * Fica declarada e vazia de propósito: a lista existir é o que faz a próxima
+ * exceção ser escrita aqui, com a razão, em vez de resolvida por um
+ * `IGNORE_PREFIXES` que desligaria a regra para o arquivo inteiro. E
+ * `orfaosDaMigracao` abaixo garante que ela não guarde caminho morto.
+ */
+const CHAVES_DE_MIGRACAO = [];
 
 /** O texto sem comentários — por análise de estado, não por regex. */
 function semComentarios(src) {
