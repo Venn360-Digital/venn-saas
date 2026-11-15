@@ -11,7 +11,7 @@
  * sai em todo build, entre dezenas de linhas verdes, há semanas.
  *
  * Então os nomes de fila, bucket e Worker são escritos à mão em DOIS lugares —
- * `infra/manifest.json` e `apps/<app>/cloudflare.config.ts` — e nada compara os
+ * `infra/manifest/<app>.json` e `apps/<app>/cloudflare.config.ts` — e nada compara os
  * dois. O config apenas *menciona* o manifesto em comentários.
  *
  * ## O erro concreto que isto impede
@@ -51,8 +51,7 @@
  */
 import { readFileSync, existsSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
-
-const MANIFEST = 'infra/manifest.json'
+import { manifestos } from './lib/manifestos.mjs'
 
 let falhas = 0
 function ok(nome: string, condicao: boolean, detalhe = '', seFalhar = '') {
@@ -64,11 +63,6 @@ function ok(nome: string, condicao: boolean, detalhe = '', seFalhar = '') {
 type Recurso = { name: string }
 type Ambiente = {
     cloudflare: { worker: string; queues?: Recurso[]; r2?: Recurso[]; kv?: Recurso[] }
-}
-
-const manifest = JSON.parse(readFileSync(MANIFEST, 'utf8')) as {
-    app: { slug: string }
-    environments: Record<string, Ambiente>
 }
 
 /** O prefixo comum a todos os recursos do ambiente, ou null se não houver um. */
@@ -84,7 +78,13 @@ function prefixoDe(amb: Ambiente): { prefixo: string | null; nomes: string[] } {
     return { prefixo: prefixo.length >= 3 ? prefixo : null, nomes }
 }
 
-/** A pasta do app cujo slug é o do manifesto — derivada, não escrita. */
+/**
+ * A pasta do app cujo slug é o do manifesto — derivada, não escrita.
+ *
+ * Um manifesto SEM pasta de app é erro, nunca um passo pulado: manifesto e app
+ * nascem juntos, e "pular o que não tem par" é exatamente a forma de uma
+ * verificação reportar sucesso sobre o nada.
+ */
 function pastaDoApp(slug: string): string {
     const candidatas = existsSync('apps')
         ? readdirSync('apps').filter((n) => n.startsWith(slug) && existsSync(join('apps', n, 'cloudflare.config.ts')))
@@ -97,55 +97,73 @@ function pastaDoApp(slug: string): string {
     )
 }
 
-const ambientes = Object.entries(manifest.environments)
-ok(
-    'o manifesto declara os dois ambientes',
-    ambientes.length >= 2 && ambientes.some(([n]) => n === 'production') && ambientes.some(([n]) => n === 'stg'),
-    ambientes.map(([n]) => n).join(', ')
-)
+/**
+ * Um manifesto por app, e cada um conferido contra o SEU config.
+ *
+ * Antes era um manifesto só, e a comparação cruzada não existia como risco.
+ * Com N apps ela existe: o config do app X não pode ser aprovado pelos nomes do
+ * app Y — e cada prefixo é afirmado contra o arquivo do dono dele.
+ */
+const todos = manifestos()
+let ambientesConferidos = 0
+const pastas: string[] = []
 
-const prefixos = new Map<string, string>()
-for (const [nome, amb] of ambientes) {
-    const { prefixo, nomes } = prefixoDe(amb)
+for (const { slug, caminho, dados } of todos) {
+    const ambientes = Object.entries(dados.environments as Record<string, Ambiente>)
+    console.log(`\n── ${slug} (${caminho})`)
     ok(
-        `${nome}: todos os ${nomes.length} recursos partilham um prefixo`,
-        prefixo !== null,
-        prefixo ?? `sem prefixo comum entre ${nomes.slice(0, 3).join(', ')}…`
+        `${slug}: o manifesto declara os dois ambientes`,
+        ambientes.length >= 2 && ambientes.some(([n]) => n === 'production') && ambientes.some(([n]) => n === 'stg'),
+        ambientes.map(([n]) => n).join(', ')
     )
-    if (prefixo) prefixos.set(nome, prefixo)
-}
 
-ok(
-    'produção e homologação usam prefixos diferentes',
-    new Set(prefixos.values()).size === prefixos.size,
-    [...prefixos].map(([a, p]) => `${a}=${p}`).join('  ')
-)
+    const prefixos = new Map<string, string>()
+    for (const [nome, amb] of ambientes) {
+        const { prefixo, nomes } = prefixoDe(amb)
+        ok(
+            `${slug}/${nome}: todos os ${nomes.length} recursos partilham um prefixo`,
+            prefixo !== null,
+            prefixo ?? `sem prefixo comum entre ${nomes.slice(0, 3).join(', ')}…`
+        )
+        if (prefixo) prefixos.set(nome, prefixo)
+    }
 
-const pasta = pastaDoApp(manifest.app.slug)
-const config = readFileSync(join(pasta, 'cloudflare.config.ts'), 'utf8')
-for (const [nome, prefixo] of prefixos) {
     ok(
-        `o config do app escreve o prefixo de ${nome}`,
-        config.includes(`'${prefixo}'`) || config.includes(`\`${prefixo}`) || config.includes(`"${prefixo}"`),
-        prefixo,
-        `${pasta}/cloudflare.config.ts não contém "${prefixo}" — é o nome que a conta TEM, e o deploy criaria outro`
+        `${slug}: produção e homologação usam prefixos diferentes`,
+        new Set(prefixos.values()).size === prefixos.size,
+        [...prefixos].map(([a, p]) => `${a}=${p}`).join('  ')
     )
-}
 
-for (const [nome, amb] of ambientes) {
-    ok(
-        `${nome}: o nome do Worker aparece no config`,
-        config.includes(`'${amb.cloudflare.worker}'`) || config.includes(`\`${amb.cloudflare.worker}`),
-        amb.cloudflare.worker
-    )
+    const pasta = pastaDoApp(slug)
+    pastas.push(pasta)
+    const config = readFileSync(join(pasta, 'cloudflare.config.ts'), 'utf8')
+    for (const [nome, prefixo] of prefixos) {
+        ok(
+            `${slug}: o config escreve o prefixo de ${nome}`,
+            config.includes(`'${prefixo}'`) || config.includes(`\`${prefixo}`) || config.includes(`"${prefixo}"`),
+            prefixo,
+            `${pasta}/cloudflare.config.ts não contém "${prefixo}" — é o nome que a conta TEM, e o deploy criaria outro`
+        )
+    }
+
+    for (const [nome, amb] of ambientes) {
+        ok(
+            `${slug}/${nome}: o nome do Worker aparece no config`,
+            config.includes(`'${amb.cloudflare.worker}'`) || config.includes(`\`${amb.cloudflare.worker}`),
+            amb.cloudflare.worker
+        )
+    }
+    ambientesConferidos += prefixos.size
 }
 
 console.log('')
 if (falhas > 0) {
-    console.log(`FALHOU: ${falhas} divergência(s) entre o manifesto e o config de deploy.`)
+    console.log(`FALHOU: ${falhas} divergência(s) entre manifesto e config de deploy.`)
     console.log('Nome de fila, bucket ou Worker errado não falha no build: o `cf` CRIA o recurso,')
     console.log('vazio, e o que estava em voo nas filas reais fica sem consumidor.')
     process.exit(1)
 }
-console.log(`OK: ${prefixos.size} ambiente(s) coerentes entre manifesto e ${pasta}/cloudflare.config.ts.`)
+console.log(
+    `OK: ${todos.length} app(s), ${ambientesConferidos} ambiente(s) coerentes entre manifesto e ${pastas.join(', ')}.`
+)
 process.exit(0)

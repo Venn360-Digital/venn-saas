@@ -67,7 +67,7 @@ Regras dos workflows:
 ## 4. Smoke test (`scripts/smoke-identity.mjs`)
 
 1. Chama `GET https://<host do ambiente>/api/internal/identity` com `x-identity-token` e, em `stg`, os headers do service token do Access.
-2. Compara a resposta com `infra/manifest.json`:
+2. Compara a resposta com `infra/manifest/<app>.json`:
    - `app.slug`/`app.env`;
    - `db.sentinel` = (`{slug}`, env);
    - host do banco ∈ hosts Neon do manifesto daquele ambiente;

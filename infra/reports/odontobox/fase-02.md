@@ -5,7 +5,7 @@
 Contexto: a Fase 02 é plan-mode e só executa os itens que a Fase 01 marcou. Com a autorização ampla do André (seguir até o fim, sem parar), executei **o subconjunto seguro e reversível** nesta branch/PR e deixei o **item pesado (#1, isolar staging)** e as **limpezas em produção** prontos como plano/fila — porque mudam produção (R1 "OK produção") ou são build de infra que afeta a conta inteira.
 
 ## Feito nesta branch (seguro, reversível)
-1. **`infra/manifest.json` da Odontobox** (item #4) — recursos reais, nomes atuais (R10), com `_isolation` marcando honestamente o que é compartilhado entre prod e staging.
+1. **`infra/manifest/<app>.json` da Odontobox** (item #4) — recursos reais, nomes atuais (R10), com `_isolation` marcando honestamente o que é compartilhado entre prod e staging.
 2. **Gitleaks no CI** (`.github/workflows/gitleaks.yml`): PR confere o diff da PR; push/manual varre o histórico; falha o job se achar segredo. **Pre-commit** em `.githooks/pre-commit` (`gitleaks protect --staged`), ativável com `git config core.hooksPath .githooks`.
 3. **Higiene de repo** (item #5): `.gitignore` já cobria `.env*`/`.wrangler/`/`.vinext/`; acrescentei `.dev.vars*` e `.open-next/` por completude. `.env.example` já estava completo (Fase 01).
 
@@ -39,7 +39,7 @@ Não houve deploy (nada de produção alterado; os deliverables são repo/CI). O
 
 ## Saídas
 - PR `chore/dup-saneamento` (este).
-- `infra/manifest.json` (Odontobox).
+- `infra/manifest/<app>.json` (Odontobox).
 - Este relatório.
 
 ## Critérios de saída (estado)

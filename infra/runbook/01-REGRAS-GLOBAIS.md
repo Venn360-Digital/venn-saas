@@ -57,7 +57,7 @@ Toda regra nova (WAF, rate limit, cache, Configuration Rule, Access) é filtrada
 
 **R5 — Verificar o alvo antes de qualquer escrita.**
 Antes de qualquer comando que crie, altere ou apague um recurso de nuvem, imprima: conta/projeto, nome do recurso, ambiente e app. Depois confirme que:
-- o recurso consta em `infra/manifest.json` do app em execução;
+- o recurso consta em `infra/manifest/<app>.json` do app em execução;
 - o recurso NÃO consta em nenhum `infra/fingerprints/*.json` de outro app.
 
 Se houver divergência, aborte.
@@ -93,7 +93,7 @@ Seguir a convenção da seção 3. Exceção: recursos JÁ EXISTENTES da Odontob
 **R11 — Checkpoint de fim de fase.**
 Toda fase termina com três passos:
 1. Relatório `infra/reports/<slug>/fase-NN.md`, contendo: o que foi feito, IDs criados, fingerprints de segredos, pendências, desvios e perguntas.
-2. Atualização de `infra/manifest.json`.
+2. Atualização de `infra/manifest/<app>.json`.
 3. PARADA. Aguarde "OK fase NN" do André antes de seguir.
 
 **R12 — Na dúvida, pare.**
@@ -150,7 +150,7 @@ O slug curto também é usado em `APP_SLUG`, na sentinela e no `cookiePrefix`. O
 
 | Arquivo | Função |
 |---|---|
-| `infra/manifest.json` | Fonte única de verdade dos recursos do app em execução, por ambiente |
+| `infra/manifest/<app>.json` | Fonte única de verdade dos recursos do app em execução, por ambiente |
 | `infra/fingerprints/<slug>.json` | Identificadores de CADA app (inclusive o próprio). A auditoria usa os de OUTROS apps como lista proibida |
 | `infra/runbook/` | Estes prompts. Ignorado pela auditoria |
 | `infra/inventory/` | Inventários. Ignorado pela auditoria |
@@ -178,6 +178,6 @@ Estas travas são implantadas nas Fases 03 e 10 e valem para os três apps.
   - host do Evolution;
   - nomes dos buckets.
 
-  O smoke test do CI compara a resposta com `infra/manifest.json`.
+  O smoke test do CI compara a resposta com `infra/manifest/<app>.json`.
 - **T5 — Cookies.** Better Auth com `crossSubDomainCookies` DESATIVADO (cookies host-only, sem atributo `Domain`) e `advanced.cookiePrefix = {slug}`. Todos os apps vivem sob `venn360.com`: um cookie com `Domain=.venn360.com` vazaria sessão entre produtos.
 - **T6 — Auditoria estática.** `scripts/audit-isolation.mjs` no CI, antes de qualquer migration ou deploy.

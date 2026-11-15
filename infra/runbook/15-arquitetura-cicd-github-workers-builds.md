@@ -219,7 +219,7 @@ Regras anexas: o `smoke:*` só entra no deploy command **junto** com o `IDENTITY
 ### 6.3 Rollback — árvore de decisão (código ≠ banco)
 1. `npx wrangler rollback` (minutos). **Recusado quando a versão migrou Durable Object** →
 2. Revert + merge: re-passa pelo portão; `prisma migrate deploy` re-rodar é inofensivo (idempotente).
-3. Após qualquer rollback: conferir crons e consumidores de fila contra `infra/manifest.json` — rollback de script **não** reverte triggers.
+3. Após qualquer rollback: conferir crons e consumidores de fila contra `infra/manifest/<app>.json` — rollback de script **não** reverte triggers.
 4. **Banco nunca reverte.** Migração aplicada fica; escreve-se a próxima (expand/contract). PITR do Neon só para desastre de dados, nunca para "desfazer deploy".
 
 ### 6.4 Emergência — Workers Builds fora do ar
@@ -278,7 +278,7 @@ Go-live: Fase 12 (arquivo 13) já alinhada a este modelo — Workers `stagent`/`
 - **vinext**: adaptador que compila o app Next.js para o runtime Workers (workerd) da Cloudflare. O build dele não roda em macOS < 13.5.
 - **Clones**: Stagent e Conecta — derivados do código da Odontobox (vocabulário próprio: paciente→cliente etc.).
 - **Smoke de identidade**: `scripts/smoke-identity.mjs` — após o deploy, confere pela rota de identidade que o ambiente publicado aponta para o banco/Evolution/buckets do próprio app.
-- **Manifesto**: `infra/manifest.json` — o que cada ambiente DEVE usar (hosts, Neon, filas, buckets).
+- **Manifesto**: `infra/manifest/<app>.json` — o que cada ambiente DEVE usar (hosts, Neon, filas, buckets).
 - **Workers Builds**: CI/CD da Cloudflare ligado ao repositório GitHub; constrói previews por PR e publica no push da branch vigiada.
 - **Fase N**: arquivos `infra/runbook/NN-fase-*.md` deste diretório.
 
@@ -932,7 +932,7 @@ Como o erro foi possível, para não se repetir:
    `ep-lucky-pond-b6n42j1j` (odontobox/staging), `ep-icy-mode-b6mp2z8h`
    (odontobox/produção), `ep-misty-flower-b66fzdhu` (stagent/produção).
    **Conferência de 2 segundos antes de colar**: o host do migrador tem de
-   casar com `neon.endpointHost` do ambiente no `infra/manifest.json`.
+   casar com `neon.endpointHost` do ambiente no `infra/manifest/<app>.json`.
 
 E um segundo tropeço no conserto: trocar `DATABASE_URL` pelo **painel** (é
 segredo de Worker, não variável de build) deixou `last_deployed_from: dash` —
