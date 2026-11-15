@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 
 import prisma from '@venn/db/cliente'
-import { WORKSPACE_COOKIE } from '@venn/core/lib/auth/workspace'
+import { workspaceCookie } from '@venn/core/lib/auth/workspace'
 import { usuarioDaSessao } from '@venn/core/lib/auth/sessao'
 
 /**
@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
         }
 
         const jar = await cookies()
-        jar.set(WORKSPACE_COOKIE, workspaceId, {
+        jar.set(workspaceCookie(), workspaceId, {
             httpOnly: true,
             sameSite: 'lax',
             secure: process.env.NODE_ENV === 'production',
@@ -74,6 +74,6 @@ export async function POST(request: NextRequest) {
  */
 export async function DELETE() {
     const jar = await cookies()
-    jar.delete(WORKSPACE_COOKIE)
+    jar.delete(workspaceCookie())
     return NextResponse.json({ ok: true })
 }

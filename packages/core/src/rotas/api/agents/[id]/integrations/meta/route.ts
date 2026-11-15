@@ -13,6 +13,7 @@ import {
     registrarNumero,
     trocarCodigoPorToken,
 } from '@venn/core/lib/meta/onboarding'
+import { nomeDaInstancia } from '@venn/core/lib/whatsapp/instancia'
 
 export const runtime = 'nodejs'
 
@@ -83,7 +84,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     const pin = novoPin()
-    const instanceName = `odontobox_${workspaceId}_${dados.phoneNumberId}`
+    const instanceName = nomeDaInstancia(workspaceId, dados.phoneNumberId)
 
     try {
         // 1 — trinta segundos; nada vem antes disto. A troca já devolve o

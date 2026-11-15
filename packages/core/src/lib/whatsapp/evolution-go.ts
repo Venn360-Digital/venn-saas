@@ -13,6 +13,7 @@ import { msisdnDoJid,
     phoneVariants,
     toMsisdn,
 } from './types'
+import { prefixoDaInstancia } from './instancia'
 
 /**
  * O gateway do canal QR — o service binding para o Worker `odontobox-evolution`.
@@ -35,7 +36,16 @@ export function registrarGatewayEvolutionGo(f: { fetch(req: Request): Promise<Re
  */
 function salaDoNome(instanceName: string): string | null {
     const partes = instanceName.split('_')
-    if (partes.length < 2 || partes[0] !== 'odontobox') return null
+    /*
+     * O prefixo vem da marca, e hoje é byte a byte o literal que estava aqui.
+     *
+     * Importa que continue: o nome da instância é **criado na Evolution** e
+     * guardado no `config` da linha. Trocar o prefixo faria este reconhecimento
+     * falhar para toda linha já conectada — as mensagens chegariam ao Worker e
+     * seriam descartadas por "sala desconhecida", sem erro e sem log de causa.
+     * `test:instancia` trava a igualdade.
+     */
+    if (partes.length < 2 || partes[0] !== prefixoDaInstancia()) return null
     const id = partes[1]
     return id && /^[a-z0-9]{20,40}$/i.test(id) ? id : null
 }

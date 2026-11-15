@@ -29,6 +29,7 @@ import { GatilhoDaEquipe } from '../equipe/GatilhoDaEquipe'
 import { UnitSwitcher } from './UnitSwitcher'
 import type { UnidadeAberta } from '../../hooks/useUnidades'
 import { useSoundEnabled } from '../../hooks/useSoundEnabled'
+import { escrever, ler } from '../../lib/armazenamento'
 
 interface AppNotification {
     id: string
@@ -182,12 +183,12 @@ export function Topbar({ marca }: { marca?: UnidadeAberta | null }) {
                 setReminders(data)
                 // Play sound for new reminders
                 if (data.length > 0 && soundEnabled) {
-                    const stored = localStorage.getItem('odontobox360-last-reminder-count')
+                    const stored = ler('lembretes-vistos', ['odontobox360-last-reminder-count'])
                     const lastCount = stored ? parseInt(stored) : 0
                     if (data.length > lastCount) {
                         try { new Audio('/sounds/notification.mp3').play().catch(() => { }) } catch { }
                     }
-                    localStorage.setItem('odontobox360-last-reminder-count', String(data.length))
+                    escrever('lembretes-vistos', String(data.length))
                 }
             }
         } catch { /* ignore */ }

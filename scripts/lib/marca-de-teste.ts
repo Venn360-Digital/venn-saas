@@ -45,6 +45,7 @@ import { registrarBrand } from '@venn/core/marca'
 import type { Brand } from '@venn/config/marca'
 
 export const MARCA_DE_TESTE: Brand = {
+    slug: 'teste',
     name: 'Produto de Teste',
     tagline: 'Marca fictícia, usada só pelos verificadores',
     vendor: 'Fornecedor de Teste',

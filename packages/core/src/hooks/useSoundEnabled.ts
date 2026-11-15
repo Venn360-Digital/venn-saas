@@ -2,8 +2,19 @@
 
 import { useCallback, useSyncExternalStore } from 'react'
 
-const KEY = 'odontobox360-sound-enabled'
-const EVENT = 'odontobox360-sound-change'
+import { chave, escrever, evento, ler } from '../lib/armazenamento'
+
+/**
+ * A chave que já existe no navegador de quem usa o produto hoje.
+ *
+ * Passa para `ler()` como nome antigo: na primeira leitura depois do deploy o
+ * valor é migrado para a chave nova e esta é removida. Sem isso, **o som
+ * voltaria a ligado para todo mundo que o desligou** — não quebra nada, e é
+ * exatamente o tipo de perda que ninguém reporta como bug.
+ */
+const CHAVE_ANTIGA = 'odontobox360-sound-enabled'
+const NOME = 'som'
+const NOME_DO_EVENTO = 'som-mudou'
 
 /**
  * Whether the notification sound is on, shared across the app.
@@ -23,20 +34,17 @@ const EVENT = 'odontobox360-sound-change'
 function subscribe(onChange: () => void) {
     // `storage` fires for other tabs; the custom event for this one.
     window.addEventListener('storage', onChange)
-    window.addEventListener(EVENT, onChange)
+    window.addEventListener(evento(NOME_DO_EVENTO), onChange)
     return () => {
         window.removeEventListener('storage', onChange)
-        window.removeEventListener(EVENT, onChange)
+        window.removeEventListener(evento(NOME_DO_EVENTO), onChange)
     }
 }
 
 function getSnapshot(): boolean {
-    try {
-        return localStorage.getItem(KEY) !== 'false'
-    } catch {
-        // A private window, or site data blocked: sound on is the better default.
-        return true
-    }
+    // `ler` já engole a exceção de janela privativa e devolve null: som ligado
+    // é o melhor padrão para quem nunca escolheu.
+    return ler(NOME, [CHAVE_ANTIGA]) !== 'false'
 }
 
 /** Sound is on until someone turns it off, including before hydration. */
@@ -46,12 +54,8 @@ export function useSoundEnabled(): [boolean, (next: boolean) => void] {
     const enabled = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot)
 
     const set = useCallback((next: boolean) => {
-        try {
-            localStorage.setItem(KEY, String(next))
-        } catch {
-            // Nothing to persist to; the event still updates this session.
-        }
-        window.dispatchEvent(new CustomEvent(EVENT, { detail: next }))
+        escrever(NOME, String(next))
+        window.dispatchEvent(new CustomEvent(evento(NOME_DO_EVENTO), { detail: next }))
     }, [])
 
     return [enabled, set]

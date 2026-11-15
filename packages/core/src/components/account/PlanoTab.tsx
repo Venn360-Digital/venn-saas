@@ -40,6 +40,7 @@ import { CancelarAssinaturaCard } from './CancelarAssinaturaCard'
 import { DadosDeCobrancaDialog } from './DadosDeCobrancaDialog'
 import { useVocab } from '../../hooks/useVocab'
 import { comArtigo } from '../../lib/concordancia'
+import { nomeDaJanelaDePagamento, tipoDaMensagemDePagamento } from '../../lib/pagamento-janela'
 
 /**
  * Uma célula de consumo: rótulo, "usado de total", barra fina e a validade.
@@ -694,7 +695,7 @@ export function PlanoTab() {
 
         janelaDoPagamento.current = window.open(
             '',
-            'odontobox-pagamento',
+            nomeDaJanelaDePagamento(),
             `width=${largura},height=${altura},left=${esquerda},top=${topo},noopener=no`
         )
 
@@ -863,7 +864,7 @@ export function PlanoTab() {
 
         janelaDoPagamento.current = window.open(
             '',
-            'odontobox-pagamento',
+            nomeDaJanelaDePagamento(),
             `width=${largura},height=${altura},left=${esquerda},top=${topo},noopener=no`
         )
 
@@ -977,7 +978,7 @@ export function PlanoTab() {
             // confirmado" e mudar o que esta tela mostra.
             if (evento.origin !== window.location.origin) return
             const dado = evento.data as { tipo?: string; status?: string } | null
-            if (dado?.tipo !== 'odontobox:pagamento') return
+            if (dado?.tipo !== tipoDaMensagemDePagamento()) return
 
             setPagando(false)
             janelaDoPagamento.current = null

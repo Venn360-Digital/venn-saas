@@ -9,6 +9,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@venn/ui/tooltip'
 import { cn } from '@venn/ui/utils'
 import { useVocab } from '../../hooks/useVocab'
 import type { Vocabulario } from '../../lib/vocabulario'
+import { escrever, ler, remover } from '../../lib/armazenamento'
 
 /**
  * Seletor de emojis do compositor.
@@ -44,12 +45,20 @@ function GROUPS(v: Vocabulario): { label: string; emojis: string[] }[] {
 ]
 }
 
-const RECENT_KEY = 'odontobox.inbox.emoji.recent'
+/**
+ * O nome de hoje e o que já existe no navegador de quem usa.
+ *
+ * Sem a migração, os emojis recentes voltariam a zero para todo mundo — o
+ * tipo de perda que ninguém reporta e que faz o produto parecer novo de um
+ * jeito ruim.
+ */
+const NOME_RECENTES = 'emoji-recentes'
+const CHAVE_ANTIGA = 'odontobox.inbox.emoji.recent'
 const RECENT_MAX = 16
 
 function readRecent(): string[] {
     try {
-        const raw = localStorage.getItem(RECENT_KEY)
+        const raw = ler(NOME_RECENTES, [CHAVE_ANTIGA])
         const list = raw ? (JSON.parse(raw) as unknown) : []
         return Array.isArray(list) ? list.filter((e): e is string => typeof e === 'string') : []
     } catch {
@@ -82,7 +91,7 @@ export function EmojiPicker({ onSelect, disabled, className }: EmojiPickerProps)
         const next = [emoji, ...recent.filter((e) => e !== emoji)].slice(0, RECENT_MAX)
         setRecent(next)
         try {
-            localStorage.setItem(RECENT_KEY, JSON.stringify(next))
+            escrever(NOME_RECENTES, JSON.stringify(next))
         } catch {
             // Sem persistência: os recentes valem só para esta sessão.
         }

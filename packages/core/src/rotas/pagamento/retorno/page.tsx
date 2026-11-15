@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation'
 
 import { Logo } from '@venn/core/components/brand/Logo'
 import { useMarca } from '../../../marca-contexto'
+import { tipoDaMensagemDePagamento } from '@venn/core/lib/pagamento-janela'
 
 /**
  * Para onde o Asaas devolve o pagador — uma página de uma frase.
@@ -44,7 +45,7 @@ function Conteudo() {
              * restringir é uma palavra.
              */
             try {
-                origem.postMessage({ tipo: 'odontobox:pagamento', status }, window.location.origin)
+                origem.postMessage({ tipo: tipoDaMensagemDePagamento(), status }, window.location.origin)
             } catch {
                 // Origem fechada ou inacessível: cai no aviso de fechar à mão.
             }
