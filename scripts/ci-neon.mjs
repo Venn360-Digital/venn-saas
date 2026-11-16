@@ -137,58 +137,6 @@ const montada = new URL(credencial)
 montada.hostname = hostDaBranch
 const uri = montada.toString() // nunca impressa
 
-/**
- * Esperar o host da branch nova ficar ALCANÇÁVEL — e isso não é o mesmo que o
- * endpoint estar `active`.
- *
- * Medido em 16/11/2026, em dois builds: a criação devolve o host na hora, o
- * estado vira `active` em 2,2 s, e o Prisma AINDA falha com
- * `P1001: Can't reach database server`. O que falta não é o compute: é o nome
- * novo resolver no DNS de quem vai conectar. Perguntar ao estado do endpoint
- * responde sobre o lado da Neon; quem precisa alcançar é o builder.
- *
- * Então a espera testa o que o Prisma faria: resolve o nome e abre um socket
- * na 5432. É a mesma lição que atravessa esta fase — verificar a coisa que o
- * runtime faz, não um proxy dela.
- */
-const { lookup } = await import('node:dns/promises')
-const { connect } = await import('node:net')
-
-function alcancavel(host, ms = 4000) {
-    return new Promise((resolve) => {
-        const s = connect({ host, port: 5432 })
-        const fim = (ok) => { s.destroy(); resolve(ok) }
-        s.setTimeout(ms)
-        s.once('connect', () => fim(true))
-        s.once('timeout', () => fim(false))
-        s.once('error', () => fim(false))
-    })
-}
-
-const LIMITE_MS = 120_000
-const inicio = Date.now()
-let pronto = false
-let ultimoErro = 'ainda não tentado'
-while (!pronto) {
-    try {
-        await lookup(hostDaBranch)
-        pronto = await alcancavel(hostDaBranch)
-        if (!pronto) ultimoErro = 'DNS resolve, mas a porta 5432 não aceitou conexão'
-    } catch (e) {
-        ultimoErro = `DNS ainda não resolve (${e.code ?? e.message})`
-    }
-    if (pronto) break
-    if (Date.now() - inicio > LIMITE_MS) {
-        await api('DELETE', `/projects/${PROJETO}/branches/${id}`)
-        console.error(
-            `✖ o host da branch descartável não ficou alcançável em ${LIMITE_MS / 1000}s.\n` +
-            `  Último obstáculo: ${ultimoErro}\n  A branch foi apagada.`
-        )
-        process.exit(1)
-    }
-    await new Promise((r) => setTimeout(r, 3000))
-}
-console.log(`  host alcançável em ${((Date.now() - inicio) / 1000).toFixed(1)}s`)
 
 try {
     const ambiente = {
@@ -197,7 +145,39 @@ try {
         // Segredo descartável: nenhuma sessão criada aqui sobrevive à branch.
         BETTER_AUTH_SECRET: randomBytes(32).toString('base64'),
     }
-    rodar('migrações', 'pnpm exec prisma migrate deploy', ambiente)
+    /*
+     * A migração é RETENTADA, e a razão é uma sonda que eu escrevi e que
+     * mentiu.
+     *
+     * Medido em 16/11/2026, em quatro builds: o endpoint da branch nova vira
+     * `active` em 2,2 s, o DNS resolve e um socket na 5432 conecta em 0,2 s —
+     * e o Prisma ainda responde `P1001: Can't reach database server`. A sonda
+     * passava porque TODO hostname `ep-*` da Neon resolve para o mesmo proxy:
+     * o TCP sempre aceita, e quem decide a rota é o SNI, dentro do TLS. Ela
+     * media um proxy da coisa, não a coisa.
+     *
+     * O proxy leva alguns segundos para conhecer um endpoint recém-criado.
+     * Então a espera é a própria conexão do Prisma, repetida — é o único teste
+     * fiel, pela mesma razão que derrubou a sonda.
+     */
+    const TENTATIVAS = 12
+    for (let n = 1; ; n++) {
+        const r = spawnSync('pnpm', ['exec', 'prisma', 'migrate', 'deploy'], {
+            stdio: 'pipe', encoding: 'utf8', env: { ...process.env, ...ambiente },
+        })
+        process.stdout.write(r.stdout ?? '')
+        if (r.status === 0) {
+            if (n > 1) console.log(`  (conectou na ${n}ª tentativa)`)
+            break
+        }
+        const inalcancavel = /P1001/.test(`${r.stdout}${r.stderr}`)
+        if (!inalcancavel || n === TENTATIVAS) {
+            process.stderr.write(r.stderr ?? '')
+            throw new Error('reprovou em "migrações"')
+        }
+        console.log(`  endpoint ainda não roteado (P1001), tentativa ${n}/${TENTATIVAS}…`)
+        await new Promise((res) => setTimeout(res, 5000))
+    }
     for (const prova of ['check:neon', 'check:auth', 'check:filas', 'check:tenant']) {
         rodar(prova, `pnpm run ${prova}`, ambiente)
     }
