@@ -7,8 +7,8 @@
 ## Variáveis desta execução (preencha antes de colar o prompt)
 
 ```
-REPO_ORIGEM      = venn360/<repo-odontobox>
-REPO_NOVO        = venn360/stagent360          # conecta: venn360/conecta360
+REPO_ORIGEM      = Venn360-Digital/<repo-odontobox>
+REPO_NOVO        = Venn360-Digital/stagent360          # conecta: Venn360-Digital/conecta360
 NOME_COMERCIAL   = Stagent360                  # conecta: Conecta360
 SLUG             = stagent                     # conecta: conecta
 HOST_PROD        = stagent.venn360.com

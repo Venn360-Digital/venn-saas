@@ -1,7 +1,7 @@
 {
-  "$comment": "Fonte única de verdade dos recursos REAIS da Odontobox (Fase 02, dados da Fase 01). Nomes atuais preservados (R10). Sem senhas/secrets. NOTA: a Odontobox ainda NÃO tem um staging isolado — ver _isolation em cada ambiente e o plano na Fase 02.",
+  "$comment": "Fonte única de verdade dos recursos REAIS da Odontobox (Fase 02, dados da Fase 01). Nomes atuais preservados (R10). Sem senhas/secrets. NOTA: a Odontobox ainda NÃO tem um staging isolado — ver _isolation em cada ambiente e o plano na Fase 02. O DONO no GitHub passou a ser a organização `Venn360-Digital` em 15/11/2026 (era a conta pessoal `venn360`). O `repo_id` numérico não muda com o transfer, então a conexão do Workers Builds continua apontando para o repositório certo — mas a INSTALAÇÃO do app do GitHub é por conta, e a que autoriza a Cloudflare pertencia à conta pessoal. Se um build parar de disparar, é isso: a organização precisa instalar o app e a conexão precisa ser reapontada no painel.",
   "app": {
-    "repo": "venn360/venn.odontobox360",
+    "repo": "Venn360-Digital/venn-saas",
     "name": "OdontoBox360",
     "slug": "odontobox",
     "segment": "odontologia (de superfície; núcleo é CRM genérico)",
