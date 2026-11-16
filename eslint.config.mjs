@@ -39,7 +39,11 @@ const eslintConfig = defineConfig([
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:
-    ".next/**",
+    // `**/` à frente porque no monorepo o `.next` nasce em `apps/<app>/`, e o
+    // padrão do preset é ancorado na raiz. Sem isso, um `next build` local faz
+    // o lint varrer a saída de build: 23.657 problemas em chunks gerados,
+    // dos quais 2.047 "erros" — e o passo reprova por nada.
+    "**/.next/**",
     "out/**",
     "build/**",
     "next-env.d.ts",

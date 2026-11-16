@@ -20,6 +20,14 @@ node_modules/
 
 # next.js
 /.next/
+# E o mesmo por app: a Fase 2 moveu o app para `apps/<app>/`, e o padrão acima
+# está ANCORADO na raiz — `apps/odontobox360/.next/` não era ignorado por
+# ninguém. Medido em 16/11/2026, depois de rodar `next build` à mão: 3.503
+# arquivos de saída de build que um `git add -A` teria commitado, e que o
+# `audit-isolation` passaria a varrer desde que ele aprendeu a ver arquivo não
+# rastreado. Décima forma do defeito de caminho literal desta fase: padrão
+# escrito para o layout de antes do movimento.
+apps/*/.next/
 /out/
 
 # production
