@@ -22,8 +22,15 @@
  *   GET /accounts/{conta}/builds/workers/{script_tag}
  *       → previews_base_config.environment_variables
  *
+ * Precisa TAMBÉM de `DATABASE_URL_MIGRATOR` no mesmo lado Preview, desde a
+ * separação de papéis de 16/11/2026 — ver a nota na montagem da URI, adiante.
+ *
  * Sem a chave, avisa ALTO e sai verde: mesmo contrato do ci.yml, a ausência do
- * segredo não pode reprovar o código. A string de conexão nunca é impressa.
+ * segredo não pode reprovar o código. Já a ausência da CREDENCIAL reprova, e a
+ * diferença é deliberada: sem `NEON_API_KEY` a prova não começa; sem a
+ * credencial ela começou, criou a branch e não tem como seguir — sair verde
+ * ali seria apagar a branch e dizer que passou. A string de conexão nunca é
+ * impressa.
  *
  * O teto de 20 min do Workers Builds pode matar o build no meio e deixar uma
  * branch órfã — por isso toda execução começa recolhendo branches `ci-wb-*`
@@ -85,7 +92,50 @@ const resp = await api('POST', `/projects/${PROJETO}/branches`, {
     endpoints: [{ type: 'read_write' }],
 })
 const id = resp.branch.id
-const uri = resp.connection_uris[0].connection_uri // nunca impressa
+
+/**
+ * A URI é MONTADA aqui, não pedida ao Neon — e a razão é a separação de papéis
+ * de 16/11/2026.
+ *
+ * Antes, `resp.connection_uris[0]` funcionava: o Neon emite a URI das roles
+ * cuja credencial ele guarda. As roles `{slug}_migrator` e `{slug}_app` foram
+ * criadas POR SQL, de propósito — o caminho da API põe a role em
+ * `neon_superuser`, com `BYPASSRLS`, `CREATEDB` e `CREATEROLE`, e a Neon avisa
+ * que isso não se estreita depois. O preço, medido e registrado no runbook 19,
+ * é este: a Neon não conhece a senha delas, `connection_uris` vem vazio, e
+ * qualquer ferramenta que peça "a string da role" não a encontra.
+ *
+ * Trocar para `neondb_owner`, que a Neon conhece, não resolve: ele NÃO é
+ * membro do migrador (medido: `pg_has_role` = false), e as 76 tabelas agora
+ * pertencem ao migrador — um `ALTER`/`COMMENT` como `neondb_owner` falharia
+ * com 42501. A migração tem de rodar como quem é dono.
+ *
+ * Então a credencial vem de `DATABASE_URL_MIGRATOR` e só o HOST é trocado pelo
+ * da branch descartável. A branch é cópia copy-on-write da produção: as roles
+ * e as senhas são as mesmas, por construção.
+ */
+const credencial = process.env.DATABASE_URL_MIGRATOR
+if (!credencial) {
+    await api('DELETE', `/projects/${PROJETO}/branches/${id}`)
+    console.error(
+        '✖ DATABASE_URL_MIGRATOR ausente no ambiente de PREVIEW.\n' +
+        '  A branch descartável precisa da credencial do migrador: desde a separação\n' +
+        '  de papéis, a Neon não emite connection_uri para roles criadas por SQL, e\n' +
+        '  `neondb_owner` não é dono das tabelas. Grave a mesma string que o deploy\n' +
+        '  de produção usa nas Build Variables do lado Preview.\n' +
+        '  A branch descartável foi apagada.'
+    )
+    process.exit(1)
+}
+const hostDaBranch = resp.endpoints?.[0]?.host
+if (!hostDaBranch) {
+    await api('DELETE', `/projects/${PROJETO}/branches/${id}`)
+    console.error('✖ a resposta do Neon não trouxe endpoint para a branch nova.')
+    process.exit(1)
+}
+const montada = new URL(credencial)
+montada.hostname = hostDaBranch
+const uri = montada.toString() // nunca impressa
 
 try {
     const ambiente = {
