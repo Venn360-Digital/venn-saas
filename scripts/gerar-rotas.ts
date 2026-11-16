@@ -87,6 +87,31 @@ type Rota = {
     reexportar: string[]
     /** `[nome, literal]` — copiados para dentro do wrapper. */
     inlinar: [string, string][]
+    /**
+     * A fonte declara `'use client'`? Então a casca também precisa declarar.
+     *
+     * Diretiva NÃO atravessa um `export … from` — é a mesma razão dos configs
+     * acima, e pelo mesmo mecanismo: o compilador a lê do ARQUIVO, por análise
+     * estática, antes de resolver import nenhum.
+     *
+     * Descoberto em 16/11/2026 por um build que rodou `next build` (o alvo Node,
+     * que o deploy não usa) com o comando errado depois da troca de dono do
+     * repositório:
+     *
+     *     apps/odontobox360/src/app/global-error.tsx must be a Client Component.
+     *     > export { default } from '@venn/core/rotas-jsx/global-error'
+     *
+     * `error.tsx` e `global-error.tsx` são os casos em que o Next EXIGE a
+     * diretiva no próprio arquivo. Mas a regra aqui é uniforme — copia sempre
+     * que a fonte tiver —, e de propósito: condicionar a um nome de arquivo
+     * seria mais um critério textual para manter em sincronia com o framework,
+     * que é a forma de defeito que mais apareceu nesta fase.
+     *
+     * Para as páginas de cliente o efeito é nulo (a fronteira já estava um nível
+     * abaixo, no arquivo do core, e a casca não tem outro código); para as duas
+     * de erro, é o que faz o `next build` compilar.
+     */
+    cliente: boolean
 }
 
 const problemas: string[] = []
@@ -110,6 +135,12 @@ function arquivos(dir: string): string[] {
  * silêncio.
  */
 function classificar(rel: string, texto: string, permitidos: string[]): Rota | null {
+    /*
+     * A diretiva tem de ser a PRIMEIRA instrução do arquivo — por isso a busca é
+     * ancorada no início, tolerando apenas espaço em branco antes. Procurar em
+     * qualquer lugar casaria a menção dela dentro de um comentário.
+     */
+    const cliente = /^\s*['"]use client['"]/.test(texto)
     const achados: { nome: string; valor?: string; tipo?: boolean }[] = []
 
     for (const m of texto.matchAll(/^export\s+(?:async\s+)?function\s+([A-Za-z_$][\w$]*)/gm)) {
@@ -169,7 +200,7 @@ function classificar(rel: string, texto: string, permitidos: string[]): Rota | n
         erro(`"${rel}" não exporta nada que o Next use.`)
         return null
     }
-    return { rel, convencao: rel.split('/').pop()!, reexportar, inlinar }
+    return { rel, convencao: rel.split('/').pop()!, reexportar, inlinar, cliente }
 }
 
 /**
@@ -200,16 +231,29 @@ function especificador(rel: string): string {
 }
 
 function wrapper(r: Rota): string {
-    const linhas = [
+    const linhas: string[] = []
+    if (r.cliente) {
+        // Primeira linha do arquivo: comentário antes é permitido, instrução não.
+        linhas.push("'use client'", '')
+    }
+    linhas.push(
         `/* ${MARCADOR} — não edite.`,
         ` * Conteúdo: packages/core/src/rotas/${r.rel}`,
-    ]
+    )
     if (r.inlinar.length) {
         linhas.push(
             ' *',
             ' * Os configs abaixo são COPIADOS, não re-exportados: o SWC os lê por análise',
             ' * estática e não atravessa um `export … from`. Re-exportados, seriam ignorados',
             ' * em silêncio e a rota rodaria no modo errado.',
+        )
+    }
+    if (r.cliente) {
+        linhas.push(
+            ' *',
+            " * A diretiva `'use client'` acima é copiada pela MESMA razão, e não é",
+            ' * decoração: sem ela o Next recusa `error.tsx` e `global-error.tsx`, que',
+            ' * ele exige que sejam componentes de cliente.',
         )
     }
     linhas.push(' */')

@@ -1,6 +1,33 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+/*
+ * ⚠️ As fontes que o Tailwind varre, DECLARADAS — e não detectadas.
+ *
+ * O Tailwind v4 detecta a raiz sozinho, a partir de onde este arquivo está, e
+ * respeita o `.gitignore`. Com o app na raiz do repositório isso bastava: a
+ * varredura subia e alcançava tudo. A Fase 2 moveu o app para
+ * `apps/<app>/src/app/`, e a detecção passou a enraizar NA PASTA DO APP —
+ * `packages/` ficou de fora.
+ *
+ * Medido em 16/11/2026, gerando o CSS com o mesmo plugin do build a partir de
+ * dois diretórios:
+ *
+ *     da raiz do repo:  183 KB   — sr-only 2, sidebar-width 12, peer-data 11
+ *     de apps/<app>:     23 KB   — sr-only 0, sidebar-width  0, peer-data  0
+ *
+ * O build real roda de dentro do app, então era o de 23 KB que estava em
+ * produção: a barra lateral sem largura, ocupando meia tela, e o rótulo de
+ * leitor de tela "Toggle Sidebar" visível porque `sr-only` não existia.
+ * Nenhum erro, nenhum log — só a tela errada.
+ *
+ * `@source` resolve relativo a ESTE arquivo. Os caminhos abaixo cobrem todo o
+ * código compartilhado; o próprio app é varrido pela detecção automática.
+ */
+@source "../../../../packages/core/src";
+@source "../../../../packages/ui/src";
+@source "../../../../packages/config/src";
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {

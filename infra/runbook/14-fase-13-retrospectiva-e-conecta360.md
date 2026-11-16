@@ -22,7 +22,7 @@
 2. **Zona `conecta.com.br`:** confirme que existe na conta Cloudflare (hostnames do Evolution). Se não existir, use o fallback da convenção, com OK do André.
 3. **Variáveis do Conecta360:**
    ```
-   REPO_NOVO       = venn360/conecta360
+   REPO_NOVO       = Venn360-Digital/conecta360
    NOME_COMERCIAL  = Conecta360
    SLUG            = conecta
    HOST_PROD       = conecta.venn360.com

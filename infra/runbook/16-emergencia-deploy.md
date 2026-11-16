@@ -41,17 +41,17 @@ arquivado (Apêndice B do arquivo 15).
 2. No repositório do app, crie os dois segredos **temporários**:
 
    ```bash
-   gh secret set CLOUDFLARE_API_TOKEN -R venn360/<repo> # cole o token do gerenciador de senhas
+   gh secret set CLOUDFLARE_API_TOKEN -R Venn360-Digital/<repo> # cole o token do gerenciador de senhas
    ```
 
    ```bash
-   gh secret set CLOUDFLARE_ACCOUNT_ID -R venn360/<repo>
+   gh secret set CLOUDFLARE_ACCOUNT_ID -R Venn360-Digital/<repo>
    ```
 
 3. Crie `.github/workflows/emergencia.yml` com o YAML abaixo (serve igual para
    os 3 apps) e faça merge em `main` junto com a correção — o merge continua
    sendo a aprovação humana, e o dispatch roda o HEAD de `main`.
-4. Dispare: `gh workflow run emergencia.yml -R venn360/<repo>` e acompanhe com
+4. Dispare: `gh workflow run emergencia.yml -R Venn360-Digital/<repo>` e acompanhe com
    `gh run watch`.
 5. **Desmonte no mesmo dia em que o Builds voltar** (a parte que todo mundo
    esquece): apague o workflow num PR, apague os segredos

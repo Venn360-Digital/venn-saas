@@ -84,8 +84,36 @@ for (const s of SENTINELAS) {
     }
 }
 
+/*
+ * ⚠️ A geração roda COM O PROCESSO DENTRO DA PASTA DO APP — e essa linha é a
+ * verificação inteira.
+ *
+ * A versão anterior processava o `globals.css` a partir da raiz do
+ * repositório. O Tailwind v4 detecta a raiz da varredura sozinho, subindo a
+ * partir de onde o processo está, então dali ele alcançava `packages/` SEMPRE
+ * — e a sentinela passava sempre, inclusive quando o build real estava
+ * quebrado.
+ *
+ * O build real roda de dentro do app (`vite build` em `apps/<app>`), e de lá a
+ * detecção enraíza na pasta do app. Medido em 16/11/2026, com o mesmo plugin:
+ *
+ *     processo na raiz do repo:  183 KB
+ *     processo em apps/<app>:     23 KB   ← o que a produção servia
+ *
+ * Era a undécima forma do mesmo defeito desta fase: a verificação olhava um
+ * conjunto diferente do que o build olha, e por isso só sabia dizer que sim.
+ */
+const RAIZ = process.cwd()
 for (const entrada of ENTRADAS) {
-    const css = await postcss([tailwind()]).process(readFileSync(entrada, 'utf8'), { from: entrada })
+    const pastaDoApp = entrada.replace(/\/src\/app\/globals\.css$/, '')
+    const relativo = entrada.slice(pastaDoApp.length + 1)
+    process.chdir(pastaDoApp)
+    let css
+    try {
+        css = await postcss([tailwind()]).process(readFileSync(relativo, 'utf8'), { from: relativo })
+    } finally {
+        process.chdir(RAIZ)
+    }
     const saida = desescapar(css.css)
     console.log(`${entrada}: ${(css.css.length / 1024).toFixed(0)} KB de CSS gerado`)
     for (const s of SENTINELAS) {

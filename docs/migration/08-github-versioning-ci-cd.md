@@ -2,8 +2,16 @@
 
 ## Repositório
 
-`https://github.com/venn360/venn.odontobox360` é a fonte oficial. **Um
-repositório por SaaS** — justificativa em [`00-open-decisions.md`](00-open-decisions.md) §3.
+`https://github.com/Venn360-Digital/venn-saas` é a fonte oficial.
+
+⚠️ **Este parágrafo registrava "um repositório por SaaS"**, com a justificativa
+em [`00-open-decisions.md`](00-open-decisions.md) §3. A decisão foi REVERTIDA na
+unificação: desde 14/11/2026 os três produtos vivem num monorepo, em
+`apps/<produto>`, e o domínio comum em `packages/core`. O repositório foi
+renomeado de `venn.odontobox360` para `venn-saas` em 14/11 e transferido da
+conta pessoal para a organização `Venn360-Digital` em 15/11 — o `repo_id`
+numérico não muda em nenhuma das duas operações, que é o que mantém a conexão
+do Workers Builds de pé.
 
 | Branch | Papel |
 | --- | --- |
