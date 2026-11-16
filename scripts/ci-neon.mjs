@@ -138,35 +138,57 @@ montada.hostname = hostDaBranch
 const uri = montada.toString() // nunca impressa
 
 /**
- * Esperar o compute da branch nova ficar de pé antes de conectar.
+ * Esperar o host da branch nova ficar ALCANÇÁVEL — e isso não é o mesmo que o
+ * endpoint estar `active`.
  *
- * Medido em 16/11/2026: a criação devolve o host na hora, mas o Prisma falhou
- * com `P1001: Can't reach database server` nove segundos depois. O endpoint é
- * criado junto com a branch e leva um instante para atender — antes isto não
- * aparecia porque a URI vinha pronta na mesma resposta e o caminho era outro.
+ * Medido em 16/11/2026, em dois builds: a criação devolve o host na hora, o
+ * estado vira `active` em 2,2 s, e o Prisma AINDA falha com
+ * `P1001: Can't reach database server`. O que falta não é o compute: é o nome
+ * novo resolver no DNS de quem vai conectar. Perguntar ao estado do endpoint
+ * responde sobre o lado da Neon; quem precisa alcançar é o builder.
  *
- * A espera pergunta ao estado do endpoint, não ao relógio: um `sleep` fixo
- * seria chute, e chute curto volta a falhar no dia em que a Neon estiver
- * lenta. O teto existe para não comer o tempo do build em silêncio.
+ * Então a espera testa o que o Prisma faria: resolve o nome e abre um socket
+ * na 5432. É a mesma lição que atravessa esta fase — verificar a coisa que o
+ * runtime faz, não um proxy dela.
  */
-const idDoEndpoint = resp.endpoints?.[0]?.id
-const LIMITE_MS = 90_000
+const { lookup } = await import('node:dns/promises')
+const { connect } = await import('node:net')
+
+function alcancavel(host, ms = 4000) {
+    return new Promise((resolve) => {
+        const s = connect({ host, port: 5432 })
+        const fim = (ok) => { s.destroy(); resolve(ok) }
+        s.setTimeout(ms)
+        s.once('connect', () => fim(true))
+        s.once('timeout', () => fim(false))
+        s.once('error', () => fim(false))
+    })
+}
+
+const LIMITE_MS = 120_000
 const inicio = Date.now()
-let estado = resp.endpoints?.[0]?.current_state
-while (estado !== 'idle' && estado !== 'active') {
+let pronto = false
+let ultimoErro = 'ainda não tentado'
+while (!pronto) {
+    try {
+        await lookup(hostDaBranch)
+        pronto = await alcancavel(hostDaBranch)
+        if (!pronto) ultimoErro = 'DNS resolve, mas a porta 5432 não aceitou conexão'
+    } catch (e) {
+        ultimoErro = `DNS ainda não resolve (${e.code ?? e.message})`
+    }
+    if (pronto) break
     if (Date.now() - inicio > LIMITE_MS) {
         await api('DELETE', `/projects/${PROJETO}/branches/${id}`)
         console.error(
-            `✖ o endpoint da branch descartável não ficou pronto em ${LIMITE_MS / 1000}s ` +
-            `(último estado: ${estado ?? 'desconhecido'}).\n  A branch foi apagada.`
+            `✖ o host da branch descartável não ficou alcançável em ${LIMITE_MS / 1000}s.\n` +
+            `  Último obstáculo: ${ultimoErro}\n  A branch foi apagada.`
         )
         process.exit(1)
     }
-    await new Promise((r) => setTimeout(r, 2000))
-    const e = await api('GET', `/projects/${PROJETO}/endpoints/${idDoEndpoint}`)
-    estado = e.endpoint?.current_state
+    await new Promise((r) => setTimeout(r, 3000))
 }
-console.log(`  endpoint pronto em ${((Date.now() - inicio) / 1000).toFixed(1)}s (${estado})`)
+console.log(`  host alcançável em ${((Date.now() - inicio) / 1000).toFixed(1)}s`)
 
 try {
     const ambiente = {
