@@ -137,6 +137,37 @@ const montada = new URL(credencial)
 montada.hostname = hostDaBranch
 const uri = montada.toString() // nunca impressa
 
+/**
+ * Esperar o compute da branch nova ficar de pé antes de conectar.
+ *
+ * Medido em 16/11/2026: a criação devolve o host na hora, mas o Prisma falhou
+ * com `P1001: Can't reach database server` nove segundos depois. O endpoint é
+ * criado junto com a branch e leva um instante para atender — antes isto não
+ * aparecia porque a URI vinha pronta na mesma resposta e o caminho era outro.
+ *
+ * A espera pergunta ao estado do endpoint, não ao relógio: um `sleep` fixo
+ * seria chute, e chute curto volta a falhar no dia em que a Neon estiver
+ * lenta. O teto existe para não comer o tempo do build em silêncio.
+ */
+const idDoEndpoint = resp.endpoints?.[0]?.id
+const LIMITE_MS = 90_000
+const inicio = Date.now()
+let estado = resp.endpoints?.[0]?.current_state
+while (estado !== 'idle' && estado !== 'active') {
+    if (Date.now() - inicio > LIMITE_MS) {
+        await api('DELETE', `/projects/${PROJETO}/branches/${id}`)
+        console.error(
+            `✖ o endpoint da branch descartável não ficou pronto em ${LIMITE_MS / 1000}s ` +
+            `(último estado: ${estado ?? 'desconhecido'}).\n  A branch foi apagada.`
+        )
+        process.exit(1)
+    }
+    await new Promise((r) => setTimeout(r, 2000))
+    const e = await api('GET', `/projects/${PROJETO}/endpoints/${idDoEndpoint}`)
+    estado = e.endpoint?.current_state
+}
+console.log(`  endpoint pronto em ${((Date.now() - inicio) / 1000).toFixed(1)}s (${estado})`)
+
 try {
     const ambiente = {
         DATABASE_URL: uri,
