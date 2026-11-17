@@ -87,10 +87,74 @@ let degradadoGlobal = false
 
 await recolherOrfas()
 
+/**
+ * O PAI da branch descartável é DERIVADO da credencial, não deixado no padrão —
+ * e a razão é um defeito que custou seis builds de diagnóstico errado.
+ *
+ * Até 17/11/2026 esta chamada não passava `parent_id`, então o Neon usava a
+ * branch PADRÃO do projeto. O cabeçalho logo abaixo afirmava, em consequência,
+ * que "a branch é cópia copy-on-write da produção: as roles e as senhas são as
+ * mesmas, por construção". **A premissa é falsa**: a senha do
+ * `odontobox_migrator` é DIFERENTE em produção e em homologação — medido
+ * comparando o sha256 das duas (iguais no usuário e no banco, distintas na
+ * senha), porque cada role foi criada por SQL em cada branch, separadamente.
+ *
+ * Com credencial de uma branch e cópia de outra, o `migrate deploy` responde
+ * `P1000: Authentication failed`. E antes disso respondia `P1001`, o que me
+ * levou a registrar como dívida uma suspeita de roteamento por SNI no proxy da
+ * Neon. **Essa suspeita estava errada**: P1001 era a URI anterior, malformada;
+ * assim que ela ficou bem formada o erro virou P1000, que é a conexão
+ * CHEGANDO e a credencial sendo recusada. Lição: erro de infraestrutura que
+ * muda de código quando o ambiente muda não era sobre infraestrutura.
+ *
+ * Agora o pai é resolvido pelo HOST da própria credencial: pergunta-se ao Neon
+ * de que branch é aquele endpoint, e a descartável nasce dela. Credencial e
+ * cópia passam a casar POR CONSTRUÇÃO, qualquer que seja a branch gravada no
+ * Preview — sem literal e sem suposição.
+ *
+ * Consequência a declarar: a prova roda contra a branch de onde vem a
+ * credencial do Preview. Se isso for homologação, o dado é menor que o de
+ * produção e a prova fica mais fraca que o plano previa — mas uma prova que
+ * RODA vale mais que uma que degrada todo build. Para exercitar dado de
+ * produção, basta gravar no Preview a credencial do migrador de produção, com
+ * o aumento de privilégio que isso implica (build de PR passa a carregar
+ * credencial de produção) — decisão de quem opera, não deste script.
+ */
+const credencialBruta = process.env.DATABASE_URL_MIGRATOR
+if (!credencialBruta) {
+    console.error(
+        '✖ DATABASE_URL_MIGRATOR ausente no ambiente de PREVIEW.\n' +
+        '  A branch descartável precisa da credencial do migrador: desde a separação\n' +
+        '  de papéis, a Neon não emite connection_uri para roles criadas por SQL, e\n' +
+        '  `neondb_owner` não é dono das tabelas. Grave a string do migrador nas\n' +
+        '  Build Variables do lado Preview.\n' +
+        '  Nenhuma branch foi criada.'
+    )
+    process.exit(1)
+}
+
+const hostDaCredencial = new URL(credencialBruta).hostname
+const { endpoints: existentes } = await api('GET', `/projects/${PROJETO}/endpoints`)
+const endpointDaCredencial = (existentes ?? []).find((e) => e.host === hostDaCredencial)
+if (!endpointDaCredencial) {
+    console.error(
+        `✖ o host da DATABASE_URL_MIGRATOR não pertence ao projeto ${PROJETO}.\n` +
+        `  host da credencial: ${hostDaCredencial}\n` +
+        `  endpoints do projeto: ${(existentes ?? []).map((e) => e.host).join(', ') || '(nenhum)'}\n` +
+        '  Sem saber de que branch a credencial é, não há como criar uma cópia em que\n' +
+        '  ela funcione — e adivinhar é o defeito que este trecho existe para não\n' +
+        '  repetir. Nenhuma branch foi criada.'
+    )
+    process.exit(1)
+}
+const paiId = endpointDaCredencial.branch_id
+const { branch: pai } = await api('GET', `/projects/${PROJETO}/branches/${paiId}`)
+console.log(`  a credencial do Preview é da branch "${pai.name}" — a descartável sai dela`)
+
 const nome = `ci-wb-${process.env.WORKERS_CI_BUILD_UUID ?? Date.now()}`
 console.log(`  criando a branch descartável ${nome}`)
 const resp = await api('POST', `/projects/${PROJETO}/branches`, {
-    branch: { name: nome },
+    branch: { name: nome, parent_id: paiId },
     endpoints: [{ type: 'read_write' }],
 })
 const id = resp.branch.id
@@ -113,22 +177,13 @@ const id = resp.branch.id
  * com 42501. A migração tem de rodar como quem é dono.
  *
  * Então a credencial vem de `DATABASE_URL_MIGRATOR` e só o HOST é trocado pelo
- * da branch descartável. A branch é cópia copy-on-write da produção: as roles
- * e as senhas são as mesmas, por construção.
+ * da branch descartável. A senha funciona na cópia porque a cópia sai da branch
+ * de ONDE A CREDENCIAL É — resolvido acima, pelo host. Não vale dizer "são as
+ * mesmas por construção" sem isso: as senhas do migrador de produção e de
+ * homologação são diferentes, e foi essa frase, escrita de cabeça, que mandou
+ * seis builds procurarem o defeito no lugar errado.
  */
-const credencial = process.env.DATABASE_URL_MIGRATOR
-if (!credencial) {
-    await api('DELETE', `/projects/${PROJETO}/branches/${id}`)
-    console.error(
-        '✖ DATABASE_URL_MIGRATOR ausente no ambiente de PREVIEW.\n' +
-        '  A branch descartável precisa da credencial do migrador: desde a separação\n' +
-        '  de papéis, a Neon não emite connection_uri para roles criadas por SQL, e\n' +
-        '  `neondb_owner` não é dono das tabelas. Grave a mesma string que o deploy\n' +
-        '  de produção usa nas Build Variables do lado Preview.\n' +
-        '  A branch descartável foi apagada.'
-    )
-    process.exit(1)
-}
+const credencial = credencialBruta
 const hostDaBranch = resp.endpoints?.[0]?.host
 if (!hostDaBranch) {
     await api('DELETE', `/projects/${PROJETO}/branches/${id}`)
@@ -179,20 +234,25 @@ try {
         }
         if (n === TENTATIVAS) {
             /*
-             * ⚠️ DÍVIDA ABERTA, e declarada como tal — 16/11/2026.
+             * Rede de último recurso para o endpoint que não esquenta.
              *
-             * O endpoint da branch descartável não aceita conexão do Prisma,
-             * com a MESMA credencial e o MESMO driver que conectam na produção
-             * sem problema. Medido em seis builds: estado `active` em 2,2 s,
-             * DNS resolvendo, socket na 5432 aceito em 0,2 s, e doze tentativas
-             * de `migrate deploy` em 60 s, todas P1001.
+             * ⚠️ CORREÇÃO — 17/11/2026. Aqui havia uma dívida declarada que
+             * dizia: "o endpoint recusa conexão com a MESMA credencial que
+             * conecta na produção", e suspeitava de roteamento por SNI no proxy
+             * da Neon contra roles criadas por SQL. **Estava errado nos dois
+             * pontos.**
              *
-             * A suspeita é que o proxy da Neon roteia por SNI consultando o
-             * control plane, e as roles criadas POR SQL (a separação de
-             * privilégio de hoje) não estão lá — o mesmo motivo por que
-             * `connection_uris` vem vazio. Suspeita, não medição: não consegui
-             * provar, e registrar como se soubesse seria pior que registrar a
-             * dúvida.
+             * A credencial não era a mesma: a branch descartável nascia da
+             * branch PADRÃO do projeto e a credencial vinha do Preview, e a
+             * senha do `odontobox_migrator` é diferente entre produção e
+             * homologação (medido pelo sha256 das duas). E o P1001 era URI
+             * malformada — assim que ela ficou bem formada, o erro virou P1000,
+             * que é a conexão chegando e a credencial sendo recusada.
+             *
+             * O conserto está acima: o pai da descartável é derivado do HOST da
+             * credencial. Este laço fica porque endpoint novo pode levar alguns
+             * segundos para aceitar conexão — isso é real e esperado —, mas não
+             * é mais o lugar onde um defeito de configuração se esconde.
              *
              * Por que isto PASSA em vez de reprovar: este passo esteve pulando
              * por semanas (sem `NEON_API_KEY`), e o portão foi verde assim.

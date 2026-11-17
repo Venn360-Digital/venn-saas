@@ -67,24 +67,95 @@ async function main() {
      * na busca sem acento. `plpgsql` é do Postgres.
      */
     const DECLARADAS = ['plpgsql', 'vector', 'unaccent', 'pg_trgm']
+
+    /*
+     * Exceções REGISTRADAS, no mesmo desenho da lista do `lint-migracoes`: uma
+     * entrada por extensão, com o motivo, e **impressa quando usada** — passar
+     * por ela é visível, não silencioso. Não é lista de permissão genérica:
+     * cada linha nomeia uma extensão específica e o que precisa acontecer para
+     * a linha sair.
+     */
+    const EXCECOES: Record<string, string> = {
+        pg_stat_statements:
+            'resquício da migração do Supabase/VPS (consta como instalada em ' +
+            'docs/migration/00-inventory.md e 01-compatibility.md). Existe só na ' +
+            'HOMOLOGAÇÃO do odontobox — a produção dos três tem apenas as quatro ' +
+            'declaradas. Nada no código a lê, e ela cria duas views em `public`, ' +
+            'poluindo o diff de schema. Para remover: ' +
+            '`DROP EXTENSION pg_stat_statements` na homologação, e apagar esta ' +
+            'linha no mesmo commit. Não foi feito aqui porque a escrita em banco ' +
+            'está barrada nesta sessão, e afrouxar a regra calada seria pior que ' +
+            'declarar a dívida.',
+    }
+
     const intrusas = nomes.filter((n) => !DECLARADAS.includes(n))
+    const perdoadas = intrusas.filter((n) => n in EXCECOES)
+    const naoPerdoadas = intrusas.filter((n) => !(n in EXCECOES))
+    for (const n of perdoadas) {
+        console.warn(`  ⚠ exceção registrada em uso — extensão "${n}": ${EXCECOES[n]}`)
+    }
     ok(
         'nenhuma extensão fora das declaradas nas migrações',
-        intrusas.length === 0,
-        intrusas.length ? intrusas.join(', ') : `${nomes.length} extensão(ões)`
+        naoPerdoadas.length === 0,
+        naoPerdoadas.length
+            ? naoPerdoadas.join(', ')
+            : `${nomes.length} extensão(ões)` +
+              (perdoadas.length ? ` · ${perdoadas.length} por exceção registrada` : '')
     )
 
-    // 4. A migração de RLS virou no-op portável: RLS ligado, sem política de auth.
-    const [{ comRls }] = await prisma.$queryRaw<{ comRls: bigint }[]>`
-        SELECT count(*) AS "comRls" FROM pg_tables
-        WHERE schemaname = 'public' AND rowsecurity = true
+    /*
+     * 4. RLS: a asserção deixou de ser uma CONTAGEM e passou a ser a RELAÇÃO.
+     *
+     * Até 17/11/2026 isto exigia `>= 27` tabelas com RLS, herdado de quando a
+     * aplicação conectava como DONA das tabelas — aí habilitar RLS sem política
+     * era inofensivo, e a migração `20261006000000_enable_rls` o faz nas 27.
+     *
+     * A separação de papéis de 16/11 derrubou a premissa, e a medição mostrou
+     * que os seis bancos divergiram:
+     *
+     *   odontobox (prod)          0 tabelas com RLS · app NÃO bypassa
+     *   conecta, stagent (prod)  27 tabelas com RLS · app BYPASSA (e tem
+     *                            CREATEROLE — dívida de segurança registrada
+     *                            no plano, não é desta verificação)
+     *
+     * Os dois estados funcionam, e por razões OPOSTAS. O que não funciona é a
+     * terceira combinação: RLS ligado + ZERO política + papel da aplicação que
+     * não bypassa. Aí as 27 tabelas — `contacts`, `deals`, `conversations`,
+     * `messages`, `workspaces`, `users` entre elas — respondem VAZIO para a
+     * aplicação, sem erro nenhum. Tela em branco, log limpo.
+     *
+     * Então é essa combinação que a verificação proíbe. Contagem fixa não serve:
+     * seria verde num banco e vermelha no outro sem que nenhum dos dois esteja
+     * errado — foi exatamente o que aconteceu quando esta prova finalmente
+     * rodou, depois de semanas degradando.
+     *
+     * O papel da aplicação é DERIVADO (`%\_app` no catálogo), não escrito: o
+     * nome muda por app (`odontobox_app`, `conecta_app`, `stagent_app`) e
+     * literal aqui seria a nona forma do defeito de caminho literal desta fase.
+     */
+    const [rls] = await prisma.$queryRaw<
+        { comRls: bigint; politicas: bigint; appSemBypass: bigint }[]
+    >`
+        SELECT
+            (SELECT count(*) FROM pg_tables
+              WHERE schemaname = 'public' AND rowsecurity = true) AS "comRls",
+            (SELECT count(*) FROM pg_policies
+              WHERE schemaname = 'public') AS "politicas",
+            (SELECT count(*) FROM pg_roles
+              WHERE rolname LIKE '%\_app' AND NOT rolbypassrls) AS "appSemBypass"
     `
-    ok('RLS habilitado nas tabelas', Number(comRls) >= 27, `${comRls} tabelas`)
+    const comRls = Number(rls.comRls)
+    const politicas = Number(rls.politicas)
+    const appSemBypass = Number(rls.appSemBypass)
+    ok(
+        'nenhuma tabela lê vazio por RLS sem política',
+        comRls === 0 || politicas > 0 || appSemBypass === 0,
+        `${comRls} com RLS · ${politicas} política(s) · ${appSemBypass} papel(éis) *_app sem BYPASSRLS`
+    )
 
-    const [{ politicas }] = await prisma.$queryRaw<{ politicas: bigint }[]>`
-        SELECT count(*) AS politicas FROM pg_policies WHERE schemaname = 'public'
-    `
-    ok('nenhuma política de auth.uid() criada', Number(politicas) === 0, `${politicas} políticas`)
+    // A contagem de políticas já veio na consulta acima — uma ida ao banco em
+    // vez de duas, e sem declarar `politicas` duas vezes no mesmo escopo.
+    ok('nenhuma política de auth.uid() criada', politicas === 0, `${politicas} políticas`)
 
     const [{ temFn }] = await prisma.$queryRaw<{ temFn: bigint }[]>`
         SELECT count(*) AS "temFn" FROM pg_proc p
