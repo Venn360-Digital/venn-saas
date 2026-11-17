@@ -67,11 +67,40 @@ async function main() {
      * na busca sem acento. `plpgsql` é do Postgres.
      */
     const DECLARADAS = ['plpgsql', 'vector', 'unaccent', 'pg_trgm']
+
+    /*
+     * Exceções REGISTRADAS, no mesmo desenho da lista do `lint-migracoes`: uma
+     * entrada por extensão, com o motivo, e **impressa quando usada** — passar
+     * por ela é visível, não silencioso. Não é lista de permissão genérica:
+     * cada linha nomeia uma extensão específica e o que precisa acontecer para
+     * a linha sair.
+     */
+    const EXCECOES: Record<string, string> = {
+        pg_stat_statements:
+            'resquício da migração do Supabase/VPS (consta como instalada em ' +
+            'docs/migration/00-inventory.md e 01-compatibility.md). Existe só na ' +
+            'HOMOLOGAÇÃO do odontobox — a produção dos três tem apenas as quatro ' +
+            'declaradas. Nada no código a lê, e ela cria duas views em `public`, ' +
+            'poluindo o diff de schema. Para remover: ' +
+            '`DROP EXTENSION pg_stat_statements` na homologação, e apagar esta ' +
+            'linha no mesmo commit. Não foi feito aqui porque a escrita em banco ' +
+            'está barrada nesta sessão, e afrouxar a regra calada seria pior que ' +
+            'declarar a dívida.',
+    }
+
     const intrusas = nomes.filter((n) => !DECLARADAS.includes(n))
+    const perdoadas = intrusas.filter((n) => n in EXCECOES)
+    const naoPerdoadas = intrusas.filter((n) => !(n in EXCECOES))
+    for (const n of perdoadas) {
+        console.warn(`  ⚠ exceção registrada em uso — extensão "${n}": ${EXCECOES[n]}`)
+    }
     ok(
         'nenhuma extensão fora das declaradas nas migrações',
-        intrusas.length === 0,
-        intrusas.length ? intrusas.join(', ') : `${nomes.length} extensão(ões)`
+        naoPerdoadas.length === 0,
+        naoPerdoadas.length
+            ? naoPerdoadas.join(', ')
+            : `${nomes.length} extensão(ões)` +
+              (perdoadas.length ? ` · ${perdoadas.length} por exceção registrada` : '')
     )
 
     /*
