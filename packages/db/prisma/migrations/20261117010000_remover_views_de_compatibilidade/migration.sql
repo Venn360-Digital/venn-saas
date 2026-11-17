@@ -1,0 +1,45 @@
+-- contract
+--
+-- A fase de remoção que a migração de 27/10 prometeu. Ela mesma dizia, no
+-- cabeçalho: "A fase de remoção é a migração futura que dropa as views."
+--
+-- ## Por que agora, e não "um ciclo depois" vago
+--
+-- As três views existem **só no odontobox**: foram a ponte da janela entre o
+-- `migrate deploy` e a publicação do Worker novo, em 12/11. Os clones aplicaram
+-- a renomeação sem ponte, porque lá não havia dado de produção a proteger.
+--
+-- Medido em 17/11 nos três bancos de homologação, comparando o catálogo:
+--
+--   tabelas e colunas de aplicação  →  IDÊNTICOS nos três
+--   índices                         →  232 nos três, IDÊNTICOS
+--   conecta ↔ stagent               →  byte-idênticos nos três eixos
+--   só no odontobox                 →  estas 3 views (+ pg_stat_statements,
+--                                      que é extensão, não schema nosso)
+--
+-- Ou seja: **estas views são a última divergência de schema entre os seis
+-- bancos.** Enquanto existirem, o baseline da Fase 4 não pode ser único — e o
+-- baseline único é o que destrava o cutover dos clones, cujos
+-- `_prisma_migrations` têm 9 checksums divergentes do monorepo e por isso
+-- reprovam qualquer `migrate deploy` a partir daqui.
+--
+-- ## Por que é seguro
+--
+-- Nada no código as usa. Conferido por varredura em `apps/`, `packages/`,
+-- `scripts/` e `infra/`: as 12 ocorrências de `specialist*` estão todas em
+-- `infra/inventory/odontobox-schema-prod.sql`, que é retrato histórico de ANTES
+-- da renomeação — lá elas aparecem como TABELAS. O `schema.prisma` não as
+-- conhece; só cita "especialista" em comentário de documentação, em português.
+--
+-- View não guarda dado: dropar as três não toca uma linha. O dado vive em
+-- `professionals`, `availability_windows` e `availability_window_services`, que
+-- ficam como estão — inclusive os comentários de tabela que a migração de 16/11
+-- escreveu nelas. Os comentários DAS VIEWS saem junto com as views, que é o
+-- esperado.
+--
+-- `IF EXISTS` porque nos clones elas não existem, e esta migração tem de ser
+-- inócua lá quando a história de migração voltar a ser comum.
+
+DROP VIEW IF EXISTS specialist_window_procedures;
+DROP VIEW IF EXISTS specialist_windows;
+DROP VIEW IF EXISTS specialists;
