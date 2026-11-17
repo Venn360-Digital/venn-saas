@@ -25,12 +25,18 @@
  * Precisa TAMBÉM de `DATABASE_URL_MIGRATOR` no mesmo lado Preview, desde a
  * separação de papéis de 16/11/2026 — ver a nota na montagem da URI, adiante.
  *
- * Sem a chave, avisa ALTO e sai verde: mesmo contrato do ci.yml, a ausência do
- * segredo não pode reprovar o código. Já a ausência da CREDENCIAL reprova, e a
- * diferença é deliberada: sem `NEON_API_KEY` a prova não começa; sem a
- * credencial ela começou, criou a branch e não tem como seguir — sair verde
- * ali seria apagar a branch e dizer que passou. A string de conexão nunca é
- * impressa.
+ * Sem a chave OU sem a credencial, avisa ALTO e sai verde: mesmo contrato do
+ * ci.yml, a ausência de segredo de ambiente não pode reprovar o código em
+ * revisão. A string de conexão nunca é impressa.
+ *
+ * ⚠️ Este parágrafo afirmava o contrário até 17/11/2026 — que a ausência da
+ * credencial REPROVAVA, "porque a prova já começou e criou a branch". Era
+ * verdade no desenho antigo, em que a validação vinha depois da criação. O
+ * conserto do pai da branch (adiante) moveu as duas validações para antes de
+ * qualquer ida à rede, e a frase ficou descrevendo um código que não existe
+ * mais. Foi um gatilho de preview espúrio em `main` que expôs isso, reprovando
+ * todo merge em produção. **Afirmação de cabeçalho é o mapa que o próximo
+ * diagnóstico segue: quando a ordem do código muda, ela tem de mudar junto.**
  *
  * O teto de 20 min do Workers Builds pode matar o build no meio e deixar uma
  * branch órfã — por isso toda execução começa recolhendo branches `ci-wb-*`
@@ -85,6 +91,49 @@ async function recolherOrfas() {
 
 let degradadoGlobal = false
 
+/*
+ * Credencial ausente PULA, como a chave da API — e a correção é de 17/11/2026,
+ * sobre uma mudança minha de algumas horas antes.
+ *
+ * Até aqui esta guarda saía com 1, e o motivo escrito era este: a validação
+ * vinha DEPOIS de criar a branch descartável, então "sem credencial ela começou,
+ * criou a branch e não tem como seguir — sair verde ali seria apagar a branch e
+ * dizer que passou".
+ *
+ * O conserto do pai da branch moveu a validação para ANTES de qualquer criação.
+ * Com isso a justificativa caiu: nada foi criado, nada ficou órfão, e o caso
+ * virou idêntico ao da `NEON_API_KEY` ausente logo acima — a prova não pode
+ * rodar, e a política desta verificação, declarada lá, é **pular alto em vez de
+ * bloquear todo PR** por falta de configuração de ambiente que não é do código
+ * em revisão.
+ *
+ * O que fez a assimetria aparecer: um gatilho de preview com
+ * `branch_includes: ["main"]` no Worker de homologação, criado na reconexão de
+ * 16/11. Ele dispara a cada merge em `main`, atravessa os 54 primeiros passos e
+ * reprova só aqui — ou seja, **todo merge em produção passou a produzir um check
+ * vermelho** por falta de uma variável num gatilho que nem deveria existir.
+ * Check vermelho permanente é a forma mais eficiente de ninguém mais ler os
+ * checks; é a mesma razão por que a regra 3 do audit foi removida na Fase 3.
+ *
+ * O gatilho em si é configuração e sai pelo painel. Esta guarda é código, e
+ * estava errada desde que eu mudei a ordem.
+ */
+const credencialBruta = process.env.DATABASE_URL_MIGRATOR
+if (!credencialBruta) {
+    console.warn(
+        '⚠'.repeat(30) +
+        '\n⚠ DATABASE_URL_MIGRATOR ausente — provas contra o banco PULADAS.\n' +
+        '⚠ Migração contra dado de verdade NÃO foi exercitada neste build.\n' +
+        '⚠ A branch descartável precisa da credencial do migrador: desde a\n' +
+        '⚠ separação de papéis, a Neon não emite connection_uri para roles\n' +
+        '⚠ criadas por SQL, e `neondb_owner` não é dono das tabelas.\n' +
+        '⚠ Grave a string do migrador nas Build Variables do lado Preview.\n' +
+        '⚠ Nenhuma branch foi criada.\n' +
+        '⚠'.repeat(30)
+    )
+    process.exit(0)
+}
+
 await recolherOrfas()
 
 /**
@@ -120,18 +169,6 @@ await recolherOrfas()
  * o aumento de privilégio que isso implica (build de PR passa a carregar
  * credencial de produção) — decisão de quem opera, não deste script.
  */
-const credencialBruta = process.env.DATABASE_URL_MIGRATOR
-if (!credencialBruta) {
-    console.error(
-        '✖ DATABASE_URL_MIGRATOR ausente no ambiente de PREVIEW.\n' +
-        '  A branch descartável precisa da credencial do migrador: desde a separação\n' +
-        '  de papéis, a Neon não emite connection_uri para roles criadas por SQL, e\n' +
-        '  `neondb_owner` não é dono das tabelas. Grave a string do migrador nas\n' +
-        '  Build Variables do lado Preview.\n' +
-        '  Nenhuma branch foi criada.'
-    )
-    process.exit(1)
-}
 
 const hostDaCredencial = new URL(credencialBruta).hostname
 const { endpoints: existentes } = await api('GET', `/projects/${PROJETO}/endpoints`)
