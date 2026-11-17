@@ -163,6 +163,39 @@ includes: apps/<app>/**, packages/**, scripts/**, infra/**,
 excludes: **/*.md
 ```
 
+## 3.5. Apagar os previews órfãos — e os DOIS da branch `main`
+
+Levantado em 17/11 pela API (`GET /builds/workers/{tag}/previews`), e nenhum
+aparece na tela de Build:
+
+| Worker | previews | o quê |
+|---|---|---|
+| `odontobox-stg` | 2 | **`main`** + `feat/exercicio-do-migrador` |
+| `conecta-stg` | **17** | **`main`** + 16 branches do repositório ANTIGO |
+| os outros quatro | 0 | — |
+
+Todos com `auto_build = true`.
+
+**Os dois de `main` são os que doem.** Um preview da branch `main` dispara a cada
+merge em produção, roda os comandos de PREVIEW e reprova — foi exatamente isso
+que pintou de vermelho todo merge em `main` no `odontobox-stg` em 17/11. Com o
+`conecta-stg` repontado, o dele faria o mesmo, em dobro.
+
+Check vermelho crônico ao lado dos quatro cutovers treina o olho a ignorar
+justamente os builds que precisam ser lidos. **Apagar antes de repontar.**
+
+Os outros 17 são de branches que não existem mais — resquício do repositório
+antigo, e a mesma família dos "16 órfãos de namespace" que o plano já
+registrava. Não disparam (a branch não existe), mas seguram recurso de preview.
+
+No painel: Workers & Pages → o Worker → a lista de previews por branch. Pela
+API, para conferir antes e depois:
+
+```js
+await cloudflare.request({ method: 'GET',
+  path: `/accounts/${conta}/builds/workers/${script_tag}/previews?per_page=50` })
+```
+
 ## 4. Verificar
 
 Linha de base medida em 17/11 09:16, antes de qualquer cutover — os quatro
