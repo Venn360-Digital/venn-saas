@@ -71,7 +71,7 @@
  * reescreve o `checksum` de linha cujo NOME existe aqui e cujo checksum difere.
  */
 import { createHash } from 'node:crypto'
-import { readdirSync, readFileSync, existsSync } from 'node:fs'
+import { readdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { join } from 'node:path'
 import pg from 'pg'
@@ -210,6 +210,35 @@ if (divergentes.length === 0) {
     process.exit(0)
 }
 
+/*
+ * O retrato ANTES da escrita, gravado em disco — porque sem ele este passo é
+ * uma porta de mão única, e não precisa ser.
+ *
+ * O raciocínio: se um cutover precisar de rollback, o Worker volta a apontar
+ * para o repositório antigo — e o `migrate deploy` DE LÁ passaria a reclamar
+ * dos mesmos nove checksums, agora ao contrário, porque o banco guarda os deste
+ * repositório. O rollback do Worker, sozinho, não desfaz este passo.
+ *
+ * Com o retrato, desfazer é rodar o SQL que ele carrega. Sem o retrato, seria
+ * preciso reconstruir os checksums antigos a partir dos arquivos do repositório
+ * antigo — possível, mas no meio de um rollback ninguém quer descobrir isso.
+ */
+const retrato = {
+    banco: alvo,
+    quando: new Date().toISOString(),
+    antes: divergentes.map((d) => ({ migration_name: d.nome, checksum: d.de })),
+    depois: divergentes.map((d) => ({ migration_name: d.nome, checksum: d.para })),
+    desfazer: divergentes.map(
+        (d) =>
+            `UPDATE _prisma_migrations SET checksum = '${d.de}' ` +
+            `WHERE migration_name = '${d.nome}' AND checksum = '${d.para}';`,
+    ),
+}
+const arquivoDoRetrato = `alinhar-checksums.${alvo.replace('/', '-')}.${Date.now()}.json`
+writeFileSync(arquivoDoRetrato, JSON.stringify(retrato, null, 2) + '\n')
+console.log(`\n  retrato de antes gravado em ${arquivoDoRetrato}`)
+console.log('  (guarde-o: é o que desfaz este passo se houver rollback do cutover)')
+
 await cliente.query('BEGIN')
 let n = 0
 for (const d of divergentes) {
@@ -221,7 +250,7 @@ for (const d of divergentes) {
     n += r.rowCount
 }
 await cliente.query('COMMIT')
-console.log(`\n✔ ${n} checksum(s) alinhado(s) em ${alvo}.`)
+console.log(`✔ ${n} checksum(s) alinhado(s) em ${alvo}.`)
 
 const { rows: conferencia } = await cliente.query(
     `SELECT migration_name, checksum FROM _prisma_migrations WHERE rolled_back_at IS NULL`,
