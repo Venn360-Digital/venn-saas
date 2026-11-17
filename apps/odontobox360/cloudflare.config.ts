@@ -395,6 +395,23 @@ export default defineConfig({
              * esquece de aplicar; topologia não. Depois da remoção do RLS
              * (`01-compatibility.md` §13) isso pesa mais do que pesaria antes.
              */
+            /**
+             * A agenda da conversa.
+             *
+             * ⚠️ A ORDEM destes três bindings importa, e não é estética. Quando
+             * o Worker é republicado pelo painel (ao gravar uma variável, por
+             * exemplo), ele passa a valer `last_deployed_from: "dash"` e o
+             * `cf deploy` começa a comparar esta config com a do painel. Diff
+             * só de ADIÇÃO ele publica com aviso; qualquer REMOÇÃO ou MOVIMENTO
+             * ele ABORTA — e `--strict` não existe para desligar (é
+             * `strict: true` cravado no `cf`). Com a ordem desalinhada, mover
+             * um binding vira um par remoção+adição e tranca o publish.
+             * A ordem aqui é a que a plataforma reporta: agenda, sala, trava.
+             */
+            AGENDA_DA_CONVERSA: bindings.durableObject({
+                worker: NOME,
+                exportName: 'AgendaDaConversa',
+            }),
             SALA_DO_WORKSPACE: bindings.durableObject({
                 worker: NOME,
                 exportName: 'SalaDoWorkspace',
@@ -411,10 +428,6 @@ export default defineConfig({
             TRAVA_DE_CONTATO: bindings.durableObject({
                 worker: NOME,
                 exportName: 'TravaDeContato',
-            }),
-            AGENDA_DA_CONVERSA: bindings.durableObject({
-                worker: NOME,
-                exportName: 'AgendaDaConversa',
             }),
 
             /**
