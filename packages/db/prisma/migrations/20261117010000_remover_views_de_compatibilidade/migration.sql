@@ -43,3 +43,28 @@
 DROP VIEW IF EXISTS specialist_window_procedures;
 DROP VIEW IF EXISTS specialist_windows;
 DROP VIEW IF EXISTS specialists;
+
+-- Os comentários de 16/11 dizem "a view de compatibilidade ainda existe". Com o
+-- DROP acima isso passa a ser falso, e comentário de catálogo errado é pior que
+-- comentário ausente: quem consulta o banco direto é justamente quem não tem o
+-- runbook aberto. Reescritos aqui, na mesma migração que os torna obsoletos.
+--
+-- Vale também porque o baseline da Fase 4 **não carrega comentário**: medido em
+-- 17/11, `prisma migrate diff --from-empty --to-url` emite 0 `COMMENT ON` (e 0
+-- `CREATE VIEW`). Então o texto que ficar aqui é o último que o catálogo verá
+-- até alguém escrever outro.
+
+COMMENT ON TABLE professionals IS
+  'Quem presta o serviço. Renomeada de "specialists" em 2026-10-27 '
+  '(20261027130000_degenericizar_agenda), ao neutralizar o schema para os três '
+  'produtos. A view de compatibilidade com o nome antigo foi removida em '
+  '2026-11-17 (20261117010000_remover_views_de_compatibilidade).';
+
+COMMENT ON TABLE availability_windows IS
+  'Janelas de atendimento do profissional. Renomeada de "specialist_windows" '
+  'em 2026-10-27. A view de compatibilidade foi removida em 2026-11-17.';
+
+COMMENT ON TABLE availability_window_services IS
+  'Serviços que cabem em cada janela. Renomeada de '
+  '"specialist_window_procedures" em 2026-10-27. A view de compatibilidade foi '
+  'removida em 2026-11-17.';
