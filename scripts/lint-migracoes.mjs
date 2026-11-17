@@ -100,6 +100,13 @@ function novasMigracoes() {
 
 const DESTRUTIVOS = [
     [/\bDROP\s+TABLE\b/i, 'DROP TABLE'],
+    // Acrescentado em 17/11/2026, ao escrever a migração que dropa as três views
+    // de compatibilidade de 27/10: a lista não tinha `DROP VIEW`, então aquela
+    // migração passaria pelo portão COM OU SEM o marcador. View não guarda dado,
+    // mas quebra quem lê pelo nome antigo — que é exatamente o que uma view de
+    // compatibilidade existe para atender. Também `DROP MATERIALIZED VIEW`, que
+    // além da leitura derruba o conteúdo materializado.
+    [/\bDROP\s+(MATERIALIZED\s+)?VIEW\b/i, 'DROP VIEW'],
     [/\bDROP\s+COLUMN\b/i, 'DROP COLUMN'],
     [/\bALTER\s+COLUMN\s+\S+\s+(SET\s+DATA\s+)?TYPE\b/i, 'ALTER COLUMN ... TYPE'],
     [/\bRENAME\s+(TO|COLUMN)\b/i, 'RENAME'],
