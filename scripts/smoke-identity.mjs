@@ -58,8 +58,59 @@ if (process.env.CF_ACCESS_CLIENT_ID && process.env.CF_ACCESS_CLIENT_SECRET) {
 const url = `https://${host}/api/internal/identity`
 const falhas = []
 
-const r = await fetch(url, { headers })
-if (!r.ok) { console.error(`ABORTA: ${url} → HTTP ${r.status}`); process.exit(1) }
+/*
+ * 503 é "AINDA NÃO"; 401 é "NÃO CASA". Tratar os dois igual reprovava em falso.
+ *
+ * Medido em 18/11/2026, no build `328a66bb` do `odontobox-stg`: o deploy
+ * terminou, o smoke correu em seguida e levou **503**. A rota devolve 503 numa
+ * única condição — `APP().identityToken` vazio. Minutos depois, com a MESMA
+ * credencial do cofre, o endpoint respondia 200 e o binding do secret estava
+ * presente na API. Ou seja: o smoke pegou a janela entre o `cf deploy` e o
+ * binding da versão nova ficar vivo.
+ *
+ * Então a espera é só para 503 e para erro de rede. **401 continua reprovando
+ * na primeira**, e isso é deliberado: 401 significa que a credencial do build
+ * não é a do Worker, que foi o defeito real do `conecta-stg` neste mesmo dia —
+ * e esperar por ele transformaria um defeito de configuração em lentidão.
+ *
+ * Secret genuinamente ausente também continua reprovando: ele dá 503 nas seis
+ * tentativas e o smoke desiste com a contagem no log.
+ */
+const TENTATIVAS = 6
+const ESPERA_MS = 5000
+let r = null
+for (let n = 1; n <= TENTATIVAS; n++) {
+    try {
+        r = await fetch(url, { headers })
+    } catch (e) {
+        if (n === TENTATIVAS) {
+            console.error(`ABORTA: ${url} → ${e.message} (após ${n} tentativas)`)
+            process.exit(1)
+        }
+        console.log(`  rede ainda não responde (${e.message}), tentativa ${n}/${TENTATIVAS}…`)
+        await new Promise((ok) => setTimeout(ok, ESPERA_MS))
+        continue
+    }
+    if (r.ok) {
+        if (n > 1) console.log(`  (respondeu na ${n}ª tentativa)`)
+        break
+    }
+    if (r.status !== 503) {
+        console.error(`ABORTA: ${url} → HTTP ${r.status}`)
+        process.exit(1)
+    }
+    if (n === TENTATIVAS) {
+        console.error(
+            `ABORTA: ${url} → HTTP 503 em ${TENTATIVAS} tentativas ao longo de ` +
+            `${(TENTATIVAS * ESPERA_MS) / 1000}s.\n` +
+            '  503 vem de uma condição só: o secret IDENTITY_TOKEN não está no Worker.\n' +
+            '  Depois desse tempo não é mais propagação de deploy — é secret ausente.'
+        )
+        process.exit(1)
+    }
+    console.log(`  identidade ainda não publicada (503), tentativa ${n}/${TENTATIVAS}…`)
+    await new Promise((ok) => setTimeout(ok, ESPERA_MS))
+}
 const id = await r.json()
 
 // Conferências contra o manifesto
