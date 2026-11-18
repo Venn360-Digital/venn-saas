@@ -766,10 +766,26 @@ export default defineConfig({
              * `ambienteDaChave` classifica como `desconhecido` e faz
              * `asaasConfig()` devolver `null`.
              *
-             * Retirando a declaração, a outra metade da regra declarativa
-             * trabalha a favor: **segredo gravado e não declarado é removido no
-             * deploy seguinte**, então os dois valores inertes saem sozinhos, e
-             * a produção deste app não precisa de chave Asaas nenhuma.
+             * Retirando a declaração, o deploy deste app deixa de exigir os
+             * dois, e a produção não precisa de chave Asaas nenhuma.
+             *
+             * ⚠️ CORREÇÃO, medida em 18/11/2026: eu escrevi aqui que "segredo
+             * gravado e não declarado é removido no deploy seguinte", repetindo
+             * a afirmação que está no config do primeiro app. **Não se
+             * reproduziu.** O deploy rodou com esta declaração já removida e os
+             * dois secrets continuaram no Worker — 22 antes, 22 depois.
+             *
+             * O que a medição sustenta é só a outra metade: **declarado e não
+             * gravado REPROVA o deploy** (foi o que aconteceu aqui). A remoção
+             * automática não aconteceu para `secret_text` nesta versão do `cf`,
+             * e `keepVars` governa `vars`, não segredo.
+             *
+             * Então valores inertes saem **à mão**:
+             *     npx wrangler secret delete PLATFORM_ASAAS_CLIENT_ID --name stagent-stg
+             *
+             * A prática de declarar no mesmo commit que põe em uso continua
+             * certa — ela protege da metade que É real. O que muda é não contar
+             * com uma limpeza que o deploy não faz.
              *
              * Quando o Stripe entrar: gravar o segredo, declarar aqui no MESMO
              * commit que o põe em uso, publicar. A ordem é lei — está no

@@ -196,6 +196,114 @@ await cloudflare.request({ method: 'GET',
   path: `/accounts/${conta}/builds/workers/${script_tag}/previews?per_page=50` })
 ```
 
+## 3.6. O que os três cutovers de staging ensinaram (18/11/2026)
+
+Esta seção foi escrita DEPOIS de fazer os três. O que está acima era a previsão;
+isto é a medição.
+
+### Trocar o repositório não é editável — e a criação tem endpoint próprio
+
+A Builds API só deixa trocar a **branch** por `PATCH`. Repositório exige
+disconnect + nova conexão, e **a nova conexão é `POST /builds/workers` com
+`script_tag` NO CORPO** — não `POST /builds/workers/{tag}`, que é o de
+atualização. Errar isso deixa o Worker desconectado, servindo mas sem buildar.
+
+Ferramenta que faz os dois casos: `~/.venn360-secrets/reconectar-worker.py`.
+Conhece os quatro Workers dos clones, com os `build_token_uuid` capturados ANTES
+do disconnect, e preserva `previews_enabled` (produção = `false`).
+
+### `wrangler secret put` NÃO republica o script
+
+Medido nos dois Workers: `last_deployed_from` ficou em `cf_cli` e o
+`modified_on` continuou sendo o do deploy. **Gravar secret pelo wrangler é
+seguro; pelo painel põe `dash` e tranca o publish** (ver runbook 19 e o plano).
+Isso vale para toda rotação de credencial deste sistema.
+
+### O disconnect limpa os previews
+
+Os 17 previews órfãos do `conecta-stg` — inclusive o da branch `main`, que
+reprovava todo merge em produção — foram embora com o disconnect. O passo 3.5
+sai de graça quando se passa por aqui.
+
+### `IDENTITY_TOKEN`: o cofre dos clones nunca foi o valor vivo
+
+Sondados os seis ambientes: o do odontobox casa nos dois, o dos clones em
+nenhum. O disconnect apaga a variável de build que casava, então a divergência
+aparece como `401` no smoke. Rotação em três lugares, nesta ordem:
+
+```
+1. gravar-chave.sh <app> <amb> IDENTITY_TOKEN     cofre
+2. reconectar-worker.py <worker> aplicar          variável de build (PATCH)
+3. copiar.sh + wrangler secret put                runtime — não trava
+```
+
+**Em produção, rotacionar ANTES do disconnect**: o primeiro build nasce verde em
+vez de reprovar no smoke.
+
+### 503 no smoke é "ainda não"; 401 é "não casa"
+
+O smoke roda logo depois do `cf deploy` e pode pegar a janela em que o binding
+da versão nova ainda não está vivo — dá `503`, que na rota tem uma causa só
+(`APP().identityToken` vazio). Hoje o smoke espera 6 × 5 s no 503 e em erro de
+rede, e **reprova na primeira no 401**, que é credencial errada de verdade.
+
+### Secret declarado e não gravado REPROVA o deploy; gravado e não declarado é REMOVIDO
+
+As duas metades da mesma regra declarativa do `cloudflare.config.ts`. O
+`stagent-stg` reprovou no primeiro deploy do monorepo porque o config declarava
+`PLATFORM_ASAAS_CLIENT_ID/SECRET` que o Worker nunca teve — declaração herdada
+do molde na Fase 3. O conserto foi retirar a declaração (o stagent cobra por
+Stripe), e os valores inertes saem sozinhos no deploy seguinte.
+
+**Antes de cada cutover, comparar o conjunto de secrets do Worker com o que o
+config do app declara.** Pela API:
+
+```js
+GET /accounts/{conta}/workers/scripts/{nome}/settings   → bindings[type=secret_text]
+```
+
+Medido em 18/11: os três de staging com 22 cada; `stagent` produção com 20 — e
+os dois que faltam são justamente os que saíram do config.
+
+### A ordem do banco depende de onde o Worker aponta
+
+Alinhar checksums ANTES do disconnect tira a capacidade de publicar do
+repositório ANTIGO também — em produção, isso é perder a saída de emergência.
+Então: disconnect → reconectar → alinhar + resolve → build.
+
+## 3.7. ⚠️ PROMOVER `main` ANTES de repontar produção
+
+Os Workers de produção apontam para a branch **`main`**. Repontar um deles para
+`venn-saas` faz o primeiro build publicar **o que `main` tiver naquele
+momento** — não o que está em `staging`.
+
+Medido em 18/11, com `main` 7 commits atrás: dois desses commits são
+pré-requisito do cutover de produção.
+
+| commit | o que acontece sem ele |
+|---|---|
+| Asaas sai do config do stagent | o primeiro build do `stagent` produção **reprova**: secret declarado e não gravado |
+| smoke espera no 503 | vermelho em falso logo depois do deploy |
+
+Então a ordem é:
+
+```
+1. promover staging → main   (e conferir produção do primeiro app)
+2. rotacionar IDENTITY_TOKEN de produção
+3. disconnect + reconectar-worker.py
+4. alinhar checksums + resolve
+5. o build de main publica
+```
+
+Inverter 1 e 3 custa um ciclo no melhor caso e, no `stagent`, reprova de
+primeira. Antes de promover, conferir que a promoção não leva migração nova:
+
+```bash
+git diff --name-only origin/main..origin/staging -- packages/db/prisma/migrations/
+```
+
+Vazio = o deploy de produção é no-op de banco, e o risco cai para o código.
+
 ## 4. Verificar
 
 Linha de base medida em 17/11 09:16, antes de qualquer cutover — os quatro
