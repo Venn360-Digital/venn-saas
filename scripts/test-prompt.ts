@@ -22,6 +22,7 @@
 import './lib/marca-de-teste.ts'
 
 import { buildSystemPrompt, type DocumentoNoPrompt } from '@venn/core/trabalhos/servicos/prompt'
+import { vocab } from '@venn/core/lib/vocabulario'
 import { acharDocumento } from '@venn/core/lib/treinamento/documentos'
 import type { Agent } from '@venn/db'
 import { BRAND } from '@venn/core/marca'
@@ -68,7 +69,7 @@ const doc = (slug: string, content: string): DocumentoNoPrompt => ({ slug, conte
 
 console.log('\nAgente SEM documento de treinamento — não pode mudar de comportamento')
 
-const semNada = buildSystemPrompt(agenteDeTeste(), [], undefined, [])
+const semNada = buildSystemPrompt(vocab(), agenteDeTeste(), [], undefined, [])
 
 conferir('não ganha seção de precedência', semNada.includes('## Precedência'), false)
 conferir(
@@ -78,23 +79,23 @@ conferir(
 )
 conferir(
     'e o resultado é igual ao de quem nem passa o argumento',
-    buildSystemPrompt(agenteDeTeste(), [], undefined),
+    buildSystemPrompt(vocab(), agenteDeTeste(), [], undefined),
     semNada
 )
 conferir(
     'documento presente mas VAZIO também não conta',
-    buildSystemPrompt(agenteDeTeste(), [], undefined, [doc(PRIVACIDADE, '   \n\n')]),
+    buildSystemPrompt(vocab(), agenteDeTeste(), [], undefined, [doc(PRIVACIDADE, '   \n\n')]),
     semNada
 )
 conferir(
     'documento que só tem comentário de HTML também não conta',
-    buildSystemPrompt(agenteDeTeste(), [], undefined, [doc(PRIVACIDADE, '<!-- escrever depois -->')]),
+    buildSystemPrompt(vocab(), agenteDeTeste(), [], undefined, [doc(PRIVACIDADE, '<!-- escrever depois -->')]),
     semNada
 )
 
 console.log('\nInstruções centrais SUBSTITUEM a instrução livre — não somam')
 
-const comCentrais = buildSystemPrompt(agenteDeTeste(), [], undefined, [
+const comCentrais = buildSystemPrompt(vocab(), agenteDeTeste(), [], undefined, [
     doc(CENTRAIS, '# Instruções centrais\n\nVocê é a Ana, da recepção.'),
 ])
 
@@ -107,7 +108,7 @@ conferir(
 conferir('as centrais abrem o prompt', comCentrais.startsWith('# Instruções centrais'), true)
 conferir(
     'centrais só com comentário caem de volta na instrução livre',
-    buildSystemPrompt(agenteDeTeste(), [], undefined, [
+    buildSystemPrompt(vocab(), agenteDeTeste(), [], undefined, [
         doc(CENTRAIS, '<!-- ainda não escrevi -->'),
     ]).startsWith('Fale com acolhimento'),
     true
@@ -115,7 +116,7 @@ conferir(
 
 console.log('\nA precedência — o que resolve "crie urgência" x "não prometa resultado"')
 
-const comTres = buildSystemPrompt(agenteDeTeste(), [], undefined, [
+const comTres = buildSystemPrompt(vocab(), agenteDeTeste(), [], undefined, [
     doc(PROCESSO, '## Etapas\n\nQualificar, depois oferecer horário.'),
     doc(CENTRAIS, '## Identidade\n\nVocê é a Ana.'),
     doc(PRIVACIDADE, '## Limites clínicos\n\nNão prometer resultado.'),
@@ -186,7 +187,7 @@ conferir(
 
 console.log('\nComentário de HTML não entra como instrução')
 
-const comComentario = buildSystemPrompt(agenteDeTeste(), [], undefined, [
+const comComentario = buildSystemPrompt(vocab(), agenteDeTeste(), [], undefined, [
     doc(PRIVACIDADE, '## Limites\n\nNão prometer prazo.\n\n<!-- confirmar com a recepção -->'),
 ])
 
@@ -195,7 +196,7 @@ conferir('a nota sai', comComentario.includes('confirmar com a recepção'), fal
 
 console.log('\nO que já existia continua no lugar')
 
-const completo = buildSystemPrompt(
+const completo = buildSystemPrompt(vocab(), 
     agenteDeTeste({ companyAddress: 'Av. Afonso Pena, 1500' }),
     [{ title: 'servicos', content: 'Ortodontia a partir de R$ 180.' }],
     undefined,
@@ -232,7 +233,7 @@ const docsDoTeste = [doc(PRIVACIDADE, `## Limites\n\n${TREINO}`)]
 
 const agenteCompleto = agenteDeTeste({ companyAddress: 'Av. Afonso Pena, 1500' })
 
-const primeira = buildSystemPrompt(
+const primeira = buildSystemPrompt(vocab(), 
     agenteCompleto,
     [{ title: 'servicos', content: 'Ortodontia a partir de R$ 180.' }],
     { ...contextoBase, agora: 'quinta-feira, 29/10/2026 às 09:00', contactFirstName: 'João', contactFullName: 'João Silva' },
@@ -241,7 +242,7 @@ const primeira = buildSystemPrompt(
 
 // Mesma conta, mesmo agente, mensagem seguinte: o relógio andou, a busca trouxe
 // outro trecho, e o negócio mudou de fase. Nada do cadastro mudou.
-const segunda = buildSystemPrompt(
+const segunda = buildSystemPrompt(vocab(), 
     agenteCompleto,
     [{ title: 'faq', content: 'Atendemos convênio Unimed.' }],
     { ...contextoBase, agora: 'quinta-feira, 29/10/2026 às 11:42', contactFirstName: 'João', contactFullName: 'João Silva', dealStage: 'Qualificado' },
@@ -305,8 +306,8 @@ conferir('a base de conhecimento é a última seção', primeira.trimEnd().endsW
  */
 console.log('\nO recuo quando não se sabe — existe com ou sem acervo')
 
-const semAcervo = buildSystemPrompt(agenteDeTeste(), [], undefined, [])
-const comAcervo = buildSystemPrompt(
+const semAcervo = buildSystemPrompt(vocab(), agenteDeTeste(), [], undefined, [])
+const comAcervo = buildSystemPrompt(vocab(), 
     agenteDeTeste(),
     [{ title: 'servicos', content: 'Ortodontia a partir de R$ 180.' }],
     undefined,
@@ -366,7 +367,7 @@ Passos:
 2. Passe para a equipe.
 `
 
-const comCenarios = buildSystemPrompt(agenteDeTeste(), [], undefined, [], CENARIOS, null)
+const comCenarios = buildSystemPrompt(vocab(), agenteDeTeste(), [], undefined, [], CENARIOS, null)
 
 conferir('o catálogo de cenários entra', comCenarios.includes('## Cenários disponíveis'), true)
 conferir('com o título e o gatilho', comCenarios.includes('**Remarcação** — quando o paciente quer mudar a data.'), true)
@@ -377,11 +378,11 @@ conferir(
 )
 conferir(
     'sem documento de cenário, nenhuma seção aparece',
-    buildSystemPrompt(agenteDeTeste(), [], undefined, [], null, null).includes('## Cenários disponíveis'),
+    buildSystemPrompt(vocab(), agenteDeTeste(), [], undefined, [], null, null).includes('## Cenários disponíveis'),
     false
 )
 
-const comResumo = buildSystemPrompt(
+const comResumo = buildSystemPrompt(vocab(), 
     agenteDeTeste(),
     [{ title: 'servicos', content: 'preço', type: 'treinamento' }],
     undefined,
@@ -402,7 +403,7 @@ conferir(
     true
 )
 
-const comProcedimento = buildSystemPrompt(
+const comProcedimento = buildSystemPrompt(vocab(), 
     agenteDeTeste(),
     [
         { title: 'servicos', content: 'o preço é X', type: 'treinamento' },
@@ -436,7 +437,7 @@ conferir(
 
 console.log('\nFormato: padrão nosso, precedência da empresa')
 
-const formato = buildSystemPrompt(agenteDeTeste())
+const formato = buildSystemPrompt(vocab(), agenteDeTeste())
 
 conferir(
     'a seção Formato existe e é estável',

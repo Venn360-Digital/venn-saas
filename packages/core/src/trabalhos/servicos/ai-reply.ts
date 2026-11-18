@@ -30,6 +30,7 @@ import {
 } from './conversation-context'
 import { AGENT_TOOL_DEFINITIONS, runAgentTool, type AgentToolContext } from './agent-tools'
 import { vocabDoWorkspace } from '../../lib/vocabulario-do-workspace'
+import type { Vocabulario } from '../../lib/vocabulario'
 
 const log = createLogger('AI_REPLY')
 
@@ -249,6 +250,8 @@ async function pecasDoPrompt(
  * eles é de onde vêm o histórico e o contexto — não como o prompt é escrito.
  */
 function montarMensagens(
+    /** O vocabulário da unidade — repassado a `buildSystemPrompt`. */
+    vocabulario: Vocabulario,
     agent: Agent,
     historico: MensagemDaConversa[],
     context: ConversationContext | undefined,
@@ -265,6 +268,7 @@ function montarMensagens(
         {
             role: 'system',
             content: buildSystemPrompt(
+                vocabulario,
                 agent,
                 pecas.knowledge,
                 context,
@@ -354,6 +358,15 @@ const TETO_DA_RESPOSTA = 450
 export async function generateReply(input: GenerateReplyInput): Promise<GeneratedReply> {
     const { agent, workspaceId, conversationId } = input
 
+    /*
+     * O vocabulário DESTA unidade, resolvido uma vez por resposta.
+     *
+     * Içado para cá porque agora dois caminhos o usam: o prompt de sistema
+     * (`buildSystemPrompt`) e as definições de ferramenta. Resolver nos dois
+     * seria duas consultas pela mesma palavra.
+     */
+    const vocabulario = await vocabDoWorkspace(workspaceId)
+
     const credits = await checkCredits(workspaceId)
     if (!credits.hasCredits) throw new OutOfCreditsError(workspaceId)
 
@@ -414,6 +427,7 @@ export async function generateReply(input: GenerateReplyInput): Promise<Generate
     const imagens = await lerImagensDoHistorico(history)
 
     const messages: LLMMessage[] = montarMensagens(
+        vocabulario,
         agent,
         history,
         context,
@@ -495,7 +509,7 @@ export async function generateReply(input: GenerateReplyInput): Promise<Generate
               contactId: context.contactId,
               timezone: agent.timezone,
               integrationId: input.integrationId ?? null,
-              vocabulario: await vocabDoWorkspace(workspaceId),
+              vocabulario,
           }
         : null
     const ferramentas =
@@ -628,6 +642,17 @@ export interface EnsaioResult {
 export async function ensaiarResposta(input: EnsaioInput): Promise<EnsaioResult> {
     const { agent, workspaceId, turnos } = input
 
+    /*
+     * O ensaio resolve o vocabulário da MESMA unidade, e isto não é detalhe.
+     *
+     * O cabeçalho de `montarMensagens` diz por quê: se o ensaio montasse o
+     * prompt por conta própria, "o instrutor homologaria um agente que não
+     * existe". Vocabulário é parte do prompt — ensaiar com o padrão da marca
+     * enquanto o atendimento usa o ajuste da unidade seria a mesma divergência,
+     * pela porta dos fundos.
+     */
+    const vocabulario = await vocabDoWorkspace(workspaceId)
+
     const credits = await checkCredits(workspaceId)
     if (!credits.hasCredits) throw new OutOfCreditsError(workspaceId)
 
@@ -649,7 +674,7 @@ export async function ensaiarResposta(input: EnsaioInput): Promise<EnsaioResult>
         pecasDoPrompt(agent, historico),
     ])
 
-    const messages = montarMensagens(agent, historico, context, pecas)
+    const messages = montarMensagens(vocabulario, agent, historico, context, pecas)
 
     const llm = LLMFactory.create(agent.llmProvider as LLMProviderName, {
         model: agent.llmModel,
