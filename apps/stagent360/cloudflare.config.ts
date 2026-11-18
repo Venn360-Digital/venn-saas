@@ -745,8 +745,52 @@ export default defineConfig({
              * ver o comentário acima. Os outros provedores entram cada um com a
              * sua configuração.
              */
-            PLATFORM_ASAAS_CLIENT_ID: bindings.secret(),
-            PLATFORM_ASAAS_CLIENT_SECRET: bindings.secret(),
+            /**
+             * ⚠️ ASAAS NÃO ENTRA NESTE APP — decisão do André em 18/11/2026: o
+             * stagent cobra por **Stripe**, numa fase própria.
+             *
+             * `PLATFORM_ASAAS_CLIENT_ID` e `PLATFORM_ASAAS_CLIENT_SECRET`
+             * estiveram declarados aqui por herança: a estrutura deste arquivo
+             * veio do molde do primeiro app na Fase 3 ("estrutura do monorepo,
+             * identidade do clone"), e as declarações vieram de carona. O
+             * Worker nunca teve os valores, então o primeiro `cf deploy` deste
+             * app a partir do monorepo reprovou com
+             *
+             *     The following required secrets have not been set:
+             *     PLATFORM_ASAAS_CLIENT_ID, PLATFORM_ASAAS_CLIENT_SECRET
+             *
+             * que é a guarda funcionando: `bindings.secret()` é EXIGÊNCIA de
+             * deploy, não anotação. O desvio foi gravar valores só para
+             * desbloquear — e eles nem servem, porque o que estava no cofre é
+             * um `client_id` da era OAuth (36 caracteres, sem `$aact_`), que
+             * `ambienteDaChave` classifica como `desconhecido` e faz
+             * `asaasConfig()` devolver `null`.
+             *
+             * Retirando a declaração, o deploy deste app deixa de exigir os
+             * dois, e a produção não precisa de chave Asaas nenhuma.
+             *
+             * ⚠️ CORREÇÃO, medida em 18/11/2026: eu escrevi aqui que "segredo
+             * gravado e não declarado é removido no deploy seguinte", repetindo
+             * a afirmação que está no config do primeiro app. **Não se
+             * reproduziu.** O deploy rodou com esta declaração já removida e os
+             * dois secrets continuaram no Worker — 22 antes, 22 depois.
+             *
+             * O que a medição sustenta é só a outra metade: **declarado e não
+             * gravado REPROVA o deploy** (foi o que aconteceu aqui). A remoção
+             * automática não aconteceu para `secret_text` nesta versão do `cf`,
+             * e `keepVars` governa `vars`, não segredo.
+             *
+             * Então valores inertes saem **à mão**:
+             *     npx wrangler secret delete PLATFORM_ASAAS_CLIENT_ID --name stagent-stg
+             *
+             * A prática de declarar no mesmo commit que põe em uso continua
+             * certa — ela protege da metade que É real. O que muda é não contar
+             * com uma limpeza que o deploy não faz.
+             *
+             * Quando o Stripe entrar: gravar o segredo, declarar aqui no MESMO
+             * commit que o põe em uso, publicar. A ordem é lei — está no
+             * comentário acima e já derrubou o deploy de `main` uma vez.
+             */
 
             /**
              * Google Calendar — gravados pelo André em 2026-10-25, declarados
