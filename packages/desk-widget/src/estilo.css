@@ -1,0 +1,335 @@
+/**
+ * O estilo do widget — CSS comum, com variáveis, e NÃO Tailwind.
+ *
+ * A especificação dizia "tema herdado das variáveis CSS do shadcn do app", e é
+ * o que isto faz: cada cor é `var(--algo-do-shadcn, queda)`. O que mudou foi o
+ * meio. Usar classes do Tailwind obrigaria cada app a declarar `@source`
+ * apontando para dentro deste pacote — e o plano do monorepo já registrou esse
+ * exato tropeço ("Tailwind não vê classes do core"), que falha em silêncio: a
+ * tela sobe sem estilo e ninguém vê no build.
+ *
+ * CSS comum com prefixo `vd-` não depende do pipeline do hospedeiro, não vaza
+ * para ele, e continua herdando o tema quando as variáveis existem.
+ */
+
+.vd-raiz {
+    --vd-fundo: var(--background, #fff);
+    --vd-tinta: var(--foreground, #18181b);
+    --vd-fraca: color-mix(in oklab, var(--vd-tinta) 55%, transparent);
+    --vd-borda: var(--border, color-mix(in oklab, var(--vd-tinta) 12%, transparent));
+    --vd-destaque: var(--primary, #3b5bdb);
+    --vd-destaque-tinta: var(--primary-foreground, #fff);
+    --vd-raio: var(--radius, 0.6rem);
+    /* A margem vem do tema, cadastrado no Venn Desk. */
+    --vd-margem: 24px;
+    --vd-urgente: #c53030;
+    --vd-atencao: #b7791f;
+    --vd-calmo: #2f855a;
+
+    font-family: inherit;
+    color: var(--vd-tinta);
+}
+
+.vd-botao-flutuante {
+    position: fixed;
+    inset-block-end: var(--vd-margem);
+    inset-inline-end: var(--vd-margem);
+    z-index: 2147483000;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    border: 0;
+    border-radius: 999px;
+    padding: 0.75rem 1.1rem;
+    background: var(--vd-destaque);
+    color: var(--vd-destaque-tinta);
+    font: inherit;
+    font-weight: 600;
+    font-size: 0.875rem;
+    cursor: pointer;
+    box-shadow: 0 6px 24px rgb(0 0 0 / 18%);
+}
+
+.vd-botao-flutuante:focus-visible {
+    outline: 3px solid var(--vd-destaque);
+    outline-offset: 3px;
+}
+
+.vd-selo {
+    display: inline-grid;
+    place-items: center;
+    min-width: 1.25rem;
+    height: 1.25rem;
+    padding: 0 0.3rem;
+    border-radius: 999px;
+    background: var(--vd-urgente);
+    color: #fff;
+    font-size: 0.7rem;
+    font-weight: 700;
+}
+
+.vd-painel {
+    position: fixed;
+    inset-block-end: var(--vd-margem);
+    inset-inline-end: var(--vd-margem);
+    z-index: 2147483001;
+    display: flex;
+    flex-direction: column;
+    width: min(26rem, calc(100vw - 2rem));
+    height: min(38rem, calc(100vh - 2rem));
+    border: 1px solid var(--vd-borda);
+    border-radius: var(--vd-raio);
+    background: var(--vd-fundo);
+    box-shadow: 0 16px 48px rgb(0 0 0 / 22%);
+    overflow: hidden;
+}
+
+@media (max-width: 30rem) {
+    .vd-painel {
+        inset: 0;
+        width: 100vw;
+        height: 100vh;
+        border-radius: 0;
+    }
+}
+
+.vd-cabecalho {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 0.9rem;
+    border-block-end: 1px solid var(--vd-borda);
+}
+
+.vd-titulo {
+    margin: 0;
+    font-size: 0.95rem;
+    font-weight: 600;
+}
+
+.vd-corpo {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0.9rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.vd-botao {
+    border: 1px solid var(--vd-borda);
+    border-radius: calc(var(--vd-raio) * 0.8);
+    padding: 0.5rem 0.75rem;
+    background: var(--vd-fundo);
+    color: var(--vd-tinta);
+    font: inherit;
+    font-size: 0.85rem;
+    cursor: pointer;
+}
+
+.vd-botao:hover:not(:disabled) {
+    background: color-mix(in oklab, var(--vd-tinta) 4%, transparent);
+}
+
+.vd-botao[data-variante='solido'] {
+    border-color: transparent;
+    background: var(--vd-destaque);
+    color: var(--vd-destaque-tinta);
+    font-weight: 600;
+}
+
+.vd-botao:disabled {
+    opacity: 0.45;
+    cursor: default;
+}
+
+.vd-botao-icone {
+    margin-inline-start: auto;
+    border: 0;
+    background: none;
+    color: var(--vd-fraca);
+    font: inherit;
+    font-size: 1.1rem;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0.2rem 0.35rem;
+    border-radius: 0.3rem;
+}
+
+.vd-campo {
+    display: block;
+    font-size: 0.8rem;
+    color: var(--vd-fraca);
+}
+
+.vd-campo > span {
+    display: block;
+    margin-block-end: 0.25rem;
+    font-weight: 500;
+}
+
+.vd-campo input,
+.vd-campo textarea,
+.vd-campo select {
+    width: 100%;
+    box-sizing: border-box;
+    border: 1px solid var(--vd-borda);
+    border-radius: calc(var(--vd-raio) * 0.8);
+    padding: 0.5rem 0.6rem;
+    background: var(--vd-fundo);
+    color: var(--vd-tinta);
+    font: inherit;
+    font-size: 0.875rem;
+}
+
+.vd-campo input:focus-visible,
+.vd-campo textarea:focus-visible,
+.vd-campo select:focus-visible {
+    outline: 2px solid var(--vd-destaque);
+    outline-offset: 1px;
+    border-color: var(--vd-destaque);
+}
+
+.vd-abas {
+    display: flex;
+    gap: 0.25rem;
+    border-block-end: 1px solid var(--vd-borda);
+}
+
+.vd-aba {
+    border: 0;
+    border-block-end: 2px solid transparent;
+    background: none;
+    padding: 0.4rem 0.6rem;
+    font: inherit;
+    font-size: 0.8rem;
+    color: var(--vd-fraca);
+    cursor: pointer;
+}
+
+.vd-aba[aria-selected='true'] {
+    color: var(--vd-destaque);
+    border-block-end-color: var(--vd-destaque);
+    font-weight: 600;
+}
+
+.vd-item {
+    display: block;
+    width: 100%;
+    text-align: start;
+    border: 1px solid var(--vd-borda);
+    border-radius: calc(var(--vd-raio) * 0.8);
+    padding: 0.6rem 0.7rem;
+    background: var(--vd-fundo);
+    font: inherit;
+    cursor: pointer;
+}
+
+.vd-item:hover {
+    background: color-mix(in oklab, var(--vd-tinta) 4%, transparent);
+}
+
+.vd-numero {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.72rem;
+    color: var(--vd-fraca);
+}
+
+.vd-estado {
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 0.1rem 0.35rem;
+    border-radius: 0.3rem;
+    background: color-mix(in oklab, var(--vd-tinta) 7%, transparent);
+    color: var(--vd-fraca);
+}
+
+.vd-estado[data-grupo='abertos'] {
+    background: color-mix(in oklab, var(--vd-destaque) 14%, transparent);
+    color: var(--vd-destaque);
+}
+
+.vd-estado[data-grupo='em_andamento'] {
+    background: color-mix(in oklab, var(--vd-atencao) 18%, transparent);
+    color: var(--vd-atencao);
+}
+
+.vd-estado[data-grupo='fechados'] {
+    background: color-mix(in oklab, var(--vd-calmo) 16%, transparent);
+    color: var(--vd-calmo);
+}
+
+.vd-mensagem {
+    border: 1px solid var(--vd-borda);
+    border-radius: calc(var(--vd-raio) * 0.8);
+    padding: 0.55rem 0.7rem;
+    font-size: 0.875rem;
+}
+
+.vd-mensagem[data-autor='USUARIO'] {
+    background: color-mix(in oklab, var(--vd-destaque) 7%, transparent);
+}
+
+.vd-autor {
+    display: block;
+    margin-block-end: 0.2rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--vd-fraca);
+}
+
+.vd-aviso {
+    border: 1px solid color-mix(in oklab, var(--vd-urgente) 35%, transparent);
+    border-radius: calc(var(--vd-raio) * 0.8);
+    padding: 0.5rem 0.65rem;
+    font-size: 0.8rem;
+    color: var(--vd-urgente);
+}
+
+.vd-nota {
+    font-size: 0.78rem;
+    color: var(--vd-fraca);
+    margin: 0;
+}
+
+.vd-vazio {
+    padding: 2rem 0;
+    text-align: center;
+    font-size: 0.85rem;
+    color: var(--vd-fraca);
+}
+
+.vd-linha {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+}
+
+.vd-oculto-visualmente {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+
+/**
+ * O lado do botão, escolhido no Console.
+ *
+ * `data-posicao` fica na raiz do widget e não numa classe porque o valor vem
+ * do servidor: classe exigiria o React montar o nome, e atributo é o que o CSS
+ * já sabe ler sozinho.
+ *
+ * As propriedades são LÓGICAS (`inset-inline-*`), como o resto do arquivo —
+ * então "esquerda" acompanha a direção do texto, e num app em árabe o botão
+ * vai para o lado que a pessoa espera.
+ */
+.vd-raiz[data-posicao='esquerda'] .vd-botao-flutuante,
+.vd-raiz[data-posicao='esquerda'] .vd-painel {
+    inset-inline-end: auto;
+    inset-inline-start: var(--vd-margem);
+}

@@ -1,0 +1,21 @@
+{
+    "name": "@venn/desk-widget",
+    "version": "0.1.0",
+    "private": true,
+    "type": "module",
+    "//": "Pacote SOURCE-ONLY (ADR 0002 do venn-desk): quem empacota é o app hospedeiro. Não publica, não tem build próprio, não tem dist. Veio de venn-desk/widget em 18/11/2026, quando o cutover do monorepo terminou — esta é a casa definitiva. Ele só fala HTTP com a API do Venn Desk; nenhuma tabela, nenhum import do banco.",
+    "exports": {
+        ".": "./src/index.ts",
+        "./estilo.css": "./src/estilo.css",
+        "./servidor": "./src/servidor.ts"
+    },
+    "peerDependencies": {
+        "react": ">=18",
+        "react-dom": ">=18"
+    },
+    "dependencies": {
+        "jose": "^6.1.0",
+        "modern-screenshot": "^4.6.9"
+    },
+    "// modern-screenshot": "Carregado por import DINÂMICO em `telas/Abrir`, só quando a pessoa marca 'anexar imagem da tela'. Fica em `dependencies` e não em `optional` porque o typecheck precisa dos tipos; o custo no bundle é zero até alguém clicar."
+}

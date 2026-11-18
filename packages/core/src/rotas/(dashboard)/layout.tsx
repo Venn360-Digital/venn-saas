@@ -8,6 +8,7 @@ import { Topbar } from '@venn/core/components/layout/Topbar'
 import { SidebarInset, SidebarProvider } from '@venn/ui/sidebar'
 import { MoedaProvider } from '@venn/core/hooks/useMoeda'
 import { TarjaDeAcesso } from '@venn/core/components/plataforma/TarjaDeAcesso'
+import { Suporte } from '@venn/core/components/suporte/Suporte'
 
 /**
  * The shell owns navigation and nothing else.
@@ -138,6 +139,15 @@ export default async function DashboardLayout({
                     <MoedaProvider codigo={marca?.currency}>{children}</MoedaProvider>
                 </div>
             </SidebarInset>
+            {/* FORA do cartão que rola, e último: o lançador é `fixed`, então
+                a posição na árvore não muda onde ele aparece — mas estar fora
+                deixa claro que ele não pertence ao conteúdo da página, e o tira
+                do caminho de qualquer `overflow` que o cartão venha a ter.
+
+                Só no painel. O widget identifica quem abre o chamado pela
+                sessão do app, então ele não tem o que fazer fora da área
+                autenticada. */}
+            <Suporte />
             </SidebarProvider>
         </VocabularioProvider>
     )
