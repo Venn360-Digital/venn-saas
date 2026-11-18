@@ -43,6 +43,29 @@ export interface AsaasConfig {
     base: string
 }
 
+/**
+ * ⚠️ Os nomes têm FORMA de OAuth e CONTEÚDO de outra coisa.
+ *
+ * `clientId` e `clientSecret` (em `PLATFORM_ASAAS_CLIENT_ID` e
+ * `PLATFORM_ASAAS_CLIENT_SECRET`) sugerem um par de credenciais OAuth. Não é
+ * isso, e a confusão já custou uma pergunta em 18/11/2026:
+ *
+ *   clientId      → a CHAVE DE API da Asaas. Vai no header `access_token`
+ *                   (não `Authorization`), e o PREFIXO dela carrega o
+ *                   ambiente: `$aact_hmlg_` é homologação, `$aact_prod_` é
+ *                   produção. `ambienteDaChave` deriva daí, e recusa o que não
+ *                   reconhece — então a chave de homologação num Worker de
+ *                   produção não "quase funciona": o cliente devolve `null`.
+ *   clientSecret  → o TOKEN DO WEBHOOK, que confere o header
+ *                   `asaas-access-token` em `/api/webhooks/asaas`. É o valor
+ *                   definido por nós na configuração do webhook na Asaas, não
+ *                   um segredo emitido por eles.
+ *
+ * A chave pertence a uma CONTA Asaas, e o prefixo `platform:` diz que é uma
+ * conta para a plataforma inteira — por isso o mesmo par serve aos três apps
+ * no MESMO ambiente, e nunca entre ambientes.
+ */
+
 /** A configuração guardada, ou `null` quando ninguém registrou a chave ainda. */
 export async function asaasConfig(): Promise<AsaasConfig | null> {
     const creds = await getPlatformCredentials('asaas')
