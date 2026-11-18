@@ -145,6 +145,7 @@
         "@types/bcryptjs": "^2.4.6",
         "@venn/config": "workspace:*",
         "@venn/core": "workspace:*",
+        "@venn/desk-widget": "workspace:*",
         "@venn/db": "workspace:*",
         "@venn/ui": "workspace:*",
         "@vinext/cloudflare": "^1.2.0",

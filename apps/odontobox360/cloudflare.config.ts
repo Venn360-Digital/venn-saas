@@ -599,6 +599,44 @@ export default defineConfig({
             LOG_LEVEL: bindings.text('info'),
 
             /**
+             * O Venn Desk — a central de suporte, que é OUTRO serviço, com
+             * repositório, Worker e banco próprios.
+             *
+             * `VENN_DESK_APP` é como este app se identifica lá, e é o que faz
+             * cada chamado nascer com o `app_id` certo. `VENN_DESK_BASE` é onde
+             * a central responde, e muda com o ambiente: homologação deste app
+             * fala com a central de homologação, porque abrir chamado de teste
+             * na fila de produção é poluir o trabalho de quem atende.
+             *
+             * Texto, não segredo: os dois valores são públicos — o primeiro é o
+             * slug que já está no cofre e na semente do Desk, o segundo é um
+             * host que o navegador vê em toda chamada do widget.
+             *
+             * **Ausência é desligamento, não falha.** Sem estas variáveis o
+             * painel não desenha o botão de suporte e a rota de token responde
+             * 503 — o app segue inteiro. É o que permite subir o widget num app
+             * de cada vez.
+             */
+            VENN_DESK_APP: bindings.text('odontobox'),
+            VENN_DESK_BASE: bindings.text(
+                DEPLOY_ENV === 'production'
+                    ? 'https://desk.venn360.com'
+                    : 'https://venn-desk.andre-7ee.workers.dev'
+            ),
+
+            /**
+             * A metade PRIVADA do par Ed25519 com que este app assina quem está
+             * pedindo suporte. O Venn Desk conhece só a pública, e é por isso
+             * que ele confia na identidade sem ler o banco de app nenhum.
+             *
+             * **A ordem importa, e esta declaração é exigência.** Declarado e
+             * não gravado REPROVA o deploy (ver `CF_ACCESS_CLIENT_ID` acima).
+             * Grave antes, com `bash scripts/chave-do-desk.sh`, que leva a
+             * chave do cofre aos seis Workers sem ela passar por tela nenhuma.
+             */
+            VENN_DESK_CHAVE_PRIVADA: bindings.secret(),
+
+            /**
              * Os buckets do adaptador de storage, por NOME.
              *
              * Faltavam, e a falta não aparecia no deploy. `lerConfig` em
