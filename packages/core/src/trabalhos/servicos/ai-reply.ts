@@ -29,6 +29,7 @@ import {
     type ConversationContext,
 } from './conversation-context'
 import { AGENT_TOOL_DEFINITIONS, runAgentTool, type AgentToolContext } from './agent-tools'
+import { vocabDoWorkspace } from '../../lib/vocabulario-do-workspace'
 
 const log = createLogger('AI_REPLY')
 
@@ -494,10 +495,13 @@ export async function generateReply(input: GenerateReplyInput): Promise<Generate
               contactId: context.contactId,
               timezone: agent.timezone,
               integrationId: input.integrationId ?? null,
+              vocabulario: await vocabDoWorkspace(workspaceId),
           }
         : null
     const ferramentas =
-        toolContext && !input.semFerramentas ? AGENT_TOOL_DEFINITIONS() : undefined
+        toolContext && !input.semFerramentas
+            ? AGENT_TOOL_DEFINITIONS(toolContext.vocabulario)
+            : undefined
 
     let response = await llm.generate(messages, ferramentas)
     await cobrar(response, 0)
