@@ -540,6 +540,19 @@ export default defineConfig({
              * removido no deploy seguinte. Foi o que custou o corte de
              * `WEBHOOK_BASE_URL` em 2026-10-23.
              *
+             * ⚠️ RESSALVA medida em 18/11/2026, e vale antes de alguém contar
+             * com a remoção: em OUTRO app deste repositório, retirar a
+             * declaração de dois `bindings.secret()` e publicar **não removeu**
+             * os segredos — 22 antes, 22 depois. A metade que se reproduz com certeza é a outra:
+             * **declarado e não gravado REPROVA o deploy**, e é ela que sustenta
+             * a ordem descrita abaixo. `keepVars` governa `vars`, não segredo.
+             *
+             * O corte de `WEBHOOK_BASE_URL` em 23/10 pode ter sido outra
+             * mecânica (ou outra versão do `cf`); não consegui reproduzi-lo, e
+             * registrar a dúvida é melhor que manter a certeza. Para tirar
+             * segredo que sobrou, conte com a mão:
+             * `npx wrangler secret delete <NOME> --name <worker>`.
+             *
              * A consequência da declaração é a ordem: os dois têm de **existir
              * na conta antes** deste arquivo chegar a um deploy. Ver o cabeçalho
              * de `cabecalhosDoAccess()` em `lib/whatsapp/evolution-go.ts`, que
