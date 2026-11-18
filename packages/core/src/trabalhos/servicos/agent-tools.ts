@@ -6,7 +6,7 @@ import { areaDaDespedida, despedidaDaEntrega } from '../../lib/atendimento/escal
 import { entregarAEquipe } from './entrega'
 import type { LLMTool } from '../../types/llm'
 import { createLogger } from '../registro'
-import { vocab } from '../../lib/vocabulario'
+import { vocab, type Vocabulario } from '../../lib/vocabulario'
 import { comArtigo } from '../../lib/concordancia'
 
 const log = createLogger('AGENT_TOOLS')
@@ -30,6 +30,20 @@ const log = createLogger('AGENT_TOOLS')
 
 export interface AgentToolContext {
     workspaceId: string
+    /**
+     * O vocabulário DESTA unidade, resolvido uma vez por resposta.
+     *
+     * Vem no contexto, e não de `vocab()` aqui dentro, por duas razões. A
+     * primeira é correção: `vocab()` sem argumento devolve o padrão da marca e
+     * ignora o override da unidade — e o texto que estas ferramentas devolvem
+     * é lido pelo modelo e parafraseado para o cliente final no WhatsApp, que
+     * é o lugar onde a palavra errada mais custa.
+     *
+     * A segunda é custo: resolver por chamada de ferramenta seria uma consulta
+     * por chamada, e o modelo chama várias numa volta. Quem resolve é
+     * `ai-reply`, uma vez, com `vocabDoWorkspace(workspaceId)`.
+     */
+    vocabulario: Vocabulario
     agentId: string
     conversationId: string
     contactId: string
@@ -64,7 +78,7 @@ interface AgentTool {
      */
     nome: string
     /** A definição que vai ao modelo. Função: a descrição lê o vocabulário. */
-    definicao(): LLMTool
+    definicao(v: Vocabulario): LLMTool
     /** Devolve o texto que volta ao modelo. Sempre em português, para ele citar. */
     run(args: Record<string, unknown>, ctx: AgentToolContext): Promise<string>
 }
@@ -118,11 +132,11 @@ async function registrar(ctx: AgentToolContext, texto: string): Promise<void> {
 
 const consultarAgenda: AgentTool = {
     nome: 'consultar_agenda_do_contato',
-    definicao: () => ({
+    definicao: (v) => ({
         name: 'consultar_agenda_do_contato',
         description:
-            `Consulta os compromissos ${comArtigo(vocab(), 'pessoa', 'este')} nesta ${vocab().organizacao} — consultas, retornos e ` +
-            `${vocab().servicos} já marcados. Use quando ele perguntar quando é a consulta dele, ` +
+            `Consulta os compromissos ${comArtigo(v, 'pessoa', 'este')} nesta ${v.organizacao} — consultas, retornos e ` +
+            `${v.servicos} já marcados. Use quando ele perguntar quando é a consulta dele, ` +
             'se tem algo marcado, ou quando você precisar confirmar uma data antes de ' +
             'responder. NÃO marca, não altera e não cancela nada.',
         parameters: {
@@ -132,7 +146,7 @@ const consultarAgenda: AgentTool = {
                     type: 'boolean',
                     description:
                         'Inclui também os compromissos que já aconteceram, nos últimos 90 dias. ' +
-                        `Use só quando ${comArtigo(vocab(), 'pessoa')} perguntar sobre algo que já passou.`,
+                        `Use só quando ${comArtigo(v, 'pessoa')} perguntar sobre algo que já passou.`,
                 },
             },
             required: [],
@@ -159,8 +173,8 @@ const consultarAgenda: AgentTool = {
 
         if (compromissos.length === 0) {
             return incluirPassados
-                ? `Este ${vocab().pessoa} não tem nenhum compromisso registrado nos últimos 90 dias nem à frente.`
-                : `Este ${vocab().pessoa} não tem nenhum compromisso marcado daqui para a frente.`
+                ? `Este ${ctx.vocabulario.pessoa} não tem nenhum compromisso registrado nos últimos 90 dias nem à frente.`
+                : `Este ${ctx.vocabulario.pessoa} não tem nenhum compromisso marcado daqui para a frente.`
         }
 
         return compromissos
@@ -176,10 +190,10 @@ const consultarAgenda: AgentTool = {
 
 const moverNegocio: AgentTool = {
     nome: 'mover_negocio',
-    definicao: () => ({
+    definicao: (v) => ({
         name: 'mover_negocio',
         description:
-            `Move o negócio ${comArtigo(vocab(), 'pessoa', 'este')} para outra fase do funil ${comArtigo(vocab(), 'organizacao', 'de')}, quando a ` +
+            `Move o negócio ${comArtigo(v, 'pessoa', 'este')} para outra fase do funil ${comArtigo(v, 'organizacao', 'de')}, quando a ` +
             'conversa deixar claro que ele avançou ou recuou — por exemplo, quando ele ' +
             'confirma interesse, pede orçamento, ou diz que vai pensar. Mover de fase NÃO ' +
             'fecha nem perde o negócio, e a equipe vê a mudança na conversa. Use o nome ' +
@@ -189,7 +203,7 @@ const moverNegocio: AgentTool = {
             properties: {
                 fase: {
                     type: 'string',
-                    description: `O nome da fase de destino, exatamente como ${comArtigo(vocab(), 'organizacao')} a nomeou.`,
+                    description: `O nome da fase de destino, exatamente como ${comArtigo(v, 'organizacao')} a nomeou.`,
                 },
                 motivo: {
                     type: 'string',
@@ -220,7 +234,7 @@ const moverNegocio: AgentTool = {
 
         if (!alvo) {
             return (
-                `Erro: não existe a fase "${nome}". As fases ${comArtigo(vocab(), 'organizacao', 'este')} são: ` +
+                `Erro: não existe a fase "${nome}". As fases ${comArtigo(ctx.vocabulario, 'organizacao', 'este')} são: ` +
                 `${fases.map((f) => f.name).join(', ')}.`
             )
         }
@@ -231,7 +245,7 @@ const moverNegocio: AgentTool = {
             select: { id: true, title: true, stageId: true, stage: { select: { name: true } } },
         })
 
-        if (!negocio) return `Erro: ${comArtigo(vocab(), 'pessoa', 'este')} não tem negócio em aberto para mover.`
+        if (!negocio) return `Erro: ${comArtigo(ctx.vocabulario, 'pessoa', 'este')} não tem negócio em aberto para mover.`
         if (negocio.stageId === alvo.id) {
             return `O negócio já está em "${alvo.name}". Nada foi alterado.`
         }
@@ -319,7 +333,8 @@ function explicarNome(
     r: { ambiguo: unknown[] } | { nenhum: true },
     procurado: string,
     todos: { name: string }[],
-    tipo: string
+    tipo: string,
+    v: Vocabulario
 ): string {
     if ('ambiguo' in r) {
         const nomes = (r.ambiguo as { name: string }[]).map((i) => i.name).join(', ')
@@ -333,11 +348,11 @@ function explicarNome(
 
 const consultarHorarios: AgentTool = {
     nome: 'consultar_horarios_livres',
-    definicao: () => ({
+    definicao: (v) => ({
         name: 'consultar_horarios_livres',
         description:
-            `Mostra os horários livres para marcar ${comArtigo(vocab(), 'servico', 'um')}. Use ANTES de oferecer ` +
-            `qualquer data ${comArtigo(vocab(), 'pessoa', 'a')} — nunca invente horário. Devolve só o que ${comArtigo(vocab(), 'organizacao')} ` +
+            `Mostra os horários livres para marcar ${comArtigo(v, 'servico', 'um')}. Use ANTES de oferecer ` +
+            `qualquer data ${comArtigo(v, 'pessoa', 'a')} — nunca invente horário. Devolve só o que ${comArtigo(v, 'organizacao')} ` +
             'liberou para você, nos próximos ' + DIAS_A_FRENTE + ' dias.',
         parameters: {
             type: 'object',
@@ -345,14 +360,14 @@ const consultarHorarios: AgentTool = {
                 servico: {
                     type: 'string',
                     description:
-                        `O nome ${comArtigo(vocab(), 'servico', 'de')}, exatamente como aparece na lista das suas ` +
+                        `O nome ${comArtigo(v, 'servico', 'de')}, exatamente como aparece na lista das suas ` +
                         'instruções.',
                 },
                 profissional: {
                     type: 'string',
                     description:
-                        `O nome ${comArtigo(vocab(), 'profissional', 'de')}. Omita para ver os horários de todos os que ` +
-                        `atendem ${comArtigo(vocab(), 'servico', 'este')}.`,
+                        `O nome ${comArtigo(v, 'profissional', 'de')}. Omita para ver os horários de todos os que ` +
+                        `atendem ${comArtigo(v, 'servico', 'este')}.`,
                 },
             },
             required: ['servico'],
@@ -362,7 +377,7 @@ const consultarHorarios: AgentTool = {
     async run(args, ctx) {
         const { buscarVagas } = await import('../../lib/schedule-query')
         const nome = typeof args.servico === 'string' ? args.servico.trim() : ''
-        if (!nome) return `Erro: diga qual ${vocab().servico}.`
+        if (!nome) return `Erro: diga qual ${ctx.vocabulario.servico}.`
 
         const todosProcedimentos = await prisma.productService.findMany({
             where: { workspaceId: ctx.workspaceId, category: { in: SCHEDULABLE_CATEGORIES } },
@@ -371,7 +386,7 @@ const consultarHorarios: AgentTool = {
         })
         const achadoServico = acharPorNome(todosProcedimentos, nome)
         if (!('achado' in achadoServico)) {
-            return explicarNome(achadoServico, nome, todosProcedimentos, `${comArtigo(vocab(), 'servico')}`)
+            return explicarNome(achadoServico, nome, todosProcedimentos, `${comArtigo(ctx.vocabulario, 'servico')}`, ctx.vocabulario)
         }
         const servico = achadoServico.achado
 
@@ -385,7 +400,7 @@ const consultarHorarios: AgentTool = {
         if (pedido) {
             const achadoProfissional = acharPorNome(profissionais, pedido)
             if (!('achado' in achadoProfissional)) {
-                return explicarNome(achadoProfissional, pedido, profissionais, `${comArtigo(vocab(), 'profissional')}`)
+                return explicarNome(achadoProfissional, pedido, profissionais, `${comArtigo(ctx.vocabulario, 'profissional')}`, ctx.vocabulario)
             }
             alvos = [achadoProfissional.achado]
         }
@@ -416,7 +431,7 @@ const consultarHorarios: AgentTool = {
         if (linhas.length === 0) {
             return (
                 `Não há horário livre para ${servico.name} nos próximos ${DIAS_A_FRENTE} dias ` +
-                `entre os que ${comArtigo(vocab(), 'organizacao')} liberou. Diga que a equipe vai verificar e retornar.`
+                `entre os que ${comArtigo(ctx.vocabulario, 'organizacao')} liberou. Diga que a equipe vai verificar e retornar.`
             )
         }
         return `Horários livres para ${servico.name}:\n${linhas.join('\n')}`
@@ -425,17 +440,17 @@ const consultarHorarios: AgentTool = {
 
 const marcarConsulta: AgentTool = {
     nome: 'marcar_compromisso',
-    definicao: () => ({
+    definicao: (v) => ({
         name: 'marcar_compromisso',
         description:
-            `Marca de fato um horário na agenda ${comArtigo(vocab(), 'organizacao', 'de')}. Use SOMENTE depois de ` +
-            `\`consultar_horarios_livres\` ter mostrado este horário e ${comArtigo(vocab(), 'pessoa')} ter ` +
+            `Marca de fato um horário na agenda ${comArtigo(v, 'organizacao', 'de')}. Use SOMENTE depois de ` +
+            `\`consultar_horarios_livres\` ter mostrado este horário e ${comArtigo(v, 'pessoa')} ter ` +
             'confirmado que quer. Nunca chame com data que você não viu na lista.',
         parameters: {
             type: 'object',
             properties: {
-                servico: { type: 'string', description: `O nome ${comArtigo(vocab(), 'servico', 'de')}.` },
-                profissional: { type: 'string', description: `O nome ${comArtigo(vocab(), 'profissional', 'de')}.` },
+                servico: { type: 'string', description: `O nome ${comArtigo(v, 'servico', 'de')}.` },
+                profissional: { type: 'string', description: `O nome ${comArtigo(v, 'profissional', 'de')}.` },
                 data: { type: 'string', description: 'A data, no formato AAAA-MM-DD.' },
                 hora: { type: 'string', description: 'A hora de início, no formato HH:MM.' },
             },
@@ -465,13 +480,13 @@ const marcarConsulta: AgentTool = {
         ])
         const achadoServico = acharPorNome(servicos, nome)
         if (!('achado' in achadoServico)) {
-            return explicarNome(achadoServico, nome, servicos, `${comArtigo(vocab(), 'servico')}`)
+            return explicarNome(achadoServico, nome, servicos, `${comArtigo(ctx.vocabulario, 'servico')}`, ctx.vocabulario)
         }
         const servico = achadoServico.achado
 
         const achadoProfissional = acharPorNome(profissionais, quem)
         if (!('achado' in achadoProfissional)) {
-            return explicarNome(achadoProfissional, quem, profissionais, `${comArtigo(vocab(), 'profissional')}`)
+            return explicarNome(achadoProfissional, quem, profissionais, `${comArtigo(ctx.vocabulario, 'profissional')}`, ctx.vocabulario)
         }
         const profissional = achadoProfissional.achado
 
@@ -533,7 +548,7 @@ const marcarConsulta: AgentTool = {
 
         return (
             `Pronto: ${servico.name} com ${profissional.name}, ` +
-            `${formatarData(data, ctx.timezone)} às ${hora}. Confirme ${comArtigo(vocab(), 'pessoa', 'a')}.`
+            `${formatarData(data, ctx.timezone)} às ${hora}. Confirme ${comArtigo(ctx.vocabulario, 'pessoa', 'a')}.`
         )
     },
 }
@@ -549,11 +564,11 @@ const marcarConsulta: AgentTool = {
 
 const passarParaEquipe: AgentTool = {
     nome: 'passar_para_equipe',
-    definicao: () => ({
+    definicao: (v) => ({
         name: 'passar_para_equipe',
         description:
             'Entrega este atendimento para a equipe humana e para de responder. ' +
-            `Use quando ${comArtigo(vocab(), 'pessoa')} pedir para falar com uma pessoa, quando houver ` +
+            `Use quando ${comArtigo(v, 'pessoa')} pedir para falar com uma pessoa, quando houver ` +
             'urgência ou dor, quando o assunto for reclamação, ou quando você já ' +
             'prometeu confirmar algo e não tem como. Não use para ganhar tempo: ' +
             'depois disto você não responde mais nesta conversa.',
@@ -563,21 +578,21 @@ const passarParaEquipe: AgentTool = {
                 motivo: {
                     type: 'string',
                     description:
-                        `Por que está passando, em poucas palavras. Ex.: "${vocab().pessoa} pediu atendente", ` +
+                        `Por que está passando, em poucas palavras. Ex.: "${v.pessoa} pediu atendente", ` +
                         '"dor forte", "reclamação de atendimento".',
                 },
                 resumo: {
                     type: 'string',
                     description:
                         'O que a pessoa da equipe precisa saber para continuar sem reler a conversa: ' +
-                        `o que ${comArtigo(vocab(), 'pessoa')} quer, o que já foi dito, o que ficou pendente.`,
+                        `o que ${comArtigo(v, 'pessoa')} quer, o que já foi dito, o que ficou pendente.`,
                 },
                 area: {
                     type: 'string',
                     description:
-                        `Para quem você está passando, como ${comArtigo(vocab(), 'pessoa')} entende, COM artigo — a frase ` +
-                        `diz "passei seu atendimento para ___". Ex.: "a recepção", "a coordenação", "${comArtigo(vocab(), 'profissional')}". ` +
-                        `Use o que ${comArtigo(vocab(), 'servico')} desta situação mandar. Nunca diga que é um ` +
+                        `Para quem você está passando, como ${comArtigo(v, 'pessoa')} entende, COM artigo — a frase ` +
+                        `diz "passei seu atendimento para ___". Ex.: "a recepção", "a coordenação", "${comArtigo(v, 'profissional')}". ` +
+                        `Use o que ${comArtigo(v, 'servico')} desta situação mandar. Nunca diga que é um ` +
                         'atendimento automático, e não use palavras como "humano", "virtual" ou ' +
                         '"IA". Sem isto, a frase diz "a nossa equipe".',
                 },
@@ -630,10 +645,10 @@ const CATEGORIAS_DE_FATO = ['preferencia', 'restricao', 'combinado', 'contato'] 
 
 const anotarPaciente: AgentTool = {
     nome: 'anotar_contato',
-    definicao: () => ({
+    definicao: (v) => ({
         name: 'anotar_contato',
         description:
-            `Guarda um fato durável sobre ${comArtigo(vocab(), 'pessoa')}, que vale para os próximos ` +
+            `Guarda um fato durável sobre ${comArtigo(v, 'pessoa')}, que vale para os próximos ` +
             'atendimentos. Use para preferência ("só pode à tarde"), restrição ' +
             '("alérgica a penicilina"), combinado ("vai mandar o exame por foto") ' +
             'ou contato ("prefere ser chamada de Lu"). Não use para o assunto da ' +
@@ -676,7 +691,7 @@ const anotarPaciente: AgentTool = {
             where: { id: ctx.contactId, workspaceId: ctx.workspaceId },
             select: { customFields: true },
         })
-        if (!contato) return `Erro: ${comArtigo(vocab(), 'pessoa', 'este')} não existe mais.`
+        if (!contato) return `Erro: ${comArtigo(ctx.vocabulario, 'pessoa', 'este')} não existe mais.`
 
         const campos: Record<string, Prisma.InputJsonValue> =
             contato.customFields && typeof contato.customFields === 'object' && !Array.isArray(contato.customFields)
@@ -712,7 +727,7 @@ const anotarPaciente: AgentTool = {
             data: { customFields: { ...campos, fatos } },
         })
 
-        await registrar(ctx, `O agente anotou sobre ${comArtigo(vocab(), 'pessoa')} (${categoria}): ${fato}`)
+        await registrar(ctx, `O agente anotou sobre ${comArtigo(ctx.vocabulario, 'pessoa')} (${categoria}): ${fato}`)
 
         return `Anotado: ${fato}`
     },
@@ -720,19 +735,19 @@ const anotarPaciente: AgentTool = {
 
 const naoEncontrei: AgentTool = {
     nome: 'nao_encontrei',
-    definicao: () => ({
+    definicao: (v) => ({
         name: 'nao_encontrei',
         description:
-            `Registra que você não achou a resposta de uma pergunta ${comArtigo(vocab(), 'pessoa', 'de')}, ` +
+            `Registra que você não achou a resposta de uma pergunta ${comArtigo(v, 'pessoa', 'de')}, ` +
             'mesmo tendo material na base de conhecimento desta conversa. Chame ' +
-            `junto de dizer ${comArtigo(vocab(), 'pessoa', 'a')} que vai confirmar com a equipe. Não chame ` +
+            `junto de dizer ${comArtigo(v, 'pessoa', 'a')} que vai confirmar com a equipe. Não chame ` +
             'para pergunta que suas instruções já respondem.',
         parameters: {
             type: 'object',
             properties: {
                 pergunta: {
                     type: 'string',
-                    description: `A pergunta ${comArtigo(vocab(), 'pessoa', 'de')}, com as palavras dele.`,
+                    description: `A pergunta ${comArtigo(v, 'pessoa', 'de')}, com as palavras dele.`,
                 },
             },
             required: ['pergunta'],
@@ -765,7 +780,7 @@ const naoEncontrei: AgentTool = {
             },
         })
 
-        return `Registrado. Diga ${comArtigo(vocab(), 'pessoa', 'a')} que vai confirmar com a equipe e que retorna.`
+        return `Registrado. Diga ${comArtigo(ctx.vocabulario, 'pessoa', 'a')} que vai confirmar com a equipe e que retorna.`
     },
 }
 
@@ -779,11 +794,32 @@ const FERRAMENTAS: AgentTool[] = [
     naoEncontrei,
 ]
 
-/** Memoizada: cada `definicao()` lê o vocabulário, e `BRAND()` é fail-fast. */
-let definicoesCache: LLMTool[] | null = null
-export function AGENT_TOOL_DEFINITIONS(): LLMTool[] {
-    if (definicoesCache === null) definicoesCache = FERRAMENTAS.map((f) => f.definicao())
-    return definicoesCache
+/**
+ * As definições que vão ao modelo, para UMA unidade.
+ *
+ * ## O cache de módulo saiu, e a razão é a mesma da Fase 3
+ *
+ * Isto era memoizado num `let definicoesCache` de módulo, porque cada
+ * `definicao()` chamava `vocab()` e `BRAND()` é fail-fast. Com o vocabulário
+ * vindo por PARÂMETRO, `BRAND()` não é mais tocado aqui — e o cache deixou de
+ * ser economia para virar defeito: **a primeira unidade a acionar o agente
+ * definiria as palavras de todas as outras** no mesmo isolate.
+ *
+ * Hoje isso seria invisível, porque todas as unidades de um produto
+ * compartilham o padrão da marca. Deixaria de ser no dia em que a tela de
+ * vocabulário por unidade existir — e o sintoma seria o agente de uma clínica
+ * escrevendo a palavra escolhida por outra, no WhatsApp do cliente final.
+ *
+ * É a mesma forma que a Fase 3 removeu de nove módulos (`plans`, `terms`,
+ * `deal-lanes`, …): resultado que depende do argumento não pode viver em cache
+ * global. Este sobreviveu porque a varredura olhou quem chamava `vocab()` em
+ * nível de módulo, e aqui a chamada estava dentro de uma função.
+ *
+ * Custo de não memoizar: montar sete objetos literais por resposta de IA, ao
+ * lado de uma chamada de LLM. Ruído.
+ */
+export function AGENT_TOOL_DEFINITIONS(v: Vocabulario): LLMTool[] {
+    return FERRAMENTAS.map((f) => f.definicao(v))
 }
 
 /**
