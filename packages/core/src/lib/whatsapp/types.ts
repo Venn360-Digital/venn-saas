@@ -484,3 +484,97 @@ export function phoneVariants(digits: string): string[] {
     if (rest.length === 8) return [digits, `55${ddd}9${rest}`]
     return [digits]
 }
+
+/**
+ * Se este JID é um **LID** — identificador de conta que não é telefone.
+ *
+ * `msisdnDoJid` já recusa LID devolvendo nulo, e serve a quem precisa de
+ * telefone ou nada. Este predicado serve a quem precisa saber **qual** das duas
+ * coisas chegou, para guardar o LID na coluna dele em vez de descartá-lo: no
+ * inbound o LID é a única identidade que temos daquela conversa, e perdê-la
+ * deixaria o fio sem dono.
+ */
+export function ehJidDeLid(jid: string | null | undefined): boolean {
+    return servidorDoJid(String(jid ?? '').trim()) === 'lid'
+}
+
+/**
+ * O LID cru de um JID de LID, sem sufixo nem dispositivo. Nulo para o resto.
+ *
+ * Existe para que a coluna `Contact.lid` guarde sempre a mesma forma — o JID
+ * com sufixo chega às vezes com `:12` de dispositivo, e duas formas na mesma
+ * coluna criariam duas fichas para a mesma conta.
+ */
+export function lidDoJid(jid: string | null | undefined): string | null {
+    if (!ehJidDeLid(jid)) return null
+    const digitos = toMsisdn(String(jid)).replace(/\D/g, '')
+    return digitos.length > 0 ? digitos : null
+}
+
+/**
+ * O telefone escondido no `Info` de um evento do whatsmeow, quando o endereço
+ * principal é LID.
+ *
+ * ## Por que varrer o objeto em vez de ler um campo
+ *
+ * O whatsmeow carrega o **par**: endereçada por LID, a mensagem traz o telefone
+ * num campo alternativo (`SenderAlt`, e em versões diferentes `ChatAlt` ou
+ * `RecipientAlt`). O Evolution Go serializa a struct do Go direto para JSON, de
+ * modo que o nome do campo é o nome do campo do Go — e ele **mudou de nome
+ * entre versões do whatsmeow**. Ler um nome fixo é apostar na versão que está
+ * no VPS; se a aposta falha, falha em silêncio, criando ficha com LID por
+ * telefone, que é exatamente o defeito que isto conserta.
+ *
+ * Então o critério não é o nome da chave, é a **forma do valor**: qualquer JID
+ * de telefone (`@s.whatsapp.net`) dentro do `Info` é o telefone de quem
+ * escreveu. Há um só por evento de conversa individual, e um LID nunca casa com
+ * este formato — é `@lid`.
+ *
+ * `Info.Chat`/`Info.Sender` entram na varredura sem prejuízo: se eles já forem
+ * telefone, quem chama não precisou desta função.
+ *
+ * Fora do nosso alcance: evento de **grupo**, onde `Chat` é `@g.us` e há vários
+ * participantes. Por isso quem chama só pergunta em conversa individual.
+ */
+export function telefoneAlternativoNoInfo(info: unknown): string | null {
+    if (!info || typeof info !== 'object') return null
+
+    for (const valor of Object.values(info as Record<string, unknown>)) {
+        if (typeof valor !== 'string') continue
+        const telefone = msisdnDoJid(valor)
+        // `msisdnDoJid` só devolve dígitos para `@s.whatsapp.net`/`@c.us`; a
+        // exigência do `@` é o que impede um campo qualquer de texto de passar.
+        if (telefone && valor.includes('@')) return telefone
+    }
+
+    return null
+}
+
+/**
+ * Se dá para enviar para este endereço — a última conferência antes do provedor.
+ *
+ * ## O que esta função NÃO faz
+ *
+ * Não distingue LID de telefone **pelos dígitos**, porque não dá: um LID
+ * medido em produção é `4526996250761`, treze dígitos começando em 45, que é o
+ * código da Dinamarca. E o E.164 admite quinze dígitos, então nem o tamanho
+ * separa os dois. Quem tentar essa separação aqui vai recusar o telefone de
+ * algum cliente estrangeiro algum dia, e com uma mensagem que não explica nada.
+ *
+ * A separação é **na coluna**, acima: o inbound grava telefone em `phone` e LID
+ * em `lid` (ver `Contact.lid`), então um LID nunca chega aqui como destino. O
+ * que chega, e é o que isto pega, é o **destino vazio** — a ficha cujo telefone
+ * é desconhecido justamente porque só havia LID.
+ *
+ * No Instagram o destino é o IGSID e não tem forma de telefone nenhuma; lá a
+ * única pergunta é se existe.
+ */
+export function ehDestinoEnviavel(to: string | null | undefined, channel: string): boolean {
+    const cru = String(to ?? '').trim()
+    if (!cru) return false
+    if (channel === 'instagram') return true
+
+    const digitos = cru.replace(/\D/g, '')
+    // Oito é o menor telefone nacional ainda em uso; quinze é o teto do E.164.
+    return digitos.length >= 8 && digitos.length <= 15
+}
