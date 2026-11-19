@@ -67,13 +67,53 @@ import type { NextConfig } from "next";
  * A auditoria, com isto, registra o item como parcialmente fechado — não como
  * resolvido.
  */
+/**
+ * O Venn Desk — o único host externo em `connect-src`, e por que ele entra.
+ *
+ * O comentário acima exige de quem acrescenta um domínio aqui a pergunta
+ * anterior: **por que o Worker não pode fazer a chamada?** A resposta honesta é
+ * que ele poderia — um repasse em `/api/venn-desk/*` manteria `connect-src`
+ * como estava, e o widget nasceu preparado para isso (a prop `base` vazia
+ * significa "mesma origem, via proxy do app"). Foi uma escolha, não uma
+ * impossibilidade, e fica registrada como tal: decisão do André em 19/11/2026.
+ *
+ * O que pesou a favor do host direto:
+ *
+ * - **Não é terceiro.** O caso do viacep acima era um serviço de fora, com
+ *   disponibilidade, política e log alheios. O Venn Desk é serviço nosso, no
+ *   nosso domínio, publicado por nós.
+ * - **Host explícito, não curinga.** Entra um nome, não `*.venn360.com`.
+ * - **O chat ao vivo é SSE.** Repassar um fluxo que fica aberto pelo Worker do
+ *   app acrescenta um intermediário no caminho mais frágil da funcionalidade, e
+ *   é justamente o que não dá para testar nesta máquina.
+ * - **O Desk já restringe o outro lado.** Ele responde CORS só para estas três
+ *   origens (`ORIGENS_DOS_APPS`), então o permissivo aqui não abre nada que lá
+ *   não aceite.
+ *
+ * O que isto NÃO muda: toda integração com serviço de TERCEIRO continua saindo
+ * do servidor. Esta exceção vale para um serviço da própria Venn360.
+ *
+ * **O endereço muda com o ambiente.** Homologação fala com o Desk de
+ * homologação — abrir chamado de teste na fila de produção polui o trabalho de
+ * quem atende. A lógica é a mesma de `VENN_DESK_BASE` em
+ * `cloudflare.config.ts`, e as duas precisam continuar iguais.
+ */
+const DESK = ((): string => {
+    const v = process.env.DEPLOY_ENV ?? 'production'
+    if (v !== 'production' && v !== 'stg')
+        throw new Error(`DEPLOY_ENV deve ser 'production' ou 'stg' (recebido: ${v})`)
+    return v === 'production'
+        ? 'https://desk.venn360.com'
+        : 'https://venn-desk.andre-7ee.workers.dev'
+})()
+
 const CSP = [
     "default-src 'self'",
     "script-src 'self' 'unsafe-inline'",
     "style-src 'self' 'unsafe-inline'",
     "font-src 'self' data:",
     "img-src 'self' data: blob: https://*.r2.cloudflarestorage.com",
-    "connect-src 'self' https://*.r2.cloudflarestorage.com",
+    `connect-src 'self' https://*.r2.cloudflarestorage.com ${DESK}`,
     "media-src 'self' blob: https://*.r2.cloudflarestorage.com",
     "frame-ancestors 'none'",
     "base-uri 'self'",
