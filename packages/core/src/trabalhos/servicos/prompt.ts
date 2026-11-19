@@ -9,7 +9,7 @@ import { semComentarios } from '../../lib/rag/secoes'
 import { documentosDeProcedimento, documentosDoPrompt } from '../../lib/treinamento/documentos'
 import { catalogoDeCenarios, lerCenarios, servicoParaOPrompt } from '../../lib/treinamento/cenarios'
 import { resumoParaOPrompt } from '../../lib/conversas/resumo'
-import { vocab } from '../../lib/vocabulario'
+import { type Vocabulario, vocab } from '../../lib/vocabulario'
 import { comArtigo } from '../../lib/concordancia'
 
 export interface KnowledgeChunk {
@@ -56,11 +56,22 @@ export function readPreferences(agent: Agent): AgentPreferences {
  * clínica espera que fosse — a diferença entre um agente que qualifica e agenda
  * e um que resolve e não empurra venda.
  */
-/** Memoizado: um dos textos lê o vocabulário, e `BRAND()` é fail-fast. */
-let posturaCache: Record<string, string> | null = null
-function POSTURA(): Record<string, string> {
-    if (posturaCache !== null) return posturaCache
-    posturaCache = {
+/*
+ * O cache de módulo saiu — era o TERCEIRO desta forma encontrado em 18/11.
+ *
+ * Um dos três textos lê o vocabulário, e com `vocab()` por dentro o cache
+ * congelava a postura na primeira unidade a pedir uma resposta. Agora o
+ * vocabulário vem por parâmetro e não há o que memoizar: três strings por
+ * chamada, ao lado de uma chamada de LLM.
+ *
+ * Os outros dois saíram de `agent-tools.ts` e de `follow-up-suggestion.ts`. A
+ * forma é sempre a mesma — `let xCache` em nível de módulo guardando texto que
+ * depende da unidade — e a varredura da Fase 3 não a pegou porque olhava
+ * `vocab()` chamado em nível de módulo, e nestes três a chamada estava dentro
+ * de uma função.
+ */
+function POSTURA(vocabulario: Vocabulario): Record<string, string> {
+    return {
     sdr_atendimento:
         'Seu objetivo é entender o que a pessoa precisa e levá-la a agendar uma avaliação. ' +
         'Faça uma pergunta de cada vez, confirme o que entendeu e proponha horário quando fizer sentido.',
@@ -68,10 +79,9 @@ function POSTURA(): Record<string, string> {
         'Seu objetivo é esclarecer dúvidas sobre tratamentos, valores e formas de pagamento, e fechar o agendamento. ' +
         'Seja direto sobre preço quando souber a informação, e nunca invente valor que não esteja na sua base.',
     suporte:
-        `Seu objetivo é resolver a dúvida ou o problema de quem já é ${vocab().pessoa}. ` +
+        `Seu objetivo é resolver a dúvida ou o problema de quem já é ${vocabulario.pessoa}. ` +
         'Não force venda: se a pessoa só precisa de uma informação, entregue a informação.',
-}
-    return posturaCache
+    }
 }
 
 /**
@@ -223,6 +233,19 @@ function blocosDeTreinamento(docs: DocumentoNoPrompt[]): {
  * markdown) nunca foi a instrução em disputa.
  */
 export function buildSystemPrompt(
+    /**
+     * O vocabulário da UNIDADE. **Primeiro e obrigatório.**
+     *
+     * Primeiro por imposição do TypeScript — `resumo` tem valor padrão, e
+     * parâmetro obrigatório não pode vir depois de opcional —, e a posição
+     * acabou sendo a certa: o compilador aponta todo chamador que não o passa,
+     * em vez de aceitar um a menos no fim da lista.
+     *
+     * Sem valor padrão de propósito. Um `= vocab()` faria o esquecimento
+     * compilar, e o esquecimento é exatamente o defeito: voltar a ignorar o
+     * ajuste da unidade, em silêncio.
+     */
+    vocabulario: Vocabulario,
     agent: Agent,
     knowledge: KnowledgeChunk[] = [],
     context?: ConversationContext,
@@ -278,7 +301,7 @@ export function buildSystemPrompt(
     }
 
     const atribuicoes = [
-        agent.agentFunction && POSTURA()[agent.agentFunction],
+        agent.agentFunction && POSTURA(vocabulario)[agent.agentFunction],
         agent.jobDescription,
     ].filter(Boolean)
 
@@ -330,7 +353,7 @@ export function buildSystemPrompt(
             '## O que você pode fazer\n' +
             'Você tem ferramentas. Use-as quando a conversa pedir, e nunca invente o ' +
             'resultado delas.\n' +
-            `As fases do funil ${comArtigo(vocab(), 'organizacao', 'este')} são, em ordem: ${context.stages.join(' → ')}. ` +
+            `As fases do funil ${comArtigo(vocabulario, 'organizacao', 'este')} são, em ordem: ${context.stages.join(' → ')}. ` +
             'Ao mover o negócio, use o nome exato de uma delas.\n' +
             'Você consegue **consultar** compromissos já marcados.'
         )
@@ -384,11 +407,11 @@ export function buildSystemPrompt(
     estaveis.push(
         '## Quando a conversa passa de você\n' +
         'Use `passar_para_equipe` para entregar o atendimento a uma pessoa. Faça isso ' +
-        `quando ${comArtigo(vocab(), 'pessoa')} pedir para falar com alguém, quando houver dor ou urgência, ` +
+        `quando ${comArtigo(vocabulario, 'pessoa')} pedir para falar com alguém, quando houver dor ou urgência, ` +
         'quando for reclamação, e quando você já prometeu confirmar algo e não tem como. ' +
         '**Depois de chamar, você não responde mais nesta conversa** — então diga a frase ' +
         'que a ferramenta devolve e pare.\n' +
-        `Quando ${comArtigo(vocab(), 'servico')} desta situação disser para quem passar — a recepção, a coordenação, ${comArtigo(vocab(), 'profissional')} —, ` +
+        `Quando ${comArtigo(vocabulario, 'servico')} desta situação disser para quem passar — a recepção, a coordenação, ${comArtigo(vocabulario, 'profissional')} —, ` +
         'informe isso em `area`: a frase de despedida passa a citar essa área em vez de ' +
         'dizer "a nossa equipe".\n' +
         'Use `nao_encontrei` quando a base de conhecimento desta conversa trouxe material ' +
@@ -416,15 +439,15 @@ export function buildSystemPrompt(
                 `Você pode marcar: ${servicos.join(', ')}.\n` +
                 `Com: ${profissionais.join(', ')}.\n` +
                 'Sempre consulte os horários livres antes de oferecer qualquer data, e marque ' +
-                `só depois de ${comArtigo(vocab(), 'pessoa')} confirmar qual horário quer. **Nunca invente horário** ` +
+                `só depois de ${comArtigo(vocabulario, 'pessoa')} confirmar qual horário quer. **Nunca invente horário** ` +
                 'e nunca ofereça data que não tenha aparecido na consulta.\n' +
-                `Para qualquer outro ${vocab().servico}, ou qualquer pedido de remarcar ou cancelar, ` +
+                `Para qualquer outro ${vocabulario.servico}, ou qualquer pedido de remarcar ou cancelar, ` +
                 'diga que vai passar para a equipe — você não faz isso.'
             )
         } else {
             estaveis.push(
                 '## Agendamento\n' +
-                `Você **não** marca, remarca nem cancela horário. Quando ${comArtigo(vocab(), 'pessoa')} quiser um ` +
+                `Você **não** marca, remarca nem cancela horário. Quando ${comArtigo(vocabulario, 'pessoa')} quiser um ` +
                 'horário, diga que vai passar para a equipe e não prometa data nenhuma.'
             )
         }
@@ -489,8 +512,8 @@ export function buildSystemPrompt(
         'responda por dedução.\n' +
         'Nunca invente valor, horário, prazo ou condição de pagamento. É melhor ' +
         'prometer confirmação do que acertar por sorte.\n' +
-        `Se ${comArtigo(vocab(), 'pessoa')} pedir para falar com uma pessoa, **chame \`passar_para_equipe\`** ` +
-        `em vez de só dizer que vai passar. Dizer sem chamar deixa ${comArtigo(vocab(), 'pessoa')} esperando ` +
+        `Se ${comArtigo(vocabulario, 'pessoa')} pedir para falar com uma pessoa, **chame \`passar_para_equipe\`** ` +
+        `em vez de só dizer que vai passar. Dizer sem chamar deixa ${comArtigo(vocabulario, 'pessoa')} esperando ` +
         'alguém que não foi avisado.'
     )
 
@@ -519,7 +542,7 @@ export function buildSystemPrompt(
         }
 
         if (context.dealStage) {
-            linhas.push(`No funil ${comArtigo(vocab(), 'organizacao', 'de')}, este atendimento está na fase "${context.dealStage}".`)
+            linhas.push(`No funil ${comArtigo(vocabulario, 'organizacao', 'de')}, este atendimento está na fase "${context.dealStage}".`)
         }
 
         if (context.upcoming.length > 0) {

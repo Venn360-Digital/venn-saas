@@ -1,7 +1,8 @@
 import prisma from '@venn/db/cliente'
 import { LLMFactory } from './llm/factory'
 import { checkCredits, spendAiCredits, trackUsage } from './llm/usage-tracker'
-import { vocab } from './vocabulario'
+import { vocab, type Vocabulario } from './vocabulario'
+import { vocabDoWorkspace } from './vocabulario-do-workspace'
 import { comArtigo } from './concordancia'
 
 /** Resumir e escrever follow-up não precisam do modelo caro. */
@@ -17,14 +18,34 @@ const WINDOW = 30
  * `MarcaNaoRegistradaError`. O `check:marca-tardia` apontou este arquivo no
  * instante em que o vocabulário entrou no prompt.
  */
-let systemCache: string | null = null
-function system(): string {
-    if (systemCache === null) systemCache = `Você escreve a próxima mensagem de follow-up de ${comArtigo(vocab(), 'organizacao', 'um')} odontológica para ${comArtigo(vocab(), 'pessoa', 'um')}, em português do Brasil.
+/*
+ * ## O cache de módulo saiu, e o adjetivo de nicho também
+ *
+ * Duas coisas erradas na mesma linha, achadas em 18/11/2026 ao fazer o
+ * vocabulário chegar aqui:
+ *
+ * 1. `let systemCache` congelava o prompt na PRIMEIRA unidade a pedir uma
+ *    sugestão. Todas as outras do mesmo isolate receberiam as palavras dela.
+ *    Mesma forma do cache que saiu de `agent-tools.ts` no commit anterior, e
+ *    das nove da Fase 3: resultado que depende do argumento não vive em cache
+ *    global.
+ *
+ * 2. O texto dizia "de uma ORGANIZAÇÃO **odontológica**". Este arquivo mora em
+ *    `packages/core` e serve os três produtos — então o gerador de follow-up
+ *    dos outros dois instruía o modelo a escrever para uma clínica dentária.
+ *    O adjetivo era redundante além de errado: `comArtigo(v,'organizacao','um')`
+ *    já entrega "de uma clínica" ou "de uma agência", conforme a unidade.
+ *
+ * Sem cache, o custo é montar uma string por sugestão — ao lado de uma chamada
+ * de LLM, ruído.
+ */
+function system(v: Vocabulario): string {
+    return `Você escreve a próxima mensagem de follow-up de ${comArtigo(v, 'organizacao', 'um')} para ${comArtigo(v, 'pessoa', 'um')}, em português do Brasil.
 
 Regras:
 - No máximo três frases. Mensagem de WhatsApp, não carta.
-- Cite algo concreto da conversa — ${comArtigo(vocab(), 'servico')}, o que ficou combinado, o motivo da espera. É isso que separa um follow-up de um "oi, tudo bem?".
-- Nunca invente preço, data, nome de ${vocab().servico} ou promessa que não esteja na conversa.
+- Cite algo concreto da conversa — ${comArtigo(v, 'servico')}, o que ficou combinado, o motivo da espera. É isso que separa um follow-up de um "oi, tudo bem?".
+- Nunca invente preço, data, nome de ${v.servico} ou promessa que não esteja na conversa.
 - Termine com uma pergunta simples de responder.
 - Trate por "você". Nada de "prezado". Sem emoji.
 - Não se apresente como robô nem diga que é uma mensagem automática.
@@ -32,8 +53,7 @@ Regras:
 Responda SOMENTE um JSON, sem cercas de código:
 {"mensagem":"...","quando":"AAAA-MM-DD","porque":"uma frase sobre por que esta é a hora e este é o assunto"}
 
-"quando" é a data sugerida para o retorno caso ${comArtigo(vocab(), 'pessoa')} não responda: dois dias úteis à frente, no máximo sete.`
-    return systemCache
+"quando" é a data sugerida para o retorno caso ${comArtigo(v, 'pessoa')} não responda: dois dias úteis à frente, no máximo sete.`
 }
 
 export interface FollowUpSuggestion {
@@ -59,6 +79,19 @@ export async function buildFollowUpSuggestion(
     target: { workspaceId: string; dealId?: string; conversationId?: string }
 ): Promise<SuggestionResult> {
     const { workspaceId } = target
+
+    /*
+     * O vocabulário DESTA unidade, resolvido uma vez.
+     *
+     * Antes aqui era `vocab()` em 14 pontos — o padrão da marca, ignorando o
+     * ajuste da unidade. Isto gera a mensagem de retomada que vai ao cliente
+     * final, então é texto que ele lê assinado pela empresa dele.
+     *
+     * Resolve por dentro, e não por parâmetro, porque `workspaceId` já chega
+     * aqui e esta função já é assíncrona: pedir aos três chamadores que
+     * resolvessem seria espalhar a mesma consulta por três lugares.
+     */
+    const v = await vocabDoWorkspace(workspaceId)
 
     /**
      * O alvo pode ser um negócio ou uma conversa.
@@ -89,7 +122,7 @@ export async function buildFollowUpSuggestion(
 
     // Conversa sem negócio aberto ainda tem conversa: o texto sai do fio.
     if (!dealId && target.conversationId) {
-        return buildFromConversation(target.conversationId, workspaceId)
+        return buildFromConversation(v, target.conversationId, workspaceId)
     }
     if (!dealId) return { ok: false, reason: 'not_found' }
 
@@ -125,7 +158,7 @@ export async function buildFollowUpSuggestion(
     const transcript = [...messages]
         .reverse()
         .map((m) => {
-            const who = m.direction === 'inbound' ? `${vocab().Pessoa}` : `${vocab().Organizacao}`
+            const who = m.direction === 'inbound' ? `${v.Pessoa}` : `${v.Organizacao}`
             const body = m.transcript?.trim() || m.content?.trim() || `[${m.contentType}]`
             return `${m.createdAt.toISOString().slice(0, 10)} ${who}: ${body}`
         })
@@ -136,8 +169,8 @@ export async function buildFollowUpSuggestion(
     const idleDays = Math.floor((Date.now() - since.getTime()) / 86_400_000)
 
     const context = [
-        `${vocab().Organizacao}: ${deal.workspace.name}`,
-        `${vocab().Pessoa}: ${deal.contact?.name || 'sem nome cadastrado'}`,
+        `${v.Organizacao}: ${deal.workspace.name}`,
+        `${v.Pessoa}: ${deal.contact?.name || 'sem nome cadastrado'}`,
         `Assunto do negócio: ${deal.title}`,
         `Fase atual: ${deal.stage?.name ?? '—'} (há ${idleDays} dias)`,
         entry?.note ? `Nota da fase: ${entry.note}` : null,
@@ -145,12 +178,12 @@ export async function buildFollowUpSuggestion(
         '',
         transcript
             ? `Conversa (mais antiga primeiro):\n${transcript}`
-            : `Não há conversa registrada com ${comArtigo(vocab(), 'pessoa', 'este')}. Escreva uma primeira retomada curta, sem inventar histórico.`,
+            : `Não há conversa registrada com ${comArtigo(v, 'pessoa', 'este')}. Escreva uma primeira retomada curta, sem inventar histórico.`,
     ]
         .filter(Boolean)
         .join('\n')
 
-    return generate(context, workspaceId, { dealId: deal.id }, transcript.length === 0)
+    return generate(v, context, workspaceId, { dealId: deal.id }, transcript.length === 0)
 }
 
 
@@ -162,6 +195,7 @@ export async function buildFollowUpSuggestion(
  * conversa sem negócio aberto que costuma estar esquecida.
  */
 async function buildFromConversation(
+    v: Vocabulario,
     conversationId: string,
     workspaceId: string
 ): Promise<SuggestionResult> {
@@ -185,11 +219,11 @@ async function buildFromConversation(
         select: { direction: true, content: true, transcript: true, contentType: true, createdAt: true },
     })
 
-    const transcript = [...messages].reverse().map(line).join('\n')
+    const transcript = [...messages].reverse().map((m) => line(v, m)).join('\n')
 
     const context = [
-        `${vocab().Organizacao}: ${conversation.workspace.name}`,
-        `${vocab().Pessoa}: ${conversation.contact?.name || 'sem nome cadastrado'}`,
+        `${v.Organizacao}: ${conversation.workspace.name}`,
+        `${v.Pessoa}: ${conversation.contact?.name || 'sem nome cadastrado'}`,
         `Hoje: ${new Date().toISOString().slice(0, 10)}`,
         '',
         transcript
@@ -197,24 +231,25 @@ async function buildFromConversation(
             : 'A conversa está vazia. Escreva uma primeira retomada curta, sem inventar histórico.',
     ].join('\n')
 
-    return generate(context, workspaceId, { conversationId }, transcript.length === 0)
+    return generate(v, context, workspaceId, { conversationId }, transcript.length === 0)
 }
 
 /** Uma linha da transcrição — áudio entra pela transcrição, não como "[audio]". */
-function line(m: {
+function line(v: Vocabulario, m: {
     direction: string
     content: string | null
     transcript: string | null
     contentType: string
     createdAt: Date
 }): string {
-    const who = m.direction === 'inbound' ? `${vocab().Pessoa}` : `${vocab().Organizacao}`
+    const who = m.direction === 'inbound' ? `${v.Pessoa}` : `${v.Organizacao}`
     const body = m.transcript?.trim() || m.content?.trim() || `[${m.contentType}]`
     return `${m.createdAt.toISOString().slice(0, 10)} ${who}: ${body}`
 }
 
 /** A chamada ao modelo, o débito e a leitura — compartilhados pelos dois alvos. */
 async function generate(
+    v: Vocabulario,
     context: string,
     workspaceId: string,
     metadata: Record<string, unknown>,
@@ -223,7 +258,7 @@ async function generate(
     try {
         const llm = LLMFactory.create('openai', { model: MODEL, temperature: 0.6, maxTokens: 400 })
         const result = await llm.generate([
-            { role: 'system', content: system() },
+            { role: 'system', content: system(v) },
             { role: 'user', content: context },
         ])
 
