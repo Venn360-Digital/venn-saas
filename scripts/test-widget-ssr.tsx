@@ -40,7 +40,6 @@
  * no servidor — estão fora deste teste por construção, não por esquecimento.
  */
 import { renderToString } from 'react-dom/server'
-import { createElement } from 'react'
 
 import { VennDeskProvider, VennDeskLauncher } from '@venn/desk-widget'
 
@@ -58,16 +57,17 @@ console.log('  ok  document e window ausentes — o render é o do servidor, com
 
 try {
     /*
-     * `children` vai DENTRO das props, não como terceiro argumento: a
-     * sobrecarga de `createElement` que aceita filhos à parte não casa com um
-     * componente cujo `children` é obrigatório, e o typecheck reprova.
+     * JSX, e não `createElement`, e o motivo é uma tentativa minha que o portão
+     * derrubou: com `createElement(Provider, props, filho)` o typecheck reprova
+     * (o `children` do provider é obrigatório e a sobrecarga de três argumentos
+     * não o satisfaz), e passando `children` DENTRO das props o ESLint reprova
+     * em `react/no-children-prop`. JSX satisfaz os dois, que é o que ele existe
+     * para fazer. Este arquivo é `.tsx` por isso.
      */
     const html = renderToString(
-        createElement(VennDeskProvider, {
-            app: 'odontobox',
-            base: 'https://desk.venn360.com',
-            children: createElement(VennDeskLauncher),
-        })
+        <VennDeskProvider app="odontobox" base="https://desk.venn360.com">
+            <VennDeskLauncher />
+        </VennDeskProvider>
     )
     console.log(`  ok  o widget renderiza no servidor sem lançar (${html.length} bytes)`)
     /*
