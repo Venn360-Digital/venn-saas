@@ -18,7 +18,15 @@
 // código do core e o core PEDE a marca. Ver `./lib/marca-de-teste.ts`.
 import './lib/marca-de-teste.ts'
 
-import { msisdnDoJid, toMsisdn } from '@venn/core/lib/whatsapp/types'
+import {
+    ehDestinoEnviavel,
+    ehJidDeLid,
+    lidDoJid,
+    msisdnDoJid,
+    telefoneAlternativoNoInfo,
+    toMsisdn,
+} from '@venn/core/lib/whatsapp/types'
+import { nomeDoCanalPodeEntrar } from '@venn/core/trabalhos/servicos/conversation'
 
 let passou = 0
 let falhou = 0
@@ -77,6 +85,85 @@ conferir('indefinido', msisdnDoJid(undefined), null)
 conferir('vazio', msisdnDoJid(''), null)
 conferir('só espaço', msisdnDoJid('   '), null)
 conferir('JID sem dígito nenhum', msisdnDoJid('abc@s.whatsapp.net'), null)
+
+console.log('\nO LID como identidade própria')
+
+conferir('reconhece LID', ehJidDeLid('109315692208342@lid'), true)
+conferir('telefone não é LID', ehJidDeLid('5531988501161@s.whatsapp.net'), false)
+conferir('grupo não é LID', ehJidDeLid('123@g.us'), false)
+conferir('LID cru, sem sufixo', lidDoJid('109315692208342@lid'), '109315692208342')
+conferir('LID com dispositivo normaliza', lidDoJid('109315692208342:12@lid'), '109315692208342')
+conferir('telefone não devolve LID', lidDoJid('5531988501161@s.whatsapp.net'), null)
+
+console.log('\nO telefone do par, achado pela FORMA e não pelo nome do campo')
+
+conferir(
+    'SenderAlt',
+    telefoneAlternativoNoInfo({ Chat: '1@lid', SenderAlt: '5531988702912@s.whatsapp.net' }),
+    '5531988702912'
+)
+conferir(
+    'RecipientAlt — nome diferente, mesma forma',
+    telefoneAlternativoNoInfo({ Chat: '1@lid', RecipientAlt: '553191420149@c.us' }),
+    '553191420149'
+)
+conferir(
+    'nenhum campo de telefone: nulo, e quem chama fica com o LID',
+    telefoneAlternativoNoInfo({ Chat: '1@lid', Sender: '1@lid', PushName: 'Marcia' }),
+    null
+)
+conferir(
+    'texto solto com dígitos não passa por telefone',
+    telefoneAlternativoNoInfo({ Chat: '1@lid', PushName: '5531988702912' }),
+    null
+)
+
+console.log('\nPara onde dá para enviar')
+
+conferir('telefone brasileiro', ehDestinoEnviavel('5531988501161', 'whatsapp_qr'), true)
+conferir('vazio nunca', ehDestinoEnviavel('', 'whatsapp_qr'), false)
+conferir('nulo nunca', ehDestinoEnviavel(null, 'whatsapp_qr'), false)
+conferir('IGSID vale no Instagram', ehDestinoEnviavel('17841400000000000', 'instagram'), true)
+// O tamanho NÃO separa LID de telefone — a separação é na coluna, acima. Esta
+// prova existe para que ninguém tente separá-los aqui e recuse um estrangeiro.
+conferir('quinze dígitos passam: o E.164 os admite', ehDestinoEnviavel('123456789012345', 'whatsapp_qr'), true)
+
+console.log('\nO nome: o canal preenche, não corrige')
+
+const fichaVazia = { name: null, phone: '5531988501161', lid: null, instagramId: null }
+const fichaAuto = { name: 'WhatsApp 5531988501161', phone: '5531988501161', lid: null, instagramId: null }
+const fichaDaClinica = {
+    name: 'Fátima Rodrigues — indicação da Dra. Ana',
+    phone: '5531988501161',
+    lid: null,
+    instagramId: null,
+}
+
+conferir('ficha sem nome recebe o do perfil', nomeDoCanalPodeEntrar(fichaVazia, 'Fátima'), true)
+conferir('nome que nós geramos é substituído', nomeDoCanalPodeEntrar(fichaAuto, 'Fátima'), true)
+conferir(
+    'nome digitado pela recepção NÃO é reescrito',
+    nomeDoCanalPodeEntrar(fichaDaClinica, 'Fátima'),
+    false
+)
+conferir(
+    'nome provisório de lead sem número é substituído',
+    nomeDoCanalPodeEntrar(
+        { name: 'Lead sem número identificado', phone: null, lid: '109315692208342', instagramId: null },
+        'Marcia'
+    ),
+    true
+)
+conferir(
+    'nome automático com o LID também é substituído',
+    nomeDoCanalPodeEntrar(
+        { name: 'WhatsApp 109315692208342', phone: null, lid: '109315692208342', instagramId: null },
+        'Marcia'
+    ),
+    true
+)
+conferir('perfil sem nome não apaga o que existe', nomeDoCanalPodeEntrar(fichaDaClinica, ''), false)
+conferir('perfil igual ao nome atual não gera escrita', nomeDoCanalPodeEntrar(fichaAuto, 'WhatsApp 5531988501161'), false)
 
 console.log(`\n${passou} ok, ${falhou} falha(s)\n`)
 process.exit(falhou > 0 ? 1 : 0)

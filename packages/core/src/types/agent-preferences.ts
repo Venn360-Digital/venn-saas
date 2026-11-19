@@ -67,6 +67,42 @@ export const agentPreferencesSchema = z.object({
      * renove numa clínica que não fecha conversa à mão.
      */
     autoCloseDays: z.number().int().min(0).max(365),
+
+    /**
+     * Minutos de silêncio até o agente perguntar se a pessoa ainda está aí.
+     * Zero é nunca.
+     *
+     * ## O vazio que isto preenche
+     *
+     * Havia um só prazo de inatividade, `autoCloseDays`, e ele **fecha calado**:
+     * trinta dias depois a conversa é finalizada sem ninguém dizer nada a quem
+     * estava do outro lado. Entre a última mensagem e esse silêncio de um mês
+     * não havia nada — nem uma tentativa de retomar, nem uma despedida.
+     *
+     * A clínica pediu as duas: "quando o paciente parar de interagir, tem como
+     * ela fazer algumas perguntas para saber se ele ainda quer conversar" e, não
+     * voltando, "devido à falta de interação, vou encerrar o atendimento".
+     *
+     * ## Por que minutos, e não dias
+     *
+     * Porque é a mesma conversa. Quem perguntou o preço e parou de responder
+     * está com o celular na mão agora; retomar amanhã é começar outra coisa. A
+     * unidade do `autoCloseDays` é dia porque ele responde outra pergunta —
+     * "este atendimento morreu?" — e as duas réguas convivem: esta cutuca
+     * dentro do turno, aquela varre o que ficou para trás.
+     */
+    inactivityNudgeMinutes: z.number().int().min(0).max(10_080),
+
+    /**
+     * Minutos **depois da cutucada** até a despedida e o encerramento. Zero é
+     * nunca encerrar por inatividade.
+     *
+     * Contado da cutucada, e não da última mensagem do paciente, porque é o que
+     * a régua quer dizer: deu-se uma chance de responder, e ela não foi usada.
+     * Contado do silêncio original, mudar a primeira régua mudaria a segunda sem
+     * ninguém pedir.
+     */
+    inactivityCloseMinutes: z.number().int().min(0).max(43_200),
 })
 
 export type AgentPreferences = z.infer<typeof agentPreferencesSchema>
@@ -140,6 +176,22 @@ export const DEFAULT_AGENT_PREFERENCES: AgentPreferences = {
     interactionLimit: 50,
     /** Trinta dias de silêncio e o atendimento se encerra sozinho. */
     autoCloseDays: 30,
+    /**
+     * Meia hora, e depois um dia.
+     *
+     * Meia hora porque é a janela em que a pessoa ainda está na conversa: quem
+     * perguntou o preço e parou costuma ter saído para pensar, não para sempre.
+     * Mais curto viraria cobrança; mais longo chegaria quando ela já fechou o
+     * aplicativo e esqueceu.
+     *
+     * Um dia depois para a despedida, e não duas horas, porque encerrar é
+     * irreversível do ponto de vista de quem lê: a última coisa que a clínica
+     * disse foi "vou encerrar". Vinte e quatro horas cobrem quem respondeu à
+     * noite, quem trabalha de dia e quem simplesmente demorou — e o fio reabre
+     * sozinho se a pessoa voltar depois.
+     */
+    inactivityNudgeMinutes: 30,
+    inactivityCloseMinutes: 24 * 60,
 }
 
 /**
@@ -174,6 +226,14 @@ export const UNCONFIGURED_AGENT_PREFERENCES: AgentPreferences = {
      * abrir Parâmetros do agente e salvar.
      */
     autoCloseDays: 0,
+    /**
+     * Zero nos dois, pelo mesmo motivo de `autoCloseDays` — e aqui o motivo
+     * pesa mais: estas duas réguas **escrevem para o paciente**. Ligá-las num
+     * deploy faria agentes no ar começarem a perguntar "ainda está aí?" e a
+     * encerrar atendimentos sem a clínica ter escolhido nada disso.
+     */
+    inactivityNudgeMinutes: 0,
+    inactivityCloseMinutes: 0,
 }
 
 /** Se a clínica chegou a gravar preferência alguma para este agente. */

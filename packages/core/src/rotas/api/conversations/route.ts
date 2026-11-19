@@ -20,6 +20,7 @@ import { Prisma } from '@venn/db'
  */
 const TETO_DA_LISTA = 40
 import { searchTerms } from '@venn/core/lib/search'
+import { idsComNaoLidas, naoLidasPorConversa } from '@venn/core/lib/conversas/nao-lidas'
 import {
     SELECT_ETAPA,
     etapaPorContato,
@@ -125,6 +126,21 @@ export async function GET(request: NextRequest) {
             ...(isAtendente
                 ? { AND: [limiteDoAtendente(user.id)] }
                 : {}),
+        }
+
+        /**
+         * O filtro "Não lidas", que o `recorteDoVer` não consegue montar.
+         *
+         * A condição compara a mensagem com o `lastReadAt` **da própria
+         * conversa**, e isso não é expressável no `where` do Prisma — a razão
+         * inteira está em `lib/conversas/nao-lidas.ts`. Aqui ela vira uma lista
+         * de ids, que entra como qualquer outro recorte e deixa aba, linha,
+         * agente, etiqueta e etapa continuarem valendo em cima dela.
+         *
+         * Uma consulta a mais, e **só quando o filtro está ligado**.
+         */
+        if (ver === 'nao-lidas') {
+            where.id = { in: await idsComNaoLidas(workspaceUser.workspaceId) }
         }
 
         /**
@@ -235,6 +251,9 @@ export async function GET(request: NextRequest) {
                         direction: true,
                         sentBy: true,
                         createdAt: true,
+                        // O cartão não pode mostrar o texto que o paciente
+                        // apagou: mostra "Mensagem apagada". Ver `deletedAt`.
+                        deletedAt: true,
                     }
                 },
                 // Note: _count can't use dynamic lastReadAt, so we use raw count in the result mapping
@@ -402,22 +421,11 @@ export async function GET(request: NextRequest) {
          * `Prisma.join` e não interpolação: a lista de ids vem do banco, mas
          * montar SQL com `${}` aqui ensinaria o padrão errado para o próximo.
          */
-        const idsDaPagina = conversations.map((c) => c.id)
-        const naoLidos =
-            idsDaPagina.length === 0
-                ? []
-                : await prisma.$queryRaw<{ id: string; nao_lidas: bigint }[]>`
-                      SELECT c.id,
-                             count(m.id) AS nao_lidas
-                        FROM conversations c
-                        LEFT JOIN messages m
-                               ON m."conversationId" = c.id
-                              AND m.direction = 'inbound'
-                              AND (c."lastReadAt" IS NULL OR m."createdAt" > c."lastReadAt")
-                       WHERE c.id IN (${Prisma.join(idsDaPagina)})
-                       GROUP BY c.id
-                  `
-        const porConversa = new Map(naoLidos.map((l) => [l.id, Number(l.nao_lidas)]))
+        // A consulta mudou de casa (`lib/conversas/nao-lidas.ts`) quando o filtro
+        // "Não lidas" passou a precisar da mesma condição: duas cópias dela
+        // divergiriam, e divergência aqui aparece como o filtro mostrando uma
+        // conversa cujo contador está zerado.
+        const porConversa = await naoLidasPorConversa(conversations.map((c) => c.id))
 
         const result = conversations.map((conv, idx) => {
             // Merge conversation tags + contact tags (deduplicated)

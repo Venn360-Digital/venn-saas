@@ -217,6 +217,130 @@ function main() {
     ok('webhook: esperado vazio nunca passa', !segredoDoWebhookValido('', ''))
     ok('webhook: esperado indefinido nunca passa', !segredoDoWebhookValido('qualquer', undefined))
 
+    // ------------------------------------------------- LID não é telefone
+    //
+    // O defeito que estas provas prendem, medido na base da Implante Já em
+    // 19/11/2026: catorze fichas com um LID gravado em `phone` (14 ou 15
+    // dígitos) e DEZOITO mensagens de saída para elas, todas `failed`. O envio
+    // monta `<numero>@s.whatsapp.net`, e um LID ali não é conta de ninguém —
+    // então eram leads de anúncio recebidos e nunca respondidos.
+    const comLid = (info: Record<string, unknown>) =>
+        readEvolutionGoEvent({
+            event: 'Message',
+            instanceId: 'i1',
+            data: { Info: info, Message: { conversation: 'Quero informação' } },
+        }) as NormalizedInbound
+
+    // O caso bom: o whatsmeow manda o par, e o telefone ganha.
+    const par = comLid({
+        ID: 'L1',
+        Chat: '109315692208342@lid',
+        Sender: '109315692208342@lid',
+        SenderAlt: '5531988702912@s.whatsapp.net',
+        PushName: 'Marcia',
+    })
+    ok('lid com par: o chatJid é o TELEFONE', par.chatJid === '5531988702912@s.whatsapp.net', par.chatJid)
+    ok('lid com par: o lid vai junto, para casar a ficha', par.lid === '109315692208342', par.lid ?? '—')
+
+    // O nome do campo alternativo mudou entre versões do whatsmeow; o que vale
+    // é a FORMA do valor. Esta prova é o que impede alguém de voltar a ler um
+    // nome fixo e descobrir em produção que aquela versão usa outro.
+    const outroNome = comLid({
+        ID: 'L2',
+        Chat: '169410773970980@lid',
+        RecipientAlt: '553191420149@s.whatsapp.net',
+    })
+    ok(
+        'lid com par sob OUTRO nome de campo: ainda acha o telefone',
+        outroNome.chatJid === '553191420149@s.whatsapp.net',
+        outroNome.chatJid
+    )
+
+    // O caso ruim: não veio telefone. O LID continua sendo a identidade do fio,
+    // mas quem resolve o contato tem de saber que ali NÃO há telefone.
+    const semPar = comLid({ ID: 'L3', Chat: '255318776897696@lid', Sender: '255318776897696@lid' })
+    ok('lid sem par: o chatJid continua o LID', semPar.chatJid === '255318776897696@lid', semPar.chatJid)
+    ok('lid sem par: e o lid está marcado', semPar.lid === '255318776897696')
+
+    // O caminho comum não muda em nada.
+    const normal = comLid({ ID: 'L4', Chat: '5531988501161@s.whatsapp.net', PushName: 'Maria' })
+    ok('telefone comum: intocado', normal.chatJid === '5531988501161@s.whatsapp.net')
+    ok('telefone comum: sem lid', normal.lid === undefined)
+
+    // Grupo fica de fora: lá o `Chat` é `@g.us` e não há "o telefone" do fio.
+    const grupo = readEvolutionGoEvent({
+        event: 'Message',
+        instanceId: 'i1',
+        data: {
+            Info: { ID: 'G1', Chat: '123@g.us', IsGroup: true, Sender: '5531988501161@s.whatsapp.net' },
+            Message: { conversation: 'oi' },
+        },
+    }) as NormalizedInbound
+    ok('grupo: não vira caso de lid', grupo.lid === undefined && grupo.chatJid === '123@g.us')
+
+    // ------------------------------------------------- mensagem apagada
+    //
+    // Apagar no WhatsApp chega como mensagem — um `protocolMessage` de tipo
+    // REVOKE. `decodeMessage` não o conhecia, caía no "[Tipo de mensagem não
+    // suportado]" e o sistema GRAVAVA um balão de erro novo ao lado da
+    // original, que seguia visível. Foi assim que a clínica reportou.
+    const apagou = readEvolutionGoEvent({
+        event: 'Message',
+        instanceId: 'i1',
+        data: {
+            Info: { ID: 'R1', Chat: '5531988501161@s.whatsapp.net' },
+            Message: { protocolMessage: { key: { ID: 'ORIGINAL-1' }, type: 'REVOKE' } },
+        },
+    })
+    ok('apagada: não é mensagem nova', apagou.kind === 'message.revoked', apagou.kind)
+    ok(
+        'apagada: aponta a original',
+        apagou.kind === 'message.revoked' && apagou.targetExternalId === 'ORIGINAL-1'
+    )
+
+    // Os outros `protocolMessage` NÃO são apagamento e não devem marcar nada.
+    const outroProtocolo = readEvolutionGoEvent({
+        event: 'Message',
+        instanceId: 'i1',
+        data: {
+            Info: { ID: 'R2', Chat: '5531988501161@s.whatsapp.net' },
+            Message: { protocolMessage: { key: { ID: 'X' }, type: 'EPHEMERAL_SETTING' } },
+        },
+    })
+    ok('protocolo que não é apagamento: não vira revogação', outroProtocolo.kind !== 'message.revoked')
+
+    // ------------------------------------------------- invólucros
+    //
+    // Temporária, ver-uma-vez e documento-com-legenda guardam a mensagem um
+    // nível abaixo. Sem desembrulhar, cada uma delas aparecia para a atendente
+    // como "[Tipo de mensagem não suportado]" — erro onde havia uma foto.
+    const NAO_SUPORTADO = '[Tipo de mensagem não suportado]'
+    ok(
+        'ver-uma-vez: a imagem é reconhecida',
+        decodeMessage({ viewOnceMessageV2: { message: { imageMessage: { caption: 'meu dente' } } } }, {})
+            .contentType === 'image'
+    )
+    ok(
+        'temporária: o texto é reconhecido',
+        decodeMessage({ ephemeralMessage: { message: { conversation: 'oi' } } }, {}).content === 'oi'
+    )
+    ok(
+        'temporária com ver-uma-vez dentro: desembrulha os dois',
+        decodeMessage(
+            { ephemeralMessage: { message: { viewOnceMessage: { message: { audioMessage: {} } } } } },
+            {}
+        ).contentType === 'audio'
+    )
+    ok(
+        'editada: mostra o texto novo',
+        decodeMessage({ editedMessage: { message: { conversation: 'corrigido' } } }, {}).content ===
+            'corrigido'
+    )
+    ok(
+        'tipo de verdade desconhecido: continua avisando',
+        decodeMessage({ algoQueNaoExiste: {} }, {}).content === NAO_SUPORTADO
+    )
+
     console.log(falhas === 0 ? '\nTODOS OS TESTES PASSARAM' : `\n${falhas} FALHA(S)`)
     process.exit(falhas === 0 ? 0 : 1)
 }

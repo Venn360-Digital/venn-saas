@@ -161,6 +161,68 @@ export function PreferenciasTab({ data, onChange, somenteLeitura = false }: Pref
                         />
                     </div>
 
+                    {/* A régua de inatividade, em dois campos porque são duas
+                        decisões: quando insistir, e quando desistir. Em minutos
+                        porque é a mesma conversa — quem perguntou o preço e
+                        parou está com o celular na mão agora. Zero desliga cada
+                        um por conta própria: dá para cutucar sem nunca encerrar. */}
+                    <div className="border-t border-border pt-4">
+                        <SettingsRow
+                            title={`Perguntar se ${comArtigo(v, 'pessoa')} ainda está na conversa`}
+                            description={`Minutos de silêncio até o Agente perguntar se ${comArtigo(v, 'pessoa')} ainda está por aí. Só vale quando a última mensagem foi nossa, e entre 7h e 20h. Zero não pergunta.`}
+                            action={
+                                <div className="flex items-center gap-2">
+                                    <Input
+                                        type="number"
+                                        min={0}
+                                        max={10080}
+                                        className="num w-[90px]"
+                                        aria-label="Minutos até perguntar se ainda está na conversa"
+                                        value={String(data.inactivityNudgeMinutes)}
+                                        onChange={(e) => {
+                                            const n = parseInt(e.target.value, 10)
+                                            onChange({
+                                                inactivityNudgeMinutes: Number.isNaN(n)
+                                                    ? 0
+                                                    : Math.min(10080, Math.max(0, n)),
+                                            })
+                                        }}
+                                    />
+                                    <span className="text-sm text-muted-foreground">minutos</span>
+                                </div>
+                            }
+                        />
+                    </div>
+
+                    <div className="border-t border-border pt-4">
+                        <SettingsRow
+                            title="Despedir-se e encerrar por inatividade"
+                            description="Minutos depois da pergunta acima até o Agente se despedir e encerrar o atendimento. Zero deixa a conversa aberta."
+                            action={
+                                <div className="flex items-center gap-2">
+                                    <Input
+                                        type="number"
+                                        min={0}
+                                        max={43200}
+                                        className="num w-[90px]"
+                                        aria-label="Minutos até despedir-se e encerrar"
+                                        disabled={data.inactivityNudgeMinutes === 0}
+                                        value={String(data.inactivityCloseMinutes)}
+                                        onChange={(e) => {
+                                            const n = parseInt(e.target.value, 10)
+                                            onChange({
+                                                inactivityCloseMinutes: Number.isNaN(n)
+                                                    ? 0
+                                                    : Math.min(43200, Math.max(0, n)),
+                                            })
+                                        }}
+                                    />
+                                    <span className="text-sm text-muted-foreground">minutos</span>
+                                </div>
+                            }
+                        />
+                    </div>
+
                     <div className="border-t border-border pt-4">
                         <SettingsRow
                             title="Limite de interações por atendimento"

@@ -3,6 +3,7 @@ import { createLogger } from '../../registro'
 import { runActivityReminders } from './activity-reminders'
 import { runActivityRecurrence } from './activity-recurrence'
 import { runConversationAutoclose } from './conversation-autoclose'
+import { runConversationInactivity } from './conversation-inactivity'
 import { runCreditsReset } from './credits-reset'
 import { runTrialLifecycle } from './trial-lifecycle'
 import { runRetention } from './retention'
@@ -28,6 +29,7 @@ const TASKS: Record<CronJobName, () => Promise<void>> = {
     retention: runRetention,
     'integration-health': runIntegrationHealth,
     'conversation-autoclose': runConversationAutoclose,
+    'conversation-inactivity': runConversationInactivity,
     'follow-up': runFollowUp,
     'daily-briefing': runDailyBriefing,
     'auto-follow-up': runAutoFollowUp,

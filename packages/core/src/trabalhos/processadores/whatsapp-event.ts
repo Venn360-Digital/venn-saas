@@ -7,6 +7,7 @@ import type {
     NormalizedPicture,
     NormalizedPresence,
     NormalizedRecycle,
+    NormalizedRevoke,
 } from '../../lib/whatsapp/envelopes'
 import { webhookUrlFor } from '../../lib/whatsapp'
 import { env } from '../ambiente'
@@ -16,7 +17,7 @@ import { findContactByJid, syncContactProfile } from '../servicos/avatar'
 import { findIntegrationByRef, providerFor } from '../servicos/integration'
 import { enfileirar } from '../filas'
 import { avisarQuedaDeLinha, avisarRetornoDeLinha } from '../../lib/alertas/linha-caiu'
-import { avisarStatusDaMensagem , publicarAgora } from '../../lib/outbox/avisar'
+import { avisarConversaAlterada, avisarStatusDaMensagem , publicarAgora } from '../../lib/outbox/avisar'
 
 /** Measured: the forced logout lands ~105 s after PairSuccess; sync is done by ~15 s. */
 const RECYCLE_DELAY_MS = 20_000
@@ -35,6 +36,8 @@ export async function processWhatsAppEvent(payload: WhatsAppEventJob): Promise<v
     switch (event.kind) {
         case 'message.ack':
             return handleAck(event)
+        case 'message.revoked':
+            return handleRevoke(event)
         case 'connection':
             return handleConnection(event, payload)
         case 'presence':
@@ -119,6 +122,84 @@ async function handleRecycle(event: NormalizedRecycle): Promise<void> {
         `integration ${integration.id} recycled after pairing → ` +
             `loggedIn=${after?.loggedIn ?? '?'} socket=${after?.socketOpen ?? '?'}`
     )
+}
+
+/**
+ * O paciente apagou uma mensagem: marca a original e **não** cria nenhuma.
+ *
+ * ## O defeito
+ *
+ * O evento de apagamento chega no mesmo formato de uma mensagem — um
+ * `protocolMessage` de tipo `REVOKE` dentro de `data.Message`. Como
+ * `decodeMessage` não conhecia a chave, caía no último `return` e devolvia
+ * "[Tipo de mensagem não suportado]" como se fosse a fala da pessoa. O inbound
+ * gravava isso: um balão de erro **novo**, ao lado da mensagem original, que
+ * continuava visível. A atendente via as duas coisas erradas de uma vez, e foi
+ * assim que a clínica relatou.
+ *
+ * ## O escopo da busca, e por que ele importa
+ *
+ * `externalId` é id do provedor, não nosso, e não é único no banco — duas
+ * clínicas em contas diferentes podem receber ids iguais do WhatsApp. Por isso
+ * a busca é presa à **conversa daquela linha**: a integração do evento diz o
+ * workspace, e o JID diz o fio. Sem esse recorte, um apagamento marcaria a
+ * mensagem de outra clínica.
+ *
+ * Mensagem que não achamos é silêncio de propósito: é o caso de o paciente
+ * apagar algo que ele mandou antes de a linha existir, ou de um id que nunca
+ * passou por aqui. Não há o que consertar e não há nada errado.
+ */
+async function handleRevoke(event: NormalizedRevoke): Promise<void> {
+    const integration = await findIntegrationByRef(event.instance)
+    if (!integration) {
+        log.warn('no integration for revoke', event.instance)
+        return
+    }
+
+    const alvo = await prisma.message.findFirst({
+        where: {
+            externalId: event.targetExternalId,
+            conversation: {
+                workspaceId: integration.agent.workspaceId,
+                integrationId: integration.id,
+            },
+        },
+        select: { id: true, conversationId: true, deletedAt: true },
+    })
+
+    if (!alvo) {
+        log.debug(`apagamento de ${event.targetExternalId}: mensagem não encontrada nesta linha`)
+        return
+    }
+
+    // Repetido não reescreve a data: o WhatsApp reenvia o que não foi
+    // reconhecido, e a hora do apagamento é a primeira, não a da retentativa.
+    if (alvo.deletedAt) return
+
+    await prisma.$transaction(async (tx) => {
+        await tx.message.update({
+            where: { id: alvo.id },
+            data: { deletedAt: new Date() },
+        })
+
+        /**
+         * `conversa.alterada`, e **não** o aviso de status.
+         *
+         * O aviso de status é aplicado no lugar pela tela (`status` da linha
+         * trocado em memória), e "apagada" não é status de entrega: seria um
+         * valor que o banco não tem, divergindo da próxima busca. Aqui a tela
+         * recarrega e lê `deletedAt` da fonte. Custa um GET por apagamento, que
+         * é evento raro — e é o preço de a tela nunca mostrar um estado que o
+         * banco não confirma.
+         */
+        await avisarConversaAlterada(tx, {
+            workspaceId: integration.agent.workspaceId,
+            conversationId: alvo.conversationId,
+        })
+    })
+
+    publicarAgora()
+    log.info(`mensagem ${alvo.id} marcada como apagada por quem a enviou`)
 }
 
 /** Advance delivery status for the messages a receipt covers. */

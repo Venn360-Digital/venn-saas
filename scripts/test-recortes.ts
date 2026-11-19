@@ -115,17 +115,50 @@ for (const aba of ['ia', 'equipe', 'finalizadas'] as const) {
 // também — então ela afirma explicitamente que "todas" não contém permissão.
 eq('"Todas" não traz permissão nenhuma consigo', recorteDoVer('todas', 'eu'), null)
 
+/**
+ * **"Não lidas" também devolve nulo, e por um motivo completamente diferente.**
+ *
+ * "Todas" é nulo porque não há recorte a fazer. Esta é nula porque o recorte
+ * **não se escreve em Prisma**: a condição compara a mensagem com o
+ * `lastReadAt` da PRÓPRIA conversa, e o `where` não sabe apontar para a coluna
+ * da linha-mãe. Quem a aplica é a rota, com SQL cru (`lib/conversas/nao-lidas.ts`).
+ *
+ * A prova existe para que ninguém leia este nulo como "o filtro não faz nada" e
+ * apague a consulta da rota — que é o único lugar onde ele acontece.
+ */
+eq('"Não lidas" devolve nulo porque quem a aplica é a rota', recorteDoVer('nao-lidas', 'eu'), null)
+
 console.log('\n— as opções por papel —\n')
 
-eq('gestão escolhe entre as quatro', opcoesDeVer('GESTOR'), [
+eq('gestão escolhe entre as cinco', opcoesDeVer('GESTOR'), [
     'todas',
+    'nao-lidas',
     'minhas',
     'colaboro',
     'sem-responsavel',
 ])
-eq('dono também', opcoesDeVer('OWNER'), ['todas', 'minhas', 'colaboro', 'sem-responsavel'])
-eq('o atendente não recebe "Sem responsável"', opcoesDeVer('ATENDENTE'), [
+eq('dono também', opcoesDeVer('OWNER'), [
     'todas',
+    'nao-lidas',
+    'minhas',
+    'colaboro',
+    'sem-responsavel',
+])
+
+/**
+ * **"Não lidas" é a única que o atendente também recebe**, e isso é a regra,
+ * não um descuido.
+ *
+ * "Sem responsável" fica fora dele porque o teto já lhe mostra a fila sem
+ * responsável inteira — a opção não distinguiria nada. Não lida distingue: é o
+ * que ele ainda não leu dentro da carteira dele, e é a pergunta que a clínica
+ * fez ("tem como acrescentar no filtro a opção para ver as mensagens não
+ * lidas"). Esconder dela quem atende seria entregar o filtro para quem não
+ * atende.
+ */
+eq('o atendente não recebe "Sem responsável", mas recebe "Não lidas"', opcoesDeVer('ATENDENTE'), [
+    'todas',
+    'nao-lidas',
     'minhas',
     'colaboro',
 ])
@@ -140,6 +173,7 @@ eq('a aba tem rótulo para cada valor', Object.keys(ROTULO_DA_ABA).sort(), [
 eq('o Ver tem rótulo para cada valor', Object.keys(ROTULO_DO_VER).sort(), [
     'colaboro',
     'minhas',
+    'nao-lidas',
     'sem-responsavel',
     'todas',
 ])

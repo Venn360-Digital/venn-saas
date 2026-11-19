@@ -1,5 +1,12 @@
 import type { WhatsAppMessagePayload } from './payload'
-import { type ChannelProviderName, toMsisdn } from './types'
+import { idDaMensagemRevogada } from './payload'
+import {
+    type ChannelProviderName,
+    ehJidDeLid,
+    lidDoJid,
+    telefoneAlternativoNoInfo,
+    toMsisdn,
+} from './types'
 
 /**
  * Translation of each provider's webhook envelope into one canonical event.
@@ -48,6 +55,7 @@ export interface InstanceRef {
 export type CanonicalEvent =
     | 'message'
     | 'message.ack'
+    | 'message.revoked'
     | 'message.sent'
     | 'connection'
     | 'presence'
@@ -67,6 +75,21 @@ export interface NormalizedInbound extends NormalizedEvent {
     externalId?: string
     /** Sender JID, suffix intact. */
     chatJid: string
+    /**
+     * O LID de quem escreveu, quando o WhatsApp endereçou a conversa por LID.
+     *
+     * **Separado do `chatJid` de propósito.** O LID não é telefone, e o caminho
+     * que o tratava como um criou catorze fichas com um número de quinze dígitos
+     * no lugar do celular — e **toda** resposta da clínica para elas falhou,
+     * porque o envio monta `<numero>@s.whatsapp.net` e aquele número não existe
+     * em lugar nenhum. Eram leads de anúncio, e ninguém os respondeu.
+     *
+     * Quando o telefone vem no envelope (ver `telefoneAlternativoNoInfo`),
+     * `chatJid` é o telefone e este campo é o par — guardado para casar as duas
+     * identidades na ficha. Quando não vem, `chatJid` fica com o LID e é este
+     * campo que diz a quem resolve o contato que ali **não** há telefone.
+     */
+    lid?: string
     fromMe: boolean
     isGroup: boolean
     pushName?: string
@@ -84,6 +107,26 @@ export interface NormalizedAck extends NormalizedEvent {
     /** Provider message ids this receipt covers. */
     messageIds: string[]
     status: 'sent' | 'delivered' | 'read'
+}
+
+/**
+ * O paciente **apagou** uma mensagem que já havia mandado.
+ *
+ * Não é mensagem nova, e tratá-la como uma era o defeito: o `protocolMessage`
+ * de tipo `REVOKE` não casava com nenhuma chave conhecida, `decodeMessage` caía
+ * no "[Tipo de mensagem não suportado]" e o sistema gravava **um balão de erro
+ * novo** ao lado da mensagem original, que continuava visível. A atendente via
+ * as duas coisas erradas de uma vez.
+ *
+ * O evento só diz qual mensagem morreu, pelo id do provedor. Quem a marca é o
+ * worker — ver `handleRevoke`.
+ */
+export interface NormalizedRevoke extends NormalizedEvent {
+    kind: 'message.revoked'
+    /** O `externalId` da mensagem apagada. É por ele que a linha é achada. */
+    targetExternalId: string
+    /** O fio onde ela estava, para achar a conversa sem varrer o banco. */
+    chatJid: string
 }
 
 export interface NormalizedConnection extends NormalizedEvent {
@@ -129,6 +172,7 @@ export interface NormalizedPicture extends NormalizedEvent {
 export type AnyNormalizedEvent =
     | NormalizedInbound
     | NormalizedAck
+    | NormalizedRevoke
     | NormalizedConnection
     | NormalizedPresence
     | NormalizedPicture
@@ -198,11 +242,52 @@ export function readEvolutionGoEvent(body: unknown): AnyNormalizedEvent {
             const info = (data.Info ?? {}) as GoMessageInfo
             const message = data.Message as (WhatsAppMessagePayload & { base64?: string }) | undefined
 
+            /**
+             * Endereçada por LID: o telefone vem no par, não no `Chat`.
+             *
+             * O WhatsApp passou a endereçar contas por LID, e o `Chat` de uma
+             * conversa individual pode ser `<id>@lid` — dígitos que se parecem
+             * com telefone e não são de ninguém. Quem resolve o contato precisa
+             * do telefone de verdade para achar a ficha que a recepção
+             * cadastrou e para a resposta sair para um endereço que existe.
+             *
+             * Grupo fica de fora: lá o `Chat` é `@g.us` e há vários
+             * participantes, então não há "o telefone" do fio.
+             */
+            /**
+             * Apagamento vem como mensagem, e não é mensagem.
+             *
+             * Vem antes de qualquer outra leitura porque o resto deste `case`
+             * monta um inbound — e um inbound para um apagamento é precisamente
+             * o balão de erro que a clínica reportou. Ver `idDaMensagemRevogada`.
+             */
+            const revogada = idDaMensagemRevogada(message)
+            if (revogada) {
+                return {
+                    ...base,
+                    kind: 'message.revoked',
+                    targetExternalId: revogada,
+                    chatJid: info.Chat ?? '',
+                }
+            }
+
+            const chatEhLid = !info.IsGroup && ehJidDeLid(info.Chat)
+            const telefoneDoPar = chatEhLid ? telefoneAlternativoNoInfo(info) : null
+            const lid = chatEhLid ? (lidDoJid(info.Chat) ?? undefined) : undefined
+
             return {
                 ...base,
                 kind: 'message',
                 externalId: info.ID,
-                chatJid: info.Chat ?? '',
+                /**
+                 * O telefone ganha do LID quando os dois chegam.
+                 *
+                 * É o que mantém o resto do caminho sem exceção: a busca por
+                 * `phoneVariants`, a convergência da ficha e o envio todos
+                 * falam telefone, e passavam a receber um LID sem saber.
+                 */
+                chatJid: (telefoneDoPar ? `${telefoneDoPar}@s.whatsapp.net` : info.Chat) ?? '',
+                lid,
                 fromMe: Boolean(info.IsFromMe),
                 isGroup: Boolean(info.IsGroup),
                 pushName: info.PushName,

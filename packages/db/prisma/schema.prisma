@@ -1048,6 +1048,28 @@ model Contact {
   /// há como saber que são a mesma pessoa sem ela dizer.
   instagramId String?
 
+  /// Quem é este paciente para o WhatsApp quando ele o endereça por **LID**.
+  ///
+  /// Coluna própria pelo mesmo motivo de `instagramId`, e por um prejuízo já
+  /// medido: o LID é um identificador de conta que **não é telefone**, e o
+  /// inbound o gravava em `phone`. Catorze fichas da Implante Já nasceram com
+  /// um número de catorze ou quinze dígitos no lugar do celular, e as dezoito
+  /// respostas que a clínica mandou para elas falharam todas — o envio monta
+  /// `<numero>@s.whatsapp.net`, e aquele número não existe em lugar nenhum.
+  /// Eram leads de anúncio, e nenhum foi respondido.
+  ///
+  /// Guardá-lo aqui resolve as duas metades: o fio continua tendo dono (o LID é
+  /// a única identidade que o evento traz quando o telefone não vem no par), e
+  /// nada mais o confunde com telefone — não é formatado como celular na ficha,
+  /// não entra na busca por telefone, não passa por `phoneVariants` e não é
+  /// usado como destino de envio.
+  ///
+  /// Uma ficha pode ter os dois. É o caso bom: `telefoneAlternativoNoInfo`
+  /// recupera o telefone do envelope e grava os dois juntos, e é esse par que
+  /// permite reencontrar a mesma pessoa quando um evento futuro vier só com o
+  /// LID.
+  lid String?
+
   notes String? @db.Text // Observações
 
   // Custom Fields
@@ -1096,9 +1118,11 @@ model Contact {
 
   @@unique([workspaceId, phone])
   @@unique([workspaceId, instagramId])
+  @@unique([workspaceId, lid])
   @@index([workspaceId])
   @@index([phone])
   @@index([instagramId])
+  @@index([lid])
   @@index([email])
   @@index([originId])
   @@map("contacts")
@@ -1700,6 +1724,22 @@ model Message {
   transcript String? @db.Text
   // Reação enviada pela clínica a esta mensagem (um emoji), se houver.
   reaction   String?
+
+  /// Quando quem mandou **apagou** esta mensagem no WhatsApp.
+  ///
+  /// Apagar no WhatsApp não apaga nada do nosso lado: chega um evento novo
+  /// (`protocolMessage` de tipo `REVOKE`) dizendo que aquela mensagem não existe
+  /// mais. Sem esta coluna o evento não tinha onde pousar — `decodeMessage` não
+  /// reconhecia a chave, caía no "[Tipo de mensagem não suportado]" e o sistema
+  /// gravava um balão de erro **novo**, ao lado da original, que continuava
+  /// visível. A clínica reportou exatamente isso.
+  ///
+  /// O conteúdo original **fica na linha**, e isto é escolha, não descuido: a
+  /// clínica já recebeu a mensagem, ela faz parte do registro do atendimento, e
+  /// um prontuário que se reescreve sozinho vale menos. O que muda é a tela, que
+  /// mostra "Mensagem apagada" em vez do texto — a atendente vê que a pessoa se
+  /// retratou, que é a informação que ela precisa para conduzir a conversa.
+  deletedAt DateTime?
 
   createdAt DateTime @default(now())
 

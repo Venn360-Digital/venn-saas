@@ -2,7 +2,7 @@ import { enderecoDaMidia } from '../../lib/midia'
 import type { ContextoDaEntrega } from '../../lib/queue/consumidor'
 import prisma from '@venn/db/cliente'
 import { decidirEnvioNoInstagram } from '../../lib/instagram/window'
-import type { MediaKind, SendOptions } from '../../lib/whatsapp'
+import { ehDestinoEnviavel, type MediaKind, type SendOptions } from '../../lib/whatsapp'
 import { createLogger } from '../registro'
 import type { WhatsAppOutboundJob } from '../../lib/queue/definitions'
 import { findIntegrationById, providerFor } from '../servicos/integration'
@@ -76,6 +76,43 @@ export async function processWhatsAppOutbound(
      * que a mensagem não saiu e por quê, e um `status: failed` silencioso só
      * conta a primeira metade.
      */
+    /**
+     * Destinatário sem telefone conhecido: recusa **dizendo por quê**.
+     *
+     * O WhatsApp passou a endereçar contas por LID, e durante um tempo o
+     * inbound gravou esse LID como se fosse telefone. O envio monta
+     * `<numero>@s.whatsapp.net`, e um LID ali não existe em lugar nenhum: as
+     * dezoito mensagens que a clínica mandou para as catorze fichas afetadas
+     * terminaram todas em `failed`, sem nenhuma linha dizendo o motivo. Eram
+     * leads de anúncio.
+     *
+     * O caminho de entrada já não cria mais ficha assim (ver
+     * `telefoneAlternativoNoInfo`), mas as fichas antigas continuam na base e a
+     * equipe continua clicando nelas. Recusar aqui, com recado dentro da
+     * conversa, troca um `failed` mudo por uma instrução — exatamente como a
+     * janela do Instagram faz logo abaixo.
+     */
+    if (!ehDestinoEnviavel(to, integration.channel)) {
+        await prisma.message.update({ where: { id: messageId }, data: { status: 'failed' } })
+        await prisma.message.create({
+            data: {
+                conversationId: message.conversationId,
+                direction: 'internal',
+                content:
+                    'A mensagem não foi enviada: o WhatsApp identificou esta pessoa por um ' +
+                    'código interno em vez do telefone, e não há número para onde enviar. ' +
+                    'Preencha o celular na ficha do contato e envie de novo — a conversa ' +
+                    'continua aqui mesmo.',
+                contentType: 'text',
+                isInternal: true,
+                status: 'sent',
+            },
+        })
+        log.warn(`message ${messageId} sem destino discável (to=${to}); recusada com recado`)
+        // Sem `throw`: retentativa não inventa o telefone que falta.
+        return
+    }
+
     let options: SendOptions | undefined
     if (integration.channel === 'instagram') {
         const ultima = await prisma.message.findFirst({

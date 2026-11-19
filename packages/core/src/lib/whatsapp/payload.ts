@@ -81,6 +81,92 @@ export function ehMarcadorDeMidia(content: string): boolean {
     return MARCADORES_POR_PREFIXO.some((prefixo) => texto.startsWith(prefixo))
 }
 
+/**
+ * Os invólucros do WhatsApp: mensagens que **contêm** a mensagem de verdade.
+ *
+ * Mensagem temporária, de ver-uma-vez e documento-com-legenda não são tipos de
+ * conteúdo — são embalagens, e a fala da pessoa está um nível abaixo, em
+ * `.message`. Sem desembrulhar, `decodeMessage` não reconhece nenhuma chave
+ * conhecida e cai no "[Tipo de mensagem não suportado]": uma foto enviada como
+ * ver-uma-vez aparecia para a atendente como erro, não como foto.
+ *
+ * `editedMessage` entra na lista porque a edição carrega o texto novo dentro da
+ * mesma estrutura; mostrar o texto novo é exatamente o que se quer.
+ */
+const INVOLUCROS = [
+    'ephemeralMessage',
+    'viewOnceMessage',
+    'viewOnceMessageV2',
+    'viewOnceMessageV2Extension',
+    'documentWithCaptionMessage',
+    'editedMessage',
+] as const
+
+/**
+ * Tira as embalagens até sobrar a mensagem.
+ *
+ * Com teto de profundidade, porque invólucro aninhado existe (temporária
+ * contendo ver-uma-vez) e um payload malformado não pode virar laço infinito no
+ * caminho de uma mensagem de paciente.
+ */
+export function desembrulhar(
+    payload: WhatsAppMessagePayload,
+    profundidade = 0
+): WhatsAppMessagePayload {
+    if (profundidade >= 4) return payload
+
+    for (const chave of INVOLUCROS) {
+        const embalagem = payload[chave]
+        if (!embalagem || typeof embalagem !== 'object') continue
+
+        const dentro = (embalagem as Record<string, unknown>).message
+        if (dentro && typeof dentro === 'object') {
+            return desembrulhar(dentro as WhatsAppMessagePayload, profundidade + 1)
+        }
+    }
+
+    return payload
+}
+
+/**
+ * O id da mensagem que o paciente **apagou**, quando o evento é isso.
+ *
+ * ## O defeito que isto conserta
+ *
+ * Apagar uma mensagem no WhatsApp não apaga nada do nosso lado: chega um evento
+ * novo, um `protocolMessage` de tipo `REVOKE`, que diz "aquela mensagem lá não
+ * existe mais". `decodeMessage` não conhecia essa chave, caía no último
+ * `return` e o sistema **gravava uma mensagem nova** com o texto
+ * "[Tipo de mensagem não suportado]" — ao lado da original, que continuava ali.
+ *
+ * Então a atendente via duas coisas erradas de uma vez: a mensagem que o
+ * paciente apagou, ainda visível, e um balão de erro que não era erro de nada.
+ * Foi relatado assim: "quando o paciente apaga a mensagem fica aparecendo como
+ * tipo de mensagem não suportado".
+ *
+ * `null` para todo o resto, inclusive para os outros `protocolMessage` — o tipo
+ * cobre também expiração de mensagem temporária e pedido de chave de histórico,
+ * que não são apagamento e não devem marcar nada como apagado.
+ */
+export function idDaMensagemRevogada(
+    payload: WhatsAppMessagePayload | undefined
+): string | null {
+    const protocolo = payload?.protocolMessage
+    if (!protocolo || typeof protocolo !== 'object') return null
+
+    const bloco = protocolo as Record<string, unknown>
+    const tipo = String(bloco.type ?? '').toUpperCase()
+    // `REVOKE` é o nome no whatsmeow; o número 0 é como o protobuf cru o
+    // serializa quando o campo não é traduzido para o nome do enum.
+    if (tipo !== 'REVOKE' && tipo !== '0') return null
+
+    const chave = bloco.key
+    if (!chave || typeof chave !== 'object') return null
+
+    const id = (chave as Record<string, unknown>).ID ?? (chave as Record<string, unknown>).id
+    return typeof id === 'string' && id.length > 0 ? id : null
+}
+
 /** Read a nested field without asserting the whole payload's shape. */
 function field(payload: WhatsAppMessagePayload, group: string, key: string): string | undefined {
     const value = payload[group]
@@ -104,6 +190,11 @@ export function decodeMessage(
     data: EvolutionData
 ): DecodedMessage {
     if (!payload) return { content: MARCADOR_VAZIO, contentType: 'text', mediaUrl: null }
+
+    // Antes de procurar o tipo, tira a embalagem: temporária, ver-uma-vez e
+    // documento-com-legenda guardam a mensagem um nível abaixo, e sem isto toda
+    // uma delas aparecia como "não suportado". Ver `INVOLUCROS`.
+    payload = desembrulhar(payload)
 
     const conversation = payload.conversation
     if (typeof conversation === 'string' && conversation.length > 0) {

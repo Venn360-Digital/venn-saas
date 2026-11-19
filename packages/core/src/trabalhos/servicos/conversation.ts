@@ -20,6 +20,15 @@ const log = createLogger('CONVERSATION')
 export type ContactIdentity =
     | { kind: 'phone'; value: string }
     | { kind: 'instagram'; value: string }
+    /**
+     * O WhatsApp endereçou a conversa por LID e **não** mandou o telefone no par.
+     *
+     * É o caso em que não sabemos o número de quem escreveu. Antes, o LID
+     * entrava como `phone` e a ficha nascia com quinze dígitos no lugar do
+     * celular; toda resposta falhava. Aqui ele é o que é: a identidade do fio
+     * naquele canal, e nada mais.
+     */
+    | { kind: 'lid'; value: string }
 
 /**
  * O nome que a ficha do Instagram recebe até o perfil ser consultado.
@@ -30,13 +39,94 @@ export type ContactIdentity =
  */
 export const NOME_PROVISORIO_INSTAGRAM = 'Instagram (sem nome ainda)'
 
+/**
+ * O nome da ficha de quem o WhatsApp identificou **sem** dar o telefone.
+ *
+ * Existe pela mesma razão do de cima, e por um prejuízo medido: catorze fichas
+ * da Implante Já nasceram com o LID gravado em `phone`, chamadas "WhatsApp
+ * 109315692208342" — quinze dígitos que não abrem no WhatsApp —, e as dezoito
+ * respostas que a clínica mandou para elas falharam todas. O nome passa a dizer
+ * o que a ficha é, em vez de mostrar um telefone que não existe.
+ */
+export const NOME_PROVISORIO_SEM_NUMERO = 'Lead sem número identificado'
+
+/**
+ * Se o nome que o canal manda pode entrar na ficha.
+ *
+ * ## O defeito que isto conserta
+ *
+ * Era `if (pushName && existing.name !== pushName) patch.name = pushName`: **toda**
+ * mensagem recebida reescrevia o nome com o do perfil do WhatsApp. A recepção
+ * abria a ficha, trocava "Fátima" por "Fátima Rodrigues — indicação da Dra.
+ * Ana", salvava, o paciente mandava "ok" e o nome voltava para "Fátima". Foi
+ * relatado assim: "o nome do paciente não está ficando salvo, eu salvei e ainda
+ * está aparecendo com o nome original".
+ *
+ * ## A regra
+ *
+ * O nome do canal **preenche**, não corrige: entra quando a ficha não tem nome
+ * ou tem um dos nomes que nós mesmos inventamos. A partir do momento em que há
+ * qualquer outro nome ali, ele é da clínica e o canal não toca mais.
+ *
+ * ## O que isto custa, para ficar escrito
+ *
+ * O paciente que troca o nome do próprio perfil deixa de ter a troca refletida
+ * aqui, porque não há como distinguir "nome que veio do canal na mensagem
+ * passada" de "nome que a atendente digitou e por acaso é diferente do perfil"
+ * sem uma coluna dizendo quem escreveu. Entre perder uma atualização de perfil
+ * e desfazer o trabalho da recepção a cada mensagem, perde-se a atualização: o
+ * nome é fácil de corrigir à mão, e o apagamento silencioso não era.
+ */
+export function nomeDoCanalPodeEntrar(
+    existing: Pick<Contact, 'name' | 'phone' | 'lid' | 'instagramId'>,
+    pushName: string | null | undefined
+): boolean {
+    const novo = (pushName ?? '').trim()
+    if (!novo) return false
+
+    const atual = (existing.name ?? '').trim()
+    if (!atual) return true
+    if (atual === novo) return false
+
+    return ehNomeQueNosInventamos(atual, existing)
+}
+
+/**
+ * Os nomes que este arquivo gera quando não há nome de verdade.
+ *
+ * Lista única de propósito: é ela que decide se um nome é nosso ou da clínica,
+ * e um literal repetido deixaria de casar na primeira vez que alguém
+ * reescrevesse um dos pontos de criação.
+ */
+function ehNomeQueNosInventamos(
+    nome: string,
+    existing: Pick<Contact, 'phone' | 'lid' | 'instagramId'>
+): boolean {
+    if (nome === NOME_PROVISORIO_INSTAGRAM) return true
+    if (nome === NOME_PROVISORIO_SEM_NUMERO) return true
+
+    // `WhatsApp <numero>` — e contra qualquer das identidades da ficha, porque o
+    // nome pode ter sido gerado com a forma antiga do número.
+    for (const id of [existing.phone, existing.lid, existing.instagramId]) {
+        if (id && nome === `WhatsApp ${id}`) return true
+    }
+
+    // A forma, para o caso de o número da ficha ter convergido depois.
+    return /^WhatsApp \d{8,20}$/.test(nome)
+}
+
 /** A chave do bloqueio por paciente. */
 function lockKeyFor(workspaceId: string, identity: ContactIdentity): string {
     // O WhatsApp mantém a chave antiga: trocá-la faria, durante um deploy, dois
     // processos usarem chaves diferentes para o mesmo paciente.
-    return identity.kind === 'phone'
-        ? `contact:${workspaceId}:${identity.value}`
-        : `contact:${workspaceId}:ig:${identity.value}`
+    switch (identity.kind) {
+        case 'phone':
+            return `contact:${workspaceId}:${identity.value}`
+        case 'instagram':
+            return `contact:${workspaceId}:ig:${identity.value}`
+        case 'lid':
+            return `contact:${workspaceId}:lid:${identity.value}`
+    }
 }
 
 export interface ResolveContactInput {
@@ -46,6 +136,15 @@ export interface ResolveContactInput {
     integrationId: string
     pushName?: string | null
     profilePicUrl?: string | null
+    /**
+     * O LID do par, quando o evento trouxe **os dois** — telefone e LID.
+     *
+     * Só vem junto da identidade por telefone, e é o que permite reencontrar a
+     * mesma pessoa se um evento futuro chegar só com o LID. É também o que faz
+     * a fusão funcionar: se já existe uma ficha criada por LID, ela é promovida
+     * em vez de nascer uma segunda ao lado.
+     */
+    lid?: string | null
 }
 
 /**
@@ -86,26 +185,43 @@ async function marketingDaLinha(
  * Callers must already hold the per-contact lock (see `resolveInboundContext`).
  */
 async function resolveContact(input: ResolveContactInput): Promise<Contact> {
-    const { workspaceId, identity, integrationId, pushName, profilePicUrl } = input
+    const { workspaceId, identity, integrationId, pushName, profilePicUrl, lid } = input
 
     if (identity.kind === 'instagram') {
         return resolveInstagramContact(workspaceId, identity.value, integrationId, pushName, profilePicUrl)
     }
 
+    if (identity.kind === 'lid') {
+        return resolveLidContact(workspaceId, identity.value, integrationId, pushName, profilePicUrl)
+    }
+
     const phone = identity.value
 
     /**
-     * As duas formas do celular brasileiro, porque uma ficha pode ter nascido
-     * com a outra.
+     * Duas identidades na mesma busca: o telefone e o LID do par.
      *
-     * Quem cadastra à mão digita `(31) 98850-1161`; a conta no WhatsApp pode
-     * estar registrada como `553188501161`, sem o nono dígito, e é essa forma
-     * que chega aqui pelo JID. Procurando só pela forma exata, a primeira
-     * mensagem criava um segundo paciente ao lado do que a recepção acabara de
-     * cadastrar.
+     * **O telefone, nas duas formas do celular brasileiro.** Quem cadastra à
+     * mão digita `(31) 98850-1161`; a conta no WhatsApp pode estar registrada
+     * como `553188501161`, sem o nono dígito, e é essa forma que chega aqui
+     * pelo JID. Procurando só pela forma exata, a primeira mensagem criava um
+     * segundo paciente ao lado do que a recepção acabara de cadastrar.
+     *
+     * **E o LID, quando o evento trouxe os dois.** É a fusão: se esta pessoa já
+     * tem ficha criada por LID — porque um evento anterior não trouxe o par —,
+     * ela é reencontrada e **promovida** agora que sabemos o número, em vez de
+     * nascer uma segunda ficha ao lado. Sem isto, o paciente que escreve duas
+     * vezes aparece duas vezes na caixa de entrada, que foi exatamente o que a
+     * clínica reportou como "o áudio está em duas mensagens".
+     *
+     * A ordem resolve o empate: quem já tem telefone ganha de quem só tem LID,
+     * porque é a ficha que a recepção vê e onde está o histórico.
      */
     const existing = await prisma.contact.findFirst({
-        where: { workspaceId, phone: { in: phoneVariants(phone) } },
+        where: {
+            workspaceId,
+            OR: [{ phone: { in: phoneVariants(phone) } }, ...(lid ? [{ lid }] : [])],
+        },
+        orderBy: { phone: { sort: 'asc', nulls: 'last' } },
     })
 
     if (!existing) {
@@ -113,6 +229,7 @@ async function resolveContact(input: ResolveContactInput): Promise<Contact> {
             data: {
                 workspaceId,
                 phone,
+                lid: lid ?? null,
                 name: pushName || `WhatsApp ${phone}`,
                 avatar: profilePicUrl ?? null,
                 // `inbound`: ele escreveu primeiro. Antes era `whatsapp`, que é
@@ -124,22 +241,66 @@ async function resolveContact(input: ResolveContactInput): Promise<Contact> {
         })
     }
 
-    const patch: { name?: string; avatar?: string; phone?: string } = {}
-    if (pushName && existing.name !== pushName) patch.name = pushName
+    const patch: { name?: string; avatar?: string; phone?: string; lid?: string } = {}
+    if (nomeDoCanalPodeEntrar(existing, pushName)) patch.name = pushName as string
     if (profilePicUrl && existing.avatar !== profilePicUrl) patch.avatar = profilePicUrl
     // O JID é a autoridade sobre a forma do número: convergir a ficha para ela
     // evita que a próxima busca exata erre de novo. Se as duas formas existirem
     // como fichas separadas (dado antigo), o índice único recusa — e aí a ficha
     // fica como está, que é melhor que abortar a mensagem.
     if (existing.phone !== phone) patch.phone = phone
+    /**
+     * O LID entra na ficha, e é isto que fecha o ciclo.
+     *
+     * Gravado agora, um evento futuro que venha **só** com o LID reencontra
+     * esta ficha — com telefone, histórico e nome — em vez de abrir outra.
+     *
+     * Se o índice único recusar, é porque outra ficha já carrega este LID: um
+     * par duplicado de antes do conserto. Não se força, porque unir duas fichas
+     * é mover conversa, negócio e etiqueta, e isso não se faz no caminho de uma
+     * mensagem chegando. Fica o aviso para a união ser feita na tela.
+     */
+    if (lid && existing.lid !== lid) patch.lid = lid
 
     if (Object.keys(patch).length === 0) return existing
     try {
         return await prisma.contact.update({ where: { id: existing.id }, data: patch })
     } catch {
-        log.warn(`could not converge contact ${existing.id} to ${phone}; keeping as is`)
+        log.warn(
+            `could not converge contact ${existing.id} to phone=${phone} lid=${lid ?? '—'}; keeping as is`
+        )
         return existing
     }
+}
+
+async function resolveLidContact(
+    workspaceId: string,
+    lid: string,
+    integrationId: string,
+    pushName?: string | null,
+    profilePicUrl?: string | null
+): Promise<Contact> {
+    const existing = await prisma.contact.findFirst({ where: { workspaceId, lid } })
+
+    if (!existing) {
+        return prisma.contact.create({
+            data: {
+                workspaceId,
+                lid,
+                name: pushName || NOME_PROVISORIO_SEM_NUMERO,
+                avatar: profilePicUrl ?? null,
+                createdVia: 'inbound',
+                originId: (await marketingDaLinha(integrationId)).originId,
+            },
+        })
+    }
+
+    const patch: { name?: string; avatar?: string } = {}
+    if (nomeDoCanalPodeEntrar(existing, pushName)) patch.name = pushName as string
+    if (profilePicUrl && existing.avatar !== profilePicUrl) patch.avatar = profilePicUrl
+
+    if (Object.keys(patch).length === 0) return existing
+    return prisma.contact.update({ where: { id: existing.id }, data: patch })
 }
 
 /**
@@ -177,7 +338,9 @@ async function resolveInstagramContact(
     }
 
     const patch: { name?: string; avatar?: string } = {}
-    if (pushName && existing.name !== pushName) patch.name = pushName
+    // Mesma regra do WhatsApp: o @ da conta preenche nome vazio ou provisório, e
+    // não reescreve o que a clínica digitou. Ver `nomeDoCanalPodeEntrar`.
+    if (nomeDoCanalPodeEntrar(existing, pushName)) patch.name = pushName as string
     if (profilePicUrl && existing.avatar !== profilePicUrl) patch.avatar = profilePicUrl
 
     if (Object.keys(patch).length === 0) return existing
@@ -429,14 +592,23 @@ export async function resolveInboundContext(input: {
     channel: string
     pushName?: string | null
     profilePicUrl?: string | null
+    /** O LID do par, quando o evento trouxe telefone **e** LID. Ver `ResolveContactInput`. */
+    lid?: string | null
 }): Promise<InboundContext> {
-    const { workspaceId, agentId, integrationId, identity, channel, pushName, profilePicUrl } =
+    const { workspaceId, agentId, integrationId, identity, channel, pushName, profilePicUrl, lid } =
         input
 
     return withLock(
         lockKeyFor(workspaceId, identity),
         async () => {
-            const contact = await resolveContact({ workspaceId, identity, integrationId, pushName, profilePicUrl })
+            const contact = await resolveContact({
+                workspaceId,
+                identity,
+                integrationId,
+                pushName,
+                profilePicUrl,
+                lid,
+            })
 
             try {
                 await ensureOpenDeal(

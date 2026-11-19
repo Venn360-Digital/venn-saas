@@ -130,6 +130,9 @@ export async function GET(
                         direction: true,
                         contentType: true,
                         sentBy: true,
+                        // A citação de uma mensagem apagada mostra o rótulo, não
+                        // o texto: apagada é apagada em todo lugar que a exibe.
+                        deletedAt: true,
                     }
                 }
             }

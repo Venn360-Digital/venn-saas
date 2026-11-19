@@ -3,7 +3,7 @@ import { claimAutoNotice } from '../../lib/auto-notice'
 import { enqueueOutboundText } from '../servicos/outbound'
 import prisma from '@venn/db/cliente'
 import { fusoDaUnidade } from '../../lib/fuso-da-unidade'
-import { decodeMessage, toMsisdn } from '../../lib/whatsapp'
+import { decodeMessage, ehJidDeLid, lidDoJid, toMsisdn } from '../../lib/whatsapp'
 import type { RuleContext } from '../../types/rules'
 import { env } from '../ambiente'
 import { createLogger } from '../registro'
@@ -76,14 +76,50 @@ export async function processWhatsAppInbound(payload: WhatsAppInboundJob): Promi
     }
 
     const isInstagram = integration.channel === 'instagram'
+
+    /**
+     * Endereçada por LID e **sem** o telefone no par: a identidade é o LID.
+     *
+     * A borda já tentou recuperar o telefone do envelope e, quando conseguiu,
+     * `chatJid` chega como telefone — então o caminho comum não muda. O que
+     * muda é o caso em que o par não veio: antes o LID entrava aqui como se
+     * fosse telefone, a ficha nascia com quinze dígitos no lugar do celular e
+     * **toda** resposta da clínica falhava. Catorze fichas, dezoito mensagens
+     * perdidas, todas de leads de anúncio.
+     *
+     * `inbound.lid` continua vindo nos dois casos: no bom, é o par que fica
+     * gravado na ficha para reencontrá-la num evento futuro que venha só com o
+     * LID.
+     */
+    const soTemLid = !isInstagram && ehJidDeLid(inbound.chatJid)
+    const lid = inbound.lid ?? lidDoJid(inbound.chatJid) ?? null
+
     const identity: ContactIdentity = isInstagram
         ? { kind: 'instagram', value: senderId }
-        : { kind: 'phone', value: senderId }
+        : soTemLid
+          ? { kind: 'lid', value: lid ?? senderId }
+          : { kind: 'phone', value: senderId }
 
     log.info(
-        `${isInstagram ? 'instagram' : 'whatsapp'} message from ${senderId} ` +
-            `[${decoded.contentType}]: ${decoded.content.slice(0, 60)}`
+        `${isInstagram ? 'instagram' : soTemLid ? 'whatsapp(lid)' : 'whatsapp'} message ` +
+            `from ${senderId} [${decoded.contentType}]: ${decoded.content.slice(0, 60)}`
     )
+
+    /**
+     * O LID sem telefone é anotado alto, porque é a pista do próximo conserto.
+     *
+     * Se este aviso aparecer com frequência, significa que o whatsmeow do VPS
+     * não manda o telefone no par — e aí o caminho de recuperação tem de ser
+     * outro (consulta ao provedor), não um campo do envelope. Sem o log, a
+     * diferença entre "o conserto funcionou" e "o conserto nunca dispara" não
+     * aparece em lugar nenhum.
+     */
+    if (soTemLid) {
+        log.warn(
+            `evento endereçado por LID sem telefone no par (lid=${lid ?? '—'}); ` +
+                'a ficha nasce sem número e o envio fica bloqueado até alguém preenchê-lo'
+        )
+    }
 
     await touchIntegration(integration.id)
 
@@ -95,6 +131,7 @@ export async function processWhatsAppInbound(payload: WhatsAppInboundJob): Promi
         channel: isInstagram ? 'instagram' : 'whatsapp',
         pushName: inbound.pushName,
         profilePicUrl: inbound.profilePicUrl,
+        lid,
     })
 
     /**
@@ -354,8 +391,43 @@ export async function processWhatsAppInbound(payload: WhatsAppInboundJob): Promi
 
     await prisma.conversation.update({
         where: { id: conversation.id },
-        data: { lastMessageAt: new Date() },
+        data: {
+            lastMessageAt: new Date(),
+            /**
+             * Respondeu: a cutucada de inatividade é desmarcada.
+             *
+             * Sem isto a régua nunca recomeçaria — a conversa ficaria para
+             * sempre com `inactivity_nudge` gravado, a despedida sairia no prazo
+             * **mesmo com o paciente conversando**, e uma segunda parada no
+             * mesmo fio não seria mais cutucada.
+             *
+             * Só esta marca, e não `autoNoticeKind` em geral: as outras três
+             * (crédito, somente-leitura, limite de interações) são uma por
+             * atendimento de propósito, e limpá-las aqui as faria repetir a cada
+             * mensagem. Ver `claimAutoNotice`.
+             */
+            ...(conversation.autoNoticeKind === 'inactivity_nudge'
+                ? { autoNoticeAt: null, autoNoticeKind: null }
+                : {}),
+        },
     })
+
+    /**
+     * Sem telefone não há para onde responder: guarda e para aqui.
+     *
+     * O agente responderia, o envio seria recusado e a conversa acumularia um
+     * recado interno por mensagem recebida — além de gastar crédito de IA para
+     * produzir texto que ninguém vai ler. A mensagem do paciente fica gravada e
+     * visível, que é o que importa: a equipe lê, descobre quem é e preenche o
+     * número na ficha. A partir daí o fio volta a funcionar inteiro.
+     */
+    if (!isInstagram && !contact.phone) {
+        log.warn(
+            `conversation ${conversation.id}: contato ${contact.id} sem telefone (lid=${lid ?? '—'}); ` +
+                'mensagem guardada, agente não acionado'
+        )
+        return
+    }
 
     if (isHumanHandled(conversation)) {
         log.info(`conversation ${conversation.id} is human-handled; no agent reply`)

@@ -17,6 +17,8 @@ export { EvolutionGoProvider, evolutionGo, SUBSCRIBED_EVENTS } from './evolution
 export { MetaWhatsAppProvider, metaWhatsApp } from './meta-whatsapp'
 export {
     decodeMessage,
+    desembrulhar,
+    idDaMensagemRevogada,
     type ContentType,
     type DecodedMessage,
     type EvolutionData,
