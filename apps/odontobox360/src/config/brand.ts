@@ -40,6 +40,33 @@ export const BRAND: Brand = {
     favicon: '/favicon.ico',
     og: '/logos/logo-wordmark-light.png',
     emailFooter: 'OdontoBox360 · atendimento, agenda e CRM para clínicas odontológicas',
+    /**
+     * Os fragmentos de ramo com que um agente novo nasce. Ver a `interface
+     * Brand` em `@venn/config/marca` para o que cada campo faz.
+     *
+     * Este é o texto que já existia no core desde a criação do fluxo, movido
+     * para cá sem mudar uma palavra — ele está CERTO para este produto, e era
+     * só o lugar que estava errado.
+     */
+    sementeDoAgente: {
+        ramo: 'odontológica',
+        compromisso: { nome: 'avaliação', genero: 'f' },
+        duvidasSobre: 'tratamentos, valores e convênios',
+        exemplosDeOferta: '[especialidades: ortodontia, implante, clínica geral]',
+        assuntoDaEquipe: 'clínico',
+        /*
+         * Era um tópico do trabalho dentro do core, e saiu de lá na forma
+         * NEUTRA: "atendemos" em vez de "a clínica atende". O original lia o
+         * vocabulário, e aqui não há vocabulário para ler — a primeira pessoa
+         * do plural dispensa o determinante e sobrevive a qualquer override de
+         * unidade.
+         */
+        topicosDoRamo: ['Confirmar se atendemos o convênio da pessoa'],
+        regrasDoRamo: [
+            'Nunca prometa prazo, resultado ou diagnóstico sem avaliação presencial',
+            'Se a pessoa relatar dor, acolha primeiro e ofereça encaixe no mesmo dia',
+        ],
+    },
     vocabulario: {
         genero: {
             organizacao: 'f',

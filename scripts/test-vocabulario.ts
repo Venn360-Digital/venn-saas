@@ -19,6 +19,7 @@ import {
     vocab,
 } from '@venn/core/lib/vocabulario'
 import { BRAND } from '@venn/core/marca'
+import { MODELOS_DE_TEXTO } from '@venn/core/types/agent-creation'
 
 let passou = 0
 let falhou = 0
@@ -162,6 +163,64 @@ conferir(
     'genero' in lerVocabularioDasConfiguracoes({ vocabulario: { genero: 'xyz' } }),
     false
 )
+
+console.log('\nOs textos-semente do agente vêm da MARCA, não do core')
+/*
+ * O defeito que esta seção existe para impedir, medido em 18/11/2026: os quatro
+ * textos com que um agente de IA nasce viviam escritos no core com conteúdo
+ * odontológico, então **todo agente criado nos outros dois produtos nascia com
+ * instruções de clínica dentária**. Build verde, lint limpo, nada reclamava — o
+ * texto só aparece quando alguém abre o fluxo de criação.
+ *
+ * A prova é de RELAÇÃO, e por sentinela: a marca de teste declara valores
+ * distintivos ("ramo-de-teste"), e cada fragmento tem de SAIR no texto. Não
+ * comparo o texto inteiro com uma cópia dele — comparar dois lados que erram
+ * igual é não comparar, a lição que a rede das ferramentas custou quatro
+ * tentativas para aprender.
+ */
+const SEMENTE = BRAND().sementeDoAgente
+const TEXTOS = MODELOS_DE_TEXTO(vocab(), SEMENTE)
+const TUDO = Object.values(TEXTOS).join('\n')
+
+for (const [campo, trecho] of [
+    ['ramo', SEMENTE.ramo],
+    ['compromisso.nome', SEMENTE.compromisso.nome],
+    ['duvidasSobre', SEMENTE.duvidasSobre],
+    ['exemplosDeOferta', SEMENTE.exemplosDeOferta],
+    ['assuntoDaEquipe', SEMENTE.assuntoDaEquipe],
+    ['regrasDoRamo[0]', SEMENTE.regrasDoRamo[0]],
+    ['topicosDoRamo[0]', SEMENTE.topicosDoRamo[0]],
+] as [string, string][]) {
+    conferir(`"${campo}" da marca aparece nos textos`, TUDO.includes(trecho), true)
+}
+
+conferir('nenhum "undefined" escapou para o texto', TUDO.includes('undefined'), false)
+
+/*
+ * O gênero do compromisso é o pedaço que o typecheck NÃO cobre: trocar 'm' por
+ * 'f' continua compilando e sai "seu avaliação". A marca de teste o declara
+ * masculino de propósito, contra o feminino dos três produtos.
+ */
+conferir('o determinante segue o gênero declarado do compromisso',
+    TEXTOS.jobDescription.includes(`de um ${SEMENTE.compromisso.nome}`), true)
+conferir('e o possessivo também',
+    TEXTOS.initialMessage.includes(`seu ${SEMENTE.compromisso.nome}`), true)
+
+/*
+ * Ramo vazio é caso real — é o do produto genérico. Sem a guarda, a composição
+ * deixaria espaço duplo em "Empresa  que atende".
+ */
+const semRamo = MODELOS_DE_TEXTO(vocab(), { ...SEMENTE, ramo: '' })
+conferir('ramo vazio não deixa espaço duplo', semRamo.companyDescription.includes('  '), false)
+conferir('e o resto do texto continua lá',
+    semRamo.companyDescription.includes(SEMENTE.exemplosDeOferta), true)
+
+/*
+ * As regras COMUNS não podem desaparecer ao extrair as do ramo: elas valem nos
+ * três produtos, e sair sem elas é agente que inventa preço.
+ */
+for (const comum of ['base de conhecimento', 'Peça o nome', 'vai para a equipe'])
+    conferir(`a regra comum "${comum}" sobreviveu`, TEXTOS.systemPrompt.includes(comum), true)
 
 console.log(`\n${passou} ok, ${falhou} falha(s)\n`)
 process.exit(falhou > 0 ? 1 : 0)

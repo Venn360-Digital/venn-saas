@@ -11,6 +11,7 @@ import {
 import { ENTONACAO_PADRAO, VOZ_PADRAO } from '../lib/voz'
 import { setorPadrao } from '../components/agents/creation/tabs/TrabalhoTab'
 import { useVocab } from './useVocab'
+import { useMarca } from '../marca-contexto'
 import { acharDocumento, DOCUMENTOS } from '../lib/treinamento/documentos'
 import { comArtigo } from '../lib/concordancia'
 import type { Vocabulario } from '../lib/vocabulario'
@@ -40,7 +41,16 @@ export function useAgentCreation(workspaceId: string) {
      * do argumento (um cache global devolveria a palavra da primeira unidade a
      * todas as outras).
      */
-    const modelos = useMemo(() => MODELOS_DE_TEXTO(v), [v])
+    /*
+     * A semente vem do CONTEXTO de marca, não de `BRAND()`.
+     *
+     * Este é um hook de cliente: `BRAND()` é fail-fast e lança no navegador —
+     * a sétima forma do defeito registrado em 15/11. `useMarca()` é o provedor
+     * que a raiz do App Router garante em toda tela, e devolve a `Brand`
+     * inteira; os fragmentos de ramo vêm de lá.
+     */
+    const semente = useMarca().sementeDoAgente
+    const modelos = useMemo(() => MODELOS_DE_TEXTO(v, semente), [v, semente])
     const router = useRouter()
     const [isSaving, setIsSaving] = useState(false)
 

@@ -50,6 +50,26 @@ export const BRAND: Brand = {
     favicon: '/favicon.ico',
     og: '/logos/logo-wordmark-light.png',
     emailFooter: 'Conecta360 · atendimento, agenda e CRM',
+    /**
+     * Os fragmentos de ramo com que um agente novo nasce. Ver a `interface
+     * Brand` em `@venn/config/marca` para o que cada campo faz.
+     *
+     * `ramo` é VAZIO de propósito: este produto não tem nicho, e qualificar a
+     * organização ("Empresa de ...") seria inventar o negócio do cliente. O
+     * texto sai estrutural, que é o certo aqui.
+     */
+    sementeDoAgente: {
+        ramo: '',
+        compromisso: { nome: 'conversa inicial', genero: 'f' },
+        duvidasSobre: 'serviços, valores e formas de pagamento',
+        exemplosDeOferta: '[serviços: o que a empresa oferece]',
+        assuntoDaEquipe: 'contratual',
+        /* Vazio, como o `ramo`: produto genérico não tem tarefa de nicho. */
+        topicosDoRamo: [],
+        regrasDoRamo: [
+            'Nunca prometa prazo, resultado ou condição que não esteja na sua base de conhecimento',
+        ],
+    },
     vocabulario: {
         genero: {
             organizacao: 'f',
