@@ -36,6 +36,14 @@ export interface ChamadoResumo {
     atualizadoEm: string
 }
 
+/** A nota de satisfação daquele chamado, do ponto de vista de quem abre. */
+export interface CsatDoChamado {
+    /** Encerrado E de quem está olhando. Quem lê chamado da colega não avalia. */
+    podeAvaliar: boolean
+    /** A nota já dada, ou nulo. Serve para NÃO perguntar duas vezes. */
+    nota: number | null
+}
+
 export interface MensagemPublica {
     id: string
     autor: 'USUARIO' | 'IA' | 'HUMANO' | 'SISTEMA'
@@ -168,10 +176,25 @@ export class ClienteDoDesk {
 
     chamado(numero: string): Promise<{
         chamado: ChamadoResumo
+        csat: CsatDoChamado
         mensagens: MensagemPublica[]
         anexos: Anexo[]
     }> {
         return this.chamar(`/chamados/${numero}`)
+    }
+
+    /**
+     * A nota de satisfação. Uma por chamado — reavaliar substitui.
+     *
+     * `atendidoPelaIa` NÃO vai daqui: o servidor deduz das mensagens do
+     * chamado. Mandá-lo daqui tornaria editável, por quem responde, a métrica
+     * que decide se o atendimento automático é ligado no app.
+     */
+    avaliar(numero: string, nota: number, comentario?: string): Promise<{ nota: number }> {
+        return this.chamar(`/chamados/${numero}/csat`, {
+            metodo: 'POST',
+            corpo: { nota, ...(comentario === undefined ? {} : { comentario }) },
+        })
     }
 
     abrir(dados: {

@@ -333,3 +333,75 @@
     inset-inline-end: auto;
     inset-inline-start: var(--vd-margem);
 }
+
+/**
+ * A avaliação, ao pé do chamado encerrado.
+ *
+ * Separada por uma linha e não por um cartão: ela é o fim da conversa, não um
+ * bloco à parte — e um cartão dentro do painel competiria com a mensagem que a
+ * pessoa acabou de ler.
+ */
+.vd-avaliacao {
+    margin-block-start: 0.9rem;
+    padding-block-start: 0.9rem;
+    border-block-start: 1px solid var(--vd-borda);
+}
+
+.vd-estrelas {
+    display: flex;
+    align-items: center;
+    gap: 0.15rem;
+    margin-block: 0.4rem;
+}
+
+.vd-ponta {
+    font-size: 0.7rem;
+    color: var(--vd-fraca);
+}
+
+.vd-ponta:first-child {
+    margin-inline-end: 0.3rem;
+}
+
+.vd-ponta:last-child {
+    margin-inline-start: 0.3rem;
+}
+
+/**
+ * A estrela tem alvo de 44px, e o visual é menor que o alvo.
+ *
+ * Cinco botões lado a lado num painel estreito é o caso clássico de errar o
+ * toque no celular. O `padding` cresce a área clicável sem engordar o desenho.
+ */
+.vd-estrela {
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+    padding: 0;
+    border: 0;
+    background: none;
+    cursor: pointer;
+    font-size: 1.35rem;
+    line-height: 1;
+    color: var(--vd-borda);
+    transition: color 0.12s;
+}
+
+.vd-estrela[data-escolhida='sim'] {
+    color: var(--vd-destaque);
+}
+
+.vd-estrela:hover {
+    color: var(--vd-fraca);
+}
+
+.vd-estrela[data-escolhida='sim']:hover {
+    color: var(--vd-destaque);
+}
+
+/* O foco visível vale para teclado: cinco alvos iguais sem foco marcado são
+   cinco alvos indistinguíveis para quem navega por Tab. */
+.vd-estrela:focus-visible {
+    outline: 2px solid var(--vd-destaque);
+    outline-offset: -4px;
+    border-radius: 0.3rem;
+}
