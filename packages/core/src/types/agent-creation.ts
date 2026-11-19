@@ -28,53 +28,80 @@
  * script — sem requisição e sem marca registrada —, e a publicação reprova com
  * `MarcaNaoRegistradaError`. A forma que já reprovou cinco publicações.
  */
-function montarModelosDeTexto(v: Vocabulario) {
+function montarModelosDeTexto(v: Vocabulario, semente: SementeDoAgente) {
+    /** "uma avaliação" / "um encontro" — o determinante segue o gênero declarado. */
+    const umCompromisso = `${semente.compromisso.genero === 'f' ? 'uma' : 'um'} ${semente.compromisso.nome}`
+    /** "sua avaliação" / "seu encontro". */
+    const seuCompromisso = `${semente.compromisso.genero === 'f' ? 'sua' : 'seu'} ${semente.compromisso.nome}`
+    /** O ramo é opcional: vazio num produto sem nicho, e aí não entra espaço algum. */
+    const comRamo = (substantivo: string) =>
+        semente.ramo ? `${substantivo} ${semente.ramo}` : substantivo
+
+    /*
+     * As regras de conduta: as COMUNS ficam aqui, as do RAMO vêm da marca.
+     *
+     * A divisão não é estética. "Não informe preço que não esteja na base" vale
+     * em qualquer produto e, no core, melhora para os três de uma vez. "Não
+     * prometa diagnóstico sem avaliação presencial" não diz nada a uma agência,
+     * e manter isso aqui foi o que fez todo agente dos clones nascer com
+     * instruções de clínica dentária.
+     */
+    const topicos = [
+        `Responder dúvidas sobre ${comArtigo(v, 'servicos')} que ${comArtigo(v, 'organizacao')} oferece`,
+        'Informar valores e formas de pagamento quando constarem na base de conhecimento',
+        ...semente.topicosDoRamo,
+        'Oferecer horários e registrar o interesse em agendar',
+        `Encaminhar para a equipe quando o assunto for ${semente.assuntoDaEquipe} ou uma reclamação`,
+    ]
+
+    const regras = [
+        ...semente.regrasDoRamo,
+        'Não informe preço que não esteja na sua base de conhecimento; diga que vai confirmar com a equipe',
+        'Peça o nome quando ainda não souber, uma única vez',
+        `Reclamação ou assunto ${semente.assuntoDaEquipe} vai para a equipe, sem tentar resolver sozinho`,
+    ]
+
     return {
     initialMessage:
         `Olá! Sou o assistente virtual ${comArtigo(v, 'organizacao', 'de')}. 😊\n\n` +
-        'Posso tirar dúvidas sobre tratamentos, valores e convênios, e também ' +
-        'agendar sua avaliação.\n\n' +
+        `Posso tirar dúvidas sobre ${semente.duvidasSobre}, e também ` +
+        `agendar ${seuCompromisso}.\n\n` +
         'Como posso ajudar você hoje?',
 
     jobDescription:
         'Atender quem chega pelo WhatsApp, entender o que a pessoa precisa e ' +
-        'conduzi-la até o agendamento de uma avaliação.\n\n' +
-        `- Responder dúvidas sobre os tratamentos que ${comArtigo(v, 'organizacao')} oferece\n` +
-        '- Informar valores e formas de pagamento quando constarem na base de conhecimento\n' +
-        `- Confirmar se ${comArtigo(v, 'organizacao')} atende o convênio da pessoa\n` +
-        '- Oferecer horários e registrar o interesse em agendar\n' +
-        '- Encaminhar para a equipe quando o assunto for clínico ou uma reclamação',
+        `conduzi-la até o agendamento de ${umCompromisso}.\n\n` +
+        topicos.map((t) => `- ${t}`).join('\n'),
 
     companyDescription:
-        `${v.Organizacao} odontológica que atende [especialidades: ortodontia, implante, ` +
-        `${v.organizacao} geral]. Atendemos de [dia] a [dia], das [hora] às [hora].\n\n` +
+        `${comRamo(v.Organizacao)} que atende ${semente.exemplosDeOferta}. ` +
+        'Atendemos de [dia] a [dia], das [hora] às [hora].\n\n' +
         `Nosso diferencial é [o que ${comArtigo(v, 'organizacao')} faz melhor que as outras].`,
 
     systemPrompt:
         'Fale com acolhimento e vá direto ao ponto.\n\n' +
-        '- Nunca prometa prazo, resultado ou diagnóstico sem avaliação presencial\n' +
-        '- Não informe preço que não esteja na sua base de conhecimento; diga que ' +
-        'vai confirmar com a equipe\n' +
-        '- Se a pessoa relatar dor, acolha primeiro e ofereça encaixe no mesmo dia\n' +
-        '- Peça o nome quando ainda não souber, uma única vez\n' +
-        '- Reclamação ou assunto clínico vai para a equipe, sem tentar resolver sozinho',
+        regras.map((r) => `- ${r}`).join('\n'),
 }
 }
+
 /**
- * O vocabulário entra por PARÂMETRO, e é obrigatório.
+ * O vocabulário e a semente entram por PARÂMETRO, e os dois são obrigatórios.
  *
  * Este módulo é alcançado pelo bundle do CLIENTE, e no navegador ninguém
  * registrou a marca: ler `vocab()` por dentro lançava
  * `MarcaNaoRegistradaError` na hidratação — depois de compilar, buildar e
  * publicar sem uma reclamação. Medido em 15/11/2026, e era defeito em
- * produção. No cliente as palavras vêm de `useVocab()`; no servidor, de
- * `vocab(settings)`. Na assinatura, a cobrança é do compilador.
+ * produção. No cliente as palavras vêm de `useVocab()` e a semente de
+ * `useMarca()`; no servidor, de `vocab(settings)` e `BRAND()`. Na assinatura,
+ * a cobrança é do compilador — e é por isso que a semente nasceu assim, em vez
+ * de `BRAND().sementeDoAgente` lido aqui dentro, que seria a oitava ocorrência
+ * do mesmo defeito.
  *
- * A memoização de módulo saiu junto: o resultado depende do argumento, e um
+ * A memoização de módulo saiu junto: o resultado depende dos argumentos, e um
  * cache global devolveria a palavra da primeira unidade a todas as outras.
  */
-export function MODELOS_DE_TEXTO(v: Vocabulario) {
-    return montarModelosDeTexto(v)
+export function MODELOS_DE_TEXTO(v: Vocabulario, semente: SementeDoAgente) {
+    return montarModelosDeTexto(v, semente)
 }
 
 export const PADROES_DO_AGENTE = {
@@ -275,6 +302,10 @@ import type { RuleCondition, RuleAction } from './rules'
 import type { Vocabulario } from '../lib/vocabulario'
 import { comArtigo } from '../lib/concordancia'
 
+import type { Brand } from '@venn/config/marca'
+
+/** O pedaço da marca que estes textos consomem. */
+type SementeDoAgente = Brand['sementeDoAgente']
 export interface RuleData {
     id?: string
     name: string

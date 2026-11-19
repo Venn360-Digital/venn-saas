@@ -32,6 +32,7 @@ import {
 } from '@venn/core/lib/conversas/resumo'
 import { acharDocumento, documentosDeFato, documentosDoAcervo, documentosDoPrompt } from '@venn/core/lib/treinamento/documentos'
 import { buildSystemPrompt } from '@venn/core/trabalhos/servicos/prompt'
+import { vocab } from '@venn/core/lib/vocabulario'
 import type { Agent } from '@venn/db'
 import { tipoDoAcervo, ehDeTreinamento, TIPO_DE_CENARIO, TIPO_DE_TREINAMENTO } from '@venn/core/lib/treinamento/indexar'
 import { BRAND } from '@venn/core/marca'
@@ -226,7 +227,7 @@ Passos:
 1. Não prometa <!-- confirmar: qual o teto -->
 `
 
-const promptComCenario = buildSystemPrompt(
+const promptComCenario = buildSystemPrompt(vocab(), 
     agenteDeProva(),
     [],
     undefined,
@@ -256,7 +257,7 @@ console.log('\nCenários entra na precedência escrita')
  * passos". Um servico pré-escrito era a instrução menos subordinada do
  * conjunto.
  */
-const comPrecedencia = buildSystemPrompt(
+const comPrecedencia = buildSystemPrompt(vocab(), 
     agenteDeProva(),
     [],
     undefined,

@@ -66,6 +66,24 @@ export const MARCA_DE_TESTE: Brand = {
     favicon: '/favicon.ico',
     og: '/logos/logo-wordmark-light.png',
     emailFooter: 'Produto de Teste · marca fictícia',
+    /**
+     * A semente do agente, com valores DISTINTIVOS — mesmo espírito do gênero
+     * misto desta marca.
+     *
+     * Não são palavras plausíveis de propósito: um verificador que monte o texto
+     * de criação de agente e encontre "ramo-de-teste" sabe que o fragmento veio
+     * da marca. Se encontrar "odontológica", veio de dentro do core — que é o
+     * defeito que a extração de 18/11/2026 consertou.
+     */
+    sementeDoAgente: {
+        ramo: 'ramo-de-teste',
+        compromisso: { nome: 'compromisso-de-teste', genero: 'm' },
+        duvidasSobre: 'duvidas-de-teste',
+        exemplosDeOferta: '[oferta-de-teste]',
+        assuntoDaEquipe: 'assunto-de-teste',
+        topicosDoRamo: ['Topico-de-teste do ramo'],
+        regrasDoRamo: ['Regra-de-teste do ramo'],
+    },
     vocabulario: {
         genero: {
             organizacao: 'f',

@@ -50,6 +50,38 @@ export const BRAND: Brand = {
     favicon: '/favicon.ico',
     og: '/logos/logo-wordmark-light.png',
     emailFooter: 'Stagent360 · atendimento, agenda e CRM',
+    /**
+     * Os fragmentos de ramo com que um agente novo nasce. Ver a `interface
+     * Brand` em `@venn/config/marca` para o que cada campo faz.
+     *
+     * ⚠️ RASCUNHO, escrito em 18/11/2026 a partir de duas respostas do André:
+     * o produto atende **agência de intercâmbio estudantil**, e o compromisso
+     * que o agente marca é **uma conversa inicial** (o equivalente comercial da
+     * avaliação do produto odontológico).
+     *
+     * As duas regras do ramo são conservadoras de propósito — prometer visto ou
+     * vaga é o erro caro deste negócio, e o agente fala com a família antes de
+     * qualquer análise. **Revisar:** quem conhece o processo pode querer trocar
+     * a segunda por algo mais preciso.
+     */
+    sementeDoAgente: {
+        ramo: 'de intercâmbio estudantil',
+        compromisso: { nome: 'conversa inicial', genero: 'f' },
+        duvidasSobre: 'programas, destinos e valores',
+        exemplosDeOferta: '[destinos: Canadá, Irlanda, Austrália]',
+        assuntoDaEquipe: 'contratual',
+        /*
+         * Vazio: o que o agente faz aqui está coberto pelos tópicos comuns
+         * (dúvida, valor, horário). Se o processo de intercâmbio tiver uma
+         * tarefa de atendimento própria — conferir passaporte válido, por
+         * exemplo —, é aqui que ela entra.
+         */
+        topicosDoRamo: [],
+        regrasDoRamo: [
+            'Nunca prometa aprovação de visto, vaga em escola ou prazo de processo — isso depende de análise',
+            'Não afirme requisito de idade, idioma ou documento que não esteja na sua base de conhecimento',
+        ],
+    },
     vocabulario: {
         genero: {
             organizacao: 'f',
