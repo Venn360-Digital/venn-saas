@@ -4,6 +4,18 @@ import { useVennDesk } from '../VennDeskProvider'
 import { capturarContexto } from '../lib/contexto'
 
 /**
+ * O mesmo 10 MB que o servidor impõe (`TAMANHO_MAXIMO` em
+ * `src/rotas/solicitante.ts` do venn-desk).
+ *
+ * Duplicado de propósito, e a duplicação é consciente: o widget e o Desk são
+ * serviços separados, publicados em ritmos diferentes, e o cliente não tem como
+ * perguntar o limite sem uma chamada a mais em toda abertura de tela. Se os
+ * dois divergirem, o servidor é quem manda — esta constante só evita a viagem
+ * perdida, nunca autoriza nada.
+ */
+const TAMANHO_MAXIMO = 10 * 1024 * 1024
+
+/**
  * Abrir chamado. O formulário pergunta pouco e captura muito: assunto,
  * descrição, onde e quem afeta — o resto (rota, navegador, erros de console,
  * requisições com falha) vem do contexto, sem o usuário saber que existe.
@@ -23,6 +35,27 @@ export function Abrir({ aoCriar }: { aoCriar: (numero: string) => void }) {
 
     async function enviar(e: React.FormEvent) {
         e.preventDefault()
+
+        /**
+         * O tamanho é conferido AQUI, antes de subir.
+         *
+         * O servidor também confere — e tem de continuar conferindo, porque a
+         * conferência do cliente é conveniência e não defesa. Mas subir 10 MB
+         * por uma rede de consultório para receber 413 gasta o tempo e os dados
+         * de quem já está com problema. O limite é conhecido dos dois lados.
+         */
+        const grande = arquivos.find((a) => a.size > TAMANHO_MAXIMO)
+        if (grande !== undefined) {
+            setErro(
+                t('arquivoGrande', {
+                    nome: grande.name,
+                    mb: (grande.size / 1024 / 1024).toFixed(1),
+                    limite: String(TAMANHO_MAXIMO / 1024 / 1024),
+                })
+            )
+            return
+        }
+
         setEnviando(true)
         setErro(null)
 
@@ -44,13 +77,46 @@ export function Abrir({ aoCriar }: { aoCriar: (numero: string) => void }) {
              * seria pior.
              */
             const numero = chamado.numero.split('-')[1] ?? ''
+            const recusados: string[] = []
+
             for (const arquivo of arquivos) {
-                await cliente.anexar(numero, arquivo).catch(() => {
-                    setErro(t('falhou'))
+                await cliente.anexar(numero, arquivo).catch((falha: unknown) => {
+                    /**
+                     * O motivo do SERVIDOR, e não "tente de novo".
+                     *
+                     * A versão anterior trocava a mensagem real por
+                     * `t('falhou')` — "não foi possível concluir, tente de
+                     * novo". Medido em 19/11/2026, na primeira abertura real do
+                     * sistema: o André anexou um arquivo acima de 10 MB, o
+                     * servidor respondeu 413 com "O arquivo deve ter até
+                     * 10 MB", e a tela disse para tentar de novo. O mesmo
+                     * arquivo falharia sempre, e quem tenta e falha conclui que
+                     * o suporte está quebrado — quando o limite era conhecido e
+                     * dizível.
+                     */
+                    recusados.push(falha instanceof Error ? falha.message : t('falhou'))
                 })
             }
 
             recarregarEu()
+
+            /**
+             * Chamado criado com anexo recusado NÃO é falha do chamado.
+             *
+             * Ele existe, e a pessoa precisa saber disso antes de qualquer
+             * outra coisa — senão reabre o relato achando que se perdeu. O
+             * aviso diz o número primeiro e o motivo depois.
+             */
+            if (recusados.length > 0) {
+                setErro(
+                    t('chamadoCriadoSemAnexo', {
+                        numero: chamado.numero,
+                        motivo: recusados.join(' '),
+                    })
+                )
+                return
+            }
+
             aoCriar(chamado.numero)
         } catch (falha) {
             setErro(falha instanceof Error ? falha.message : t('falhou'))

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 
 import { useVennDesk } from '../VennDeskProvider'
-import type { Anexo, ChamadoResumo, MensagemPublica } from '../lib/api'
+import type { Anexo, ChamadoResumo, CsatDoChamado, MensagemPublica } from '../lib/api'
 
 /**
  * A tela de um chamado, como o usuário a vê: só mensagem pública.
@@ -15,6 +15,7 @@ export function Chamado({ numero, aoVoltar }: { numero: string; aoVoltar: () => 
     const { cliente, t, recarregarEu } = useVennDesk()
     const [dados, setDados] = useState<{
         chamado: ChamadoResumo
+        csat: CsatDoChamado
         mensagens: MensagemPublica[]
         anexos: Anexo[]
     } | null>(null)
@@ -157,6 +158,128 @@ export function Chamado({ numero, aoVoltar }: { numero: string; aoVoltar: () => 
             {/* Chamado fechado é imutável: a resposta gera chamado de
                 acompanhamento, e o servidor devolve o novo número. */}
             {fechado && <p className="vd-nota">{t('issoResolveu')}</p>}
+
+            {dados.csat.podeAvaliar && (
+                <Avaliacao
+                    numero={numero}
+                    jaDada={dados.csat.nota}
+                    aoAvaliar={() => void carregar()}
+                />
+            )}
         </>
+    )
+}
+
+/**
+ * A nota de satisfação, de um a cinco.
+ *
+ * **Por que cinco botões e não "sim/não".** A revisão semanal procura resposta
+ * com nota BAIXA, e num binário não existe baixa — existe "não", que mistura
+ * "não resolveu" com "resolveu mal". São os dois casos que a revisão precisa
+ * separar, e quem lê cem respostas por semana precisa dessa separação para
+ * saber onde olhar primeiro.
+ *
+ * **O comentário só aparece DEPOIS da nota.** Pedir os dois de uma vez
+ * transforma um clique em formulário, e formulário espanta a maioria. Com a
+ * nota já registrada, quem quiser falar mais fala; quem não quiser já
+ * contribuiu.
+ */
+function Avaliacao({
+    numero,
+    jaDada,
+    aoAvaliar,
+}: {
+    numero: string
+    jaDada: number | null
+    aoAvaliar: () => void
+}) {
+    const { cliente, t } = useVennDesk()
+    const [nota, setNota] = useState<number | null>(jaDada)
+    const [comentario, setComentario] = useState('')
+    const [enviandoComentario, setEnviando] = useState(false)
+    /// Some assim que a pessoa manda o comentário: deixar o campo aberto
+    /// sugere que ainda falta alguma coisa dela.
+    const [agradeceu, setAgradeceu] = useState(jaDada !== null)
+
+    async function avaliar(valor: number) {
+        /// Pinta ANTES da resposta do servidor: o clique precisa responder na
+        /// hora, e uma nota que não gravou é recuperável — a pessoa clica de
+        /// novo, e o servidor substitui em vez de acumular.
+        setNota(valor)
+        try {
+            await cliente.avaliar(numero, valor)
+            aoAvaliar()
+        } catch {
+            setNota(jaDada)
+        }
+    }
+
+    async function comentar() {
+        if (nota === null || comentario.trim() === '') return
+        setEnviando(true)
+        try {
+            await cliente.avaliar(numero, nota, comentario.trim())
+            setAgradeceu(true)
+        } finally {
+            setEnviando(false)
+        }
+    }
+
+    return (
+        <div className="vd-avaliacao">
+            <p className="vd-nota">{t('comoFoiOAtendimento')}</p>
+
+            <div className="vd-estrelas" role="group" aria-label={t('comoFoiOAtendimento')}>
+                <span className="vd-ponta">{t('notaRuim')}</span>
+                {[1, 2, 3, 4, 5].map((valor) => (
+                    <button
+                        key={valor}
+                        type="button"
+                        className="vd-estrela"
+                        aria-pressed={nota === valor}
+                        /// O rótulo diz "N de 5": só o número soaria como
+                        /// posição numa lista para quem usa leitor de tela.
+                        aria-label={`${valor} / 5`}
+                        data-escolhida={nota !== null && valor <= nota ? 'sim' : undefined}
+                        onClick={() => void avaliar(valor)}
+                    >
+                        ★
+                    </button>
+                ))}
+                <span className="vd-ponta">{t('notaOtima')}</span>
+            </div>
+
+            {nota !== null && !agradeceu && (
+                <>
+                    {/* `.vd-campo` é a convenção da casa: o rótulo envolve o
+                        controle, com o texto num `span`. Criar classe nova aqui
+                        daria um campo com outra cara dentro do mesmo painel. */}
+                    <label className="vd-campo">
+                        <span>{t('contarMais')}</span>
+                        <textarea
+                            rows={2}
+                            maxLength={600}
+                            value={comentario}
+                            onChange={(e) => setComentario(e.target.value)}
+                        />
+                    </label>
+                    <button
+                        type="button"
+                        className="vd-botao"
+                        data-variante="leve"
+                        disabled={enviandoComentario || comentario.trim() === ''}
+                        onClick={() => void comentar()}
+                    >
+                        {t('enviarNota')}
+                    </button>
+                </>
+            )}
+
+            {agradeceu && nota !== null && (
+                <p className="vd-nota">
+                    {t('suaNota', { nota: String(nota) })} {t('obrigadoPelaNota')}
+                </p>
+            )}
+        </div>
     )
 }
