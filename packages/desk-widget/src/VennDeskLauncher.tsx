@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
+import { atualizarNaoLidas, registrarPonte } from './lib/ponte'
 import { useVennDesk } from './VennDeskProvider'
 import { Abrir } from './telas/Abrir'
 import { Meus } from './telas/Meus'
@@ -18,13 +19,39 @@ type Tela = { nome: 'inicio' } | { nome: 'abrir' } | { nome: 'meus' } | { nome: 
  * Acessibilidade: o painel é um diálogo com rótulo, fecha no Esc, devolve o
  * foco ao botão e prende o foco dentro enquanto está aberto.
  */
-export function VennDeskLauncher() {
+export function VennDeskLauncher({ flutuante = true }: { flutuante?: boolean } = {}) {
     const { t, contadores, painelAberto, setPainelAberto, semSessao, eu, falha, tema } =
         useVennDesk()
     const [tela, setTela] = useState<Tela>({ nome: 'inicio' })
     const [recado, setRecado] = useState<string | null>(null)
     const botao = useRef<HTMLButtonElement>(null)
     const painel = useRef<HTMLDivElement>(null)
+    /**
+     * Quem tinha o foco quando o painel abriu.
+     *
+     * Era `botao.current` que recebia o foco de volta, e isso deixou de bastar
+     * quando o botão flutuante passou a poder não existir: fechando o painel, o
+     * foco caía no `body` e quem navega por teclado voltava ao começo da página.
+     * Agora o foco volta para onde saiu — a pílula, o botão da barra de cima, ou
+     * o que mais tiver aberto o painel.
+     */
+    const focoAnterior = useRef<HTMLElement | null>(null)
+
+    // Guarda o foco no instante em que o painel abre, antes de a prisão de foco
+    // mover qualquer coisa.
+    useEffect(() => {
+        if (!painelAberto) return
+        const ativo = document.activeElement
+        focoAnterior.current = ativo instanceof HTMLElement ? ativo : null
+    }, [painelAberto])
+
+    // `useCallback` porque a prisão de foco abaixo a captura num efeito: sem
+    // identidade estável, o efeito se desinscreveria e reinscreveria a cada
+    // tecla digitada no painel.
+    const devolverFoco = useCallback(() => {
+        const alvo = focoAnterior.current ?? botao.current
+        alvo?.focus()
+    }, [])
 
     useEffect(() => {
         if (!painelAberto) return
@@ -32,7 +59,7 @@ export function VennDeskLauncher() {
         const aoTeclar = (e: KeyboardEvent) => {
             if (e.key === 'Escape') {
                 setPainelAberto(false)
-                botao.current?.focus()
+                devolverFoco()
                 return
             }
 
@@ -58,19 +85,58 @@ export function VennDeskLauncher() {
 
         document.addEventListener('keydown', aoTeclar)
         return () => document.removeEventListener('keydown', aoTeclar)
-    }, [painelAberto, setPainelAberto])
+    }, [painelAberto, setPainelAberto, devolverFoco])
+
+    /**
+     * Anuncia-se ao app hospedeiro — para que algo FORA do widget possa abrir
+     * o painel. Ver `lib/ponte.ts`.
+     *
+     * Depois das guardas de sessão não daria: o `if` abaixo retorna antes, e
+     * efeito não roda depois de um retorno. Então a condição mora dentro.
+     */
+    const temSessao = !semSessao && eu !== null
+
+    /**
+     * O registro é de MONTAGEM, e por isso o abridor vai por `ref`.
+     *
+     * Pondo `setPainelAberto` nas dependências, o efeito refazia o registro
+     * sempre que a identidade dela mudasse — e cada registro novo passa pela
+     * baixa do anterior, que publica "indisponível": o botão do app piscava.
+     * A `ref` mantém o efeito com dependência única e o abridor sempre atual.
+     */
+    const abrirRef = useRef(setPainelAberto)
+    // Escrita em efeito, não no render: `react-hooks/refs` acusa a mutação
+    // durante o render, e com razão — é o mesmo padrão dos outros `*Ref` da casa.
+    useEffect(() => {
+        abrirRef.current = setPainelAberto
+    }, [setPainelAberto])
+
+    useEffect(() => {
+        if (!temSessao) return
+        return registrarPonte(() => abrirRef.current(true))
+    }, [temSessao])
+
+    // O contador anda sozinho, no ritmo dele. Ver `atualizarNaoLidas`.
+    useEffect(() => {
+        atualizarNaoLidas(contadores.naoLidas)
+    }, [contadores.naoLidas])
 
     if (semSessao || eu === null) return null
 
     /**
-     * O botão some quando o Console manda — sem desinstalar nada.
+     * O botão flutuante some por duas razões, e elas são diferentes.
      *
-     * Serve a duas situações reais: desligar o suporte durante uma migração, e
-     * abrir o painel só por um menu do próprio app. O painel continua
-     * funcionando por `setPainelAberto`, então quem já estava com ele aberto
-     * não é interrompido.
+     * `mostrarBotao` vem do Console do Venn Desk e serve a desligar o suporte
+     * de fora — numa migração, por exemplo. O painel continua funcionando por
+     * `setPainelAberto`, então quem já estava com ele aberto não é interrompido.
+     *
+     * `flutuante` vem do app, e nos nossos três painéis é `false`: o canto
+     * inferior direito **tem controle**. Na tela de Conversas o botão Enviar
+     * fica exatamente ali, e a pílula ficava em cima dele. Trocar de canto não
+     * resolveria — o inferior esquerdo é o rodapé da sidebar. Quem abre o painel
+     * é a barra de cima, pela ponte (`lib/ponte.ts`).
      */
-    const escondido = tema?.mostrarBotao === false
+    const escondido = tema?.mostrarBotao === false || !flutuante
 
     /**
      * As variáveis do tema entram na RAIZ DO WIDGET, nunca no `:root`.
@@ -134,7 +200,7 @@ export function VennDeskLauncher() {
                             aria-label={t('fechar')}
                             onClick={() => {
                                 setPainelAberto(false)
-                                botao.current?.focus()
+                                devolverFoco()
                             }}
                         >
                             ✕

@@ -26,6 +26,7 @@ import { SidebarTrigger } from '@venn/ui/sidebar'
 import { BreadcrumbTrail } from './BreadcrumbTrail'
 import { ThemeToggle } from './ThemeToggle'
 import { GatilhoDaEquipe } from '../equipe/GatilhoDaEquipe'
+import { BotaoDeSuporte } from '../suporte/BotaoDeSuporte'
 import { UnitSwitcher } from './UnitSwitcher'
 import type { UnidadeAberta } from '../../hooks/useUnidades'
 import { useSoundEnabled } from '../../hooks/useSoundEnabled'
@@ -288,6 +289,13 @@ export function Topbar({ marca }: { marca?: UnidadeAberta | null }) {
                         <VolumeX className="h-5 w-5 opacity-50" />
                     )}
                 </Button>
+
+                {/* Dúvidas e suporte — o painel do Venn Desk.
+                    Mora aqui, e não flutuando no canto inferior direito, porque
+                    aquele canto tem controle: na tela de Conversas é onde ficam
+                    Enviar, anexo e áudio, e a pílula do widget cobria os três.
+                    Ver `BotaoDeSuporte`. */}
+                <BotaoDeSuporte />
 
                 {/* Notifications Bell */}
                 <Popover open={sinoAberto} onOpenChange={aoAbrirOSino}>

@@ -15,6 +15,13 @@
 export { VennDeskProvider, useVennDesk } from './VennDeskProvider'
 export { VennDeskLauncher } from './VennDeskLauncher'
 export { capturarContexto } from './lib/contexto'
+export {
+    abrirSuporte,
+    assinarSuporte,
+    estadoDoSuporte,
+    SUPORTE_INDISPONIVEL,
+    type EstadoDaPonte,
+} from './lib/ponte'
 export { SemSessao } from './lib/api'
 export type { Contadores, ChamadoResumo, Eu } from './lib/api'
 export type { Idioma } from './lib/i18n'
