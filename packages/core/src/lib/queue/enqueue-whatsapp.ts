@@ -59,6 +59,9 @@ export async function enqueueNormalizedEvents(
             }
 
             case 'message.ack':
+            // Apagamento é evento barato como o recibo: uma linha a marcar, sem
+            // mídia, sem agente e sem crédito. Ver `handleRevoke`.
+            case 'message.revoked':
             case 'connection':
             case 'presence':
                 await entregar(QUEUE.WHATSAPP_EVENT, { provider, event, receivedAt }, {

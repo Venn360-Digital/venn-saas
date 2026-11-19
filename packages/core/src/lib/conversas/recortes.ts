@@ -32,8 +32,20 @@ import type { Prisma } from '@venn/db'
 /** A aba: o estado da conversa. */
 export type Aba = 'ia' | 'equipe' | 'finalizadas'
 
-/** O seletor `Ver`: a relação de quem pergunta com a conversa. */
-export type Ver = 'todas' | 'minhas' | 'colaboro' | 'sem-responsavel'
+/**
+ * O seletor `Ver`: a relação de quem pergunta com a conversa.
+ *
+ * `nao-lidas` é o intruso desta lista, e é de propósito: não é uma relação com
+ * quem pergunta, é um estado da conversa — o lugar "certo" seria uma aba. Mas as
+ * abas respondem "em que estado está o atendimento" (com a IA, com a equipe,
+ * finalizada), e não lida atravessa as três: a clínica quer ver o que não leu
+ * **dentro** da aba em que está trabalhando. Como quarta aba, obrigaria a
+ * escolher entre "não lidas" e "com a equipe"; aqui, combina com qualquer uma.
+ *
+ * Foi pedido assim: "tem como acrescentar no filtro a opção para ver as
+ * mensagens não lidas".
+ */
+export type Ver = 'todas' | 'minhas' | 'colaboro' | 'sem-responsavel' | 'nao-lidas'
 
 /**
  * Os nomes antigos de aba, que a rota continua aceitando.
@@ -63,7 +75,8 @@ export function lerVer(valor: string | null | undefined, onlyMineAntigo: boolean
         valor === 'todas' ||
         valor === 'minhas' ||
         valor === 'colaboro' ||
-        valor === 'sem-responsavel'
+        valor === 'sem-responsavel' ||
+        valor === 'nao-lidas'
     ) {
         return valor
     }
@@ -107,6 +120,24 @@ export function recorteDoVer(ver: Ver, userId: string): Prisma.ConversationWhere
             return { collaborators: { some: { userId } } }
         case 'sem-responsavel':
             return { assignedTo: null }
+        /**
+         * Não lida **não se escreve em Prisma**, e por isso sai daqui nula.
+         *
+         * O corte é "mensagem recebida mais nova que o `lastReadAt` **daquela**
+         * conversa", e comparar o campo de uma relação com a coluna da linha-mãe
+         * não é expressável no `where`: `messages: { some: { createdAt: { gt: ??? } } }`
+         * não tem como apontar para `conversation.lastReadAt`. Contar tudo e
+         * filtrar em memória traria as mensagens inteiras do banco.
+         *
+         * Então quem a aplica é a rota, com a mesma consulta crua que ela já faz
+         * para o medidor de não-lidas — ver `lib/conversas/nao-lidas.ts`. Este
+         * módulo continua puro, que é a razão de ele existir.
+         *
+         * Nulo e não um objeto vazio, pela mesma regra dos outros: `{}` dentro de
+         * um `AND` esconde se o filtro foi aplicado.
+         */
+        case 'nao-lidas':
+            return null
     }
 }
 
@@ -147,13 +178,14 @@ export function limiteDoAtendente(userId: string): Prisma.ConversationWhereInput
  * nada é opção que ensina a desconfiar do seletor.
  */
 export function opcoesDeVer(role: string): Ver[] {
-    const todas: Ver[] = ['todas', 'minhas', 'colaboro', 'sem-responsavel']
+    const todas: Ver[] = ['todas', 'nao-lidas', 'minhas', 'colaboro', 'sem-responsavel']
     return role === 'ATENDENTE' ? todas.filter((v) => v !== 'sem-responsavel') : todas
 }
 
 /** O rótulo de cada opção. Vive junto do tipo para não divergir dele. */
 export const ROTULO_DO_VER: Record<Ver, string> = {
     todas: 'Todas',
+    'nao-lidas': 'Não lidas',
     minhas: 'Minhas',
     colaboro: 'Que eu colaboro',
     'sem-responsavel': 'Sem responsável',

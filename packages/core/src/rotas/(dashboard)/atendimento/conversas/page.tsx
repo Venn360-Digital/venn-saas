@@ -16,6 +16,7 @@ import {
     ArrowLeft,
     ArrowRightLeft,
     AtSign,
+    Ban,
     Bot,
     CalendarPlus,
     Check,
@@ -238,6 +239,8 @@ interface ConversationListItem {
         direction: string
         sentBy: string | null
         createdAt: string
+        /** Quando quem mandou apagou. O cartão mostra o rótulo, nunca o texto. */
+        deletedAt: string | null
     } | null
     unreadCount: number
     tags: TagItem[]
@@ -256,6 +259,7 @@ interface ReplyToMessage {
     direction: string
     contentType: string
     sentBy: string | null
+    deletedAt?: string | null
 }
 
 interface Message {
@@ -273,6 +277,8 @@ interface Message {
     isInternal: boolean
     transcript?: string | null
     reaction?: string | null
+    /** Quando quem mandou apagou esta mensagem no WhatsApp. */
+    deletedAt?: string | null
 }
 
 interface OpenDeal {
@@ -346,21 +352,74 @@ interface ConversationDetail {
     nextCursor?: string | null
 }
 
-// Delivery status checkmarks component
+/**
+ * O selo de entrega — e por que ele estava invisível.
+ *
+ * ## O defeito
+ *
+ * O selo existe desde sempre e **funciona**: medido em produção, 150 das 399
+ * mensagens enviadas em sete dias estavam com `read`. Ainda assim a clínica
+ * reportou "na plataforma não temos como saber se o paciente viu a mensagem, não
+ * tem os sinal de visualização". Não estava faltando o dado; estava faltando
+ * poder ver.
+ *
+ * O "lida" era `text-info-subtle-foreground` dentro de um contêiner com
+ * `opacity-70`, desenhado em cima da bolha de saída. Os valores dos dois, lado a
+ * lado:
+ *
+ *   tema claro   bolha `#06b6d4` · selo `#0a5566` a 70%
+ *   tema escuro  bolha `#b9e8f1` · selo `#8fd6e8` a 70%
+ *
+ * No escuro são **a mesma cor** — ciano claro sobre ciano claro. O selo estava
+ * ali, pintado por cima de si mesmo.
+ *
+ * ## O conserto
+ *
+ * Cor nenhuma: `currentColor`. A bolha já define o seu próprio texto
+ * (`bubble-out-foreground` e `bubble-human-foreground` são navy nos dois temas),
+ * então herdar garante contraste nas três bolhas e nos dois temas, sem token
+ * novo e sem cor escrita à mão.
+ *
+ * O que distingue os estados passa a ser **forma e opacidade**, que é o
+ * equivalente seguro do cinza-contra-azul do WhatsApp: um tique a meia opacidade
+ * para enviada, dois para entregue, e dois **opacos e mais grossos** para lida.
+ * O selo também sai de dentro do `opacity-70` da linha da hora — ele controla a
+ * sua.
+ *
+ * E ganha `title`, que é a resposta literal à pergunta da clínica: passar o
+ * mouse diz "Lida", e o leitor de tela lê o mesmo.
+ */
 function MessageStatus({ status, direction }: { status: string; direction: string }) {
     if (direction === 'inbound') return null
-    switch (status) {
-        case 'sent':
-            return <Check className="h-3 w-3 inline-block ml-1 opacity-60" />
-        case 'delivered':
-            return <CheckCheck className="h-3 w-3 inline-block ml-1 opacity-60" />
-        case 'read':
-            return <CheckCheck className="h-3 w-3 inline-block ml-1 text-info-subtle-foreground" />
-        case 'failed':
-            return <span className="text-destructive-subtle-foreground ml-1 text-[10px]">⚠️</span>
-        default:
-            return <Check className="h-3 w-3 inline-block ml-1 opacity-40" />
+
+    if (status === 'failed') {
+        return (
+            <span
+                className="ml-1 text-[10px] text-destructive-subtle-foreground"
+                title="Não foi enviada"
+                aria-label="Não foi enviada"
+            >
+                ⚠️
+            </span>
+        )
     }
+
+    const lida = status === 'read'
+    const doisTiques = lida || status === 'delivered'
+    const Icone = doisTiques ? CheckCheck : Check
+    const rotulo = lida ? 'Lida' : status === 'delivered' ? 'Entregue' : 'Enviada'
+
+    // O `title` vai no `span` e não no ícone: os ícones do lucide não repassam
+    // `title` para o SVG, e sem invólucro a dica não existiria.
+    return (
+        <span className="ml-1 inline-flex items-center" title={rotulo} aria-label={rotulo}>
+            <Icone
+                className={cn('size-3', lida ? 'opacity-100' : 'opacity-50')}
+                strokeWidth={lida ? 3 : 2}
+                aria-hidden
+            />
+        </span>
+    )
 }
 
 interface QuickResponse {
@@ -433,7 +492,36 @@ function ContactAvatar({ avatar, name, phone, size = 'md' }: {
     )
 }
 
+/**
+ * O rótulo de uma mensagem apagada, do lado de quem está lendo.
+ *
+ * Um lugar só, porque o cartão da lista e o balão do chat têm de dizer a mesma
+ * coisa — e porque é texto que a clínica vai ler muitas vezes.
+ */
+const ROTULO_APAGADA = 'Mensagem apagada'
+
 function MediaContent({ msg }: { msg: Message }) {
+    /**
+     * Apagada: mostra que foi apagada, e **não** o que dizia.
+     *
+     * O conteúdo continua gravado — é registro do atendimento, e a clínica já o
+     * recebeu —, mas exibi-lo aqui contrariaria o gesto da pessoa, que apagou
+     * justamente para que não ficasse. O que a atendente precisa saber é que
+     * houve retratação, e isso o rótulo diz.
+     *
+     * Antes deste caminho existir, apagar não marcava nada: o texto original
+     * ficava na tela e aparecia ao lado dele um balão novo escrito
+     * "[Tipo de mensagem não suportado]".
+     */
+    if (msg.deletedAt) {
+        return (
+            <p className="flex items-center gap-1.5 text-sm italic opacity-60">
+                <Ban className="size-3.5 shrink-0" aria-hidden />
+                {ROTULO_APAGADA}
+            </p>
+        )
+    }
+
     if (msg.contentType === 'image' && msg.mediaUrl) {
         return (
             <div className="mb-1.5">
@@ -1106,6 +1194,40 @@ export default function ConversasPage() {
      */
     const conversationsRef = useRef(conversations)
     useEffect(() => { conversationsRef.current = conversations }, [conversations])
+
+    /**
+     * A conversa sobe para o topo **antes** de o servidor responder.
+     *
+     * A ordem já era certa no servidor (`lastMessageAt desc`, conferido em
+     * produção: zero defasagem entre a coluna e a última mensagem). O que doía
+     * era o **caminho** até a tela: entre o aviso do tempo real e a lista nova
+     * há uma ida e volta HTTP, e quando o aviso se perde — isolate morto, sala
+     * indisponível — a lista só se corrige na varredura do minuto mais o
+     * intervalo de 60 s da aba. Nesse intervalo a atendente vê a mensagem
+     * chegar no chat e o cartão parado no meio da coluna.
+     *
+     * Aqui o cartão se move na hora, com o que o aviso já traz. O texto da
+     * prévia e o contador de não-lidas vêm na resposta do servidor logo atrás —
+     * não se inventa nenhum dos dois, porque o aviso não os carrega e prévia
+     * errada é pior que prévia velha.
+     *
+     * Conversa que não está na lista carregada (outra aba, outro filtro) não é
+     * inserida: ela não pertence àquele recorte, e enfiá-la ali mostraria uma
+     * conversa que o filtro exclui. Quem a traz é o `fetchConversations` que
+     * roda em seguida, e os contadores das abas, que são da unidade inteira.
+     */
+    const subirConversa = useCallback((conversationId: string) => {
+        setConversations((prev) => {
+            const i = prev.findIndex((c) => c.id === conversationId)
+            if (i <= 0) return prev
+
+            const copia = [...prev]
+            const [conversa] = copia.splice(i, 1)
+            return [{ ...conversa, lastMessageAt: new Date().toISOString() }, ...copia]
+        })
+    }, [])
+    const subirConversaRef = useRef(subirConversa)
+    useEffect(() => { subirConversaRef.current = subirConversa }, [subirConversa])
     useEffect(() => { fetchMessagesRef.current = fetchMessages }, [fetchMessages])
     useEffect(() => { markAsReadRef.current = markAsRead }, [markAsRead])
     useEffect(() => { playNotificationSoundRef.current = playNotificationSound }, [playNotificationSound])
@@ -1158,6 +1280,9 @@ export default function ConversasPage() {
 
                 if (tipo === 'mensagem.nova') {
                     const conversationId = typeof payload.conversationId === 'string' ? payload.conversationId : null
+
+                    // A conversa sobe ANTES da ida ao servidor. Ver `subirConversa`.
+                    if (conversationId) subirConversaRef.current(conversationId)
                     fetchConversations()
 
                     /**
@@ -1169,9 +1294,24 @@ export default function ConversasPage() {
                      * não sobe com a conversa aberta, porque `markAsRead` zera
                      * na hora. Ou seja: o aviso nunca tocava exatamente no caso
                      * mais comum, com a atendente olhando o chat.
+                     *
+                     * **E saiu o `daquiMesmo`**, que era a segunda tranca e
+                     * virou mordaça. Ele exigia que a conversa estivesse na
+                     * lista carregada — e a lista é recortada pela aba. Com a
+                     * atendente em "Com a equipe", a mensagem de um paciente que
+                     * volta depois de finalizado reabre a conversa em "Com a
+                     * IA" (`atendidaPor` volta a `bot`): outra aba, outra lista,
+                     * **nenhum som e nada se movendo na tela**. Foi relatado
+                     * como "a conversa dele não sobe, ela fica parada" — e de
+                     * fato não subia, porque não estava ali.
+                     *
+                     * A tranca que importa continua de pé e é anterior a esta: a
+                     * sala do tempo real é endereçada por `workspaceId`, então
+                     * nada de outra clínica chega a este manipulador. Exigir
+                     * também presença na lista não acrescentava isolamento —
+                     * acrescentava silêncio.
                      */
-                    const daquiMesmo = conversationsRef.current.some((c) => c.id === conversationId)
-                    if (payload.direction === 'inbound' && daquiMesmo && soundEnabledRef.current) {
+                    if (payload.direction === 'inbound' && soundEnabledRef.current) {
                         playNotificationSoundRef.current()
                     }
 
@@ -1533,6 +1673,41 @@ export default function ConversasPage() {
         setReplyingTo(msg)
         textareaRef.current?.focus()
     }
+
+    /**
+     * O botão de responder, **visível**.
+     *
+     * Responder citando já existia e ficava só no menu de contexto — clique
+     * direito. Quem atende pelo WhatsApp não procura clique direito: a clínica
+     * pediu "tem como selecionar a mensagem para enviar a resposta, igual
+     * fazemos no WhatsApp", com o recurso pronto e no ar há semanas. Recurso que
+     * ninguém acha não existe.
+     *
+     * Aparece ao passar o mouse, como no WhatsApp Web, e fica **sempre visível
+     * em tela de toque** (`pointer-coarse`), onde não há como passar o mouse e
+     * não há clique direito — isto é, onde o menu de contexto é inalcançável.
+     *
+     * Função de renderização e não componente: ela fecha sobre `handleReply`, e
+     * um componente declarado aqui dentro seria remontado a cada tecla digitada
+     * na caixa de texto.
+     */
+    const botaoDeResposta = (msg: Message) => (
+        <button
+            type="button"
+            onClick={() => handleReply(msg)}
+            title="Responder citando esta mensagem"
+            aria-label="Responder citando esta mensagem"
+            className={cn(
+                'mb-1 grid size-7 shrink-0 place-items-center rounded-full border border-border',
+                'bg-card text-muted-foreground shadow-sm transition-opacity',
+                'hover:bg-muted hover:text-foreground',
+                'opacity-0 group-hover:opacity-100 focus-visible:opacity-100',
+                'pointer-coarse:opacity-100'
+            )}
+        >
+            <Reply className="size-3.5" aria-hidden />
+        </button>
+    )
 
     const REACTIONS = ['👍', '❤️', '😂', '🙏', '✅', '😮']
 
@@ -2498,7 +2673,11 @@ export default function ConversasPage() {
                                                 {/* 2. O que foi dito por último. */}
                                                 <div className="mt-0.5 flex items-center justify-between gap-2">
                                                     <p className="truncate text-xs text-muted-foreground">
-                                                        {conv.lastMessage ? semMarcacao(conv.lastMessage.content) : null}
+                                                        {conv.lastMessage
+                                                            ? conv.lastMessage.deletedAt
+                                                                ? ROTULO_APAGADA
+                                                                : semMarcacao(conv.lastMessage.content)
+                                                            : null}
                                                     </p>
                                                     {conv.unreadCount > 0 && (
                                                         <span className="num flex h-5 min-w-[20px] flex-shrink-0 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
@@ -3189,10 +3368,13 @@ export default function ConversasPage() {
                                                 <div
                                                     key={msg.id}
                                                     className={cn(
-                                                        'flex group',
+                                                        'flex group items-end gap-1',
                                                         isInbound ? 'justify-start' : 'justify-end'
                                                     )}
                                                 >
+                                                  {/* Do lado de dentro da bolha, para não empurrar o
+                                                      balão nem encostar na borda da tela. */}
+                                                  {!isInbound && !msg.deletedAt && botaoDeResposta(msg)}
                                                   {/* O menu da mensagem é o primitivo: posição, Esc,
                                                       clique fora e navegação por teclado faltavam na
                                                       versão artesanal, e menu sem teclado é
@@ -3248,15 +3430,23 @@ export default function ConversasPage() {
                                                                 )}>
                                                                     {msg.replyTo.direction === 'inbound' ? `👤 ${v.Pessoa}` : '🤖 Agente'}
                                                                 </span>
-                                                                <p className="truncate opacity-80">{semMarcacao(msg.replyTo.content)}</p>
+                                                                <p className="truncate opacity-80">
+                                                                    {msg.replyTo.deletedAt
+                                                                        ? ROTULO_APAGADA
+                                                                        : semMarcacao(msg.replyTo.content)}
+                                                                </p>
                                                             </div>
                                                         )}
 
                                                         <MediaContent msg={msg} />
-                                                        <div className={cn(
-                                                            'text-[10px] mt-1 flex items-center gap-0.5 opacity-70'
-                                                        )}>
-                                                            {format(new Date(msg.createdAt), 'HH:mm')}
+                                                        {/* A opacidade fica na HORA, não na linha: o
+                                                            selo de entrega precisa da sua, e herdar
+                                                            70% daqui era metade do motivo de ele
+                                                            ser invisível. Ver `MessageStatus`. */}
+                                                        <div className="mt-1 flex items-center gap-0.5 text-[10px]">
+                                                            <span className="opacity-70">
+                                                                {format(new Date(msg.createdAt), 'HH:mm')}
+                                                            </span>
                                                             <MessageStatus status={msg.status} direction={msg.direction} />
                                                         </div>
                                                         {msg.reaction && (
@@ -3306,6 +3496,7 @@ export default function ConversasPage() {
                                                         )}
                                                     </ContextMenuContent>
                                                   </ContextMenu>
+                                                  {isInbound && !msg.deletedAt && botaoDeResposta(msg)}
                                                 </div>
                                             )
                                         })}

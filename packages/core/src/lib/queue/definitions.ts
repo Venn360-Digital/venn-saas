@@ -9,6 +9,7 @@
 import type { JobsOptions } from 'bullmq'
 import type {
     NormalizedAck,
+    NormalizedRevoke,
     NormalizedConnection,
     NormalizedInbound,
     NormalizedPresence,
@@ -87,6 +88,7 @@ export interface WhatsAppEventJob {
     provider: ChannelProviderName
     event:
         | NormalizedAck
+        | NormalizedRevoke
         | NormalizedConnection
         | NormalizedPresence
         | NormalizedRecycle
@@ -190,6 +192,7 @@ export type CronJobName =
     | 'retention'
     | 'integration-health'
     | 'conversation-autoclose'
+    | 'conversation-inactivity'
     | 'follow-up'
     | 'daily-briefing'
     | 'auto-follow-up'
