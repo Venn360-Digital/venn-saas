@@ -215,6 +215,7 @@ const PROVAS = [
     'test:regras',
     'test:condicoes',
     'test:widget-config',
+    'test:widget-ssr',
     'test:fuso-unidade',
     'test:vocabulario',
     'test:concordancia',

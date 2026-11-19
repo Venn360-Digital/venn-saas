@@ -138,8 +138,24 @@ const TEXTOS = {
 
 export type Chave = keyof (typeof TEXTOS)['pt-BR']
 
-/** O idioma do documento, com pt-BR como padrão. */
+/**
+ * O idioma do documento, com pt-BR como padrão.
+ *
+ * **Devolve pt-BR quando não há documento, e isso não é defensividade vazia.**
+ * O widget nasceu num Vite, onde todo render acontece no navegador. Dentro do
+ * Next, um componente de cliente também é renderizado NO SERVIDOR no primeiro
+ * paint — `'use client'` diz onde ele ganha interatividade, não onde ele é
+ * renderizado. Sem esta guarda, ler `document` durante o render do servidor
+ * lança, e a exceção sobe até derrubar o layout inteiro do painel: Error 1101
+ * nos três apps em produção, medido em 18/11/2026.
+ *
+ * O padrão acerta o caso comum (os três apps são pt-BR) e, quando não acertar,
+ * o idioma certo chega no segundo render, no cliente — um texto em português
+ * por um quadro é incomparavelmente melhor que um painel que não abre.
+ */
 export function idiomaDoDocumento(): Idioma {
+    if (typeof document === 'undefined') return 'pt-BR'
+
     const bruto = (document.documentElement.lang || navigator.language || 'pt-BR').toLowerCase()
     if (bruto.startsWith('es')) return 'es'
     if (bruto.startsWith('en')) return 'en'

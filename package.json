@@ -25,6 +25,7 @@
         "check:marca": "node scripts/check-marca.mjs",
         "check:marca-tardia": "tsx --conditions=react-server scripts/check-marca-tardia.ts servidor && tsx scripts/check-marca-tardia.ts cliente",
         "test:widget-config": "tsx scripts/test-widget-config.ts",
+        "test:widget-ssr": "tsx scripts/test-widget-ssr.ts",
         "test:fuso-unidade": "tsx --conditions=react-server scripts/test-fuso-unidade.ts",
         "lint:workspace": "node scripts/lint-workspace.mjs",
         "lint:fuso": "node scripts/lint-fuso.mjs",
