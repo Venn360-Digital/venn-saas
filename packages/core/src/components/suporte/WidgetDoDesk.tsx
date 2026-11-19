@@ -25,7 +25,22 @@ import '@venn/desk-widget/estilo.css'
 export function WidgetDoDesk({ app, base }: { app: string; base: string }) {
     return (
         <VennDeskProvider app={app} base={base}>
-            <VennDeskLauncher />
+            {/*
+              `flutuante={false}`: **sem pílula sobre a área de trabalho.**
+
+              O botão flutuante do widget é `position: fixed` no canto inferior
+              direito, e nos nossos painéis esse canto não é vazio — na tela de
+              Conversas o botão Enviar fica exatamente ali, e a pílula "SUPORTE"
+              cobria ele e os vizinhos (anexo, áudio, sugerir com IA). Trocar de
+              canto não resolveria: o inferior esquerdo é o rodapé da sidebar,
+              com plano e usuário.
+
+              Quem abre o painel é o botão de suporte da barra de cima, que fica
+              em espaço próprio e já é onde a pessoa procura ajuda — ao lado do
+              sino de avisos. O painel em si continua flutuando, e isso está
+              certo: é um diálogo, abre por um gesto e fecha por outro.
+            */}
+            <VennDeskLauncher flutuante={false} />
         </VennDeskProvider>
     )
 }
