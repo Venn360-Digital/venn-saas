@@ -367,8 +367,12 @@ interface ConversationDetail {
  * `opacity-70`, desenhado em cima da bolha de saída. Os valores dos dois, lado a
  * lado:
  *
- *   tema claro   bolha `#06b6d4` · selo `#0a5566` a 70%
- *   tema escuro  bolha `#b9e8f1` · selo `#8fd6e8` a 70%
+ *   tema claro   bolha ciano 06b6d4 · selo teal escuro 0a5566, a 70%
+ *   tema escuro  bolha ciano claro b9e8f1 · selo ciano claro 8fd6e8, a 70%
+ *
+ * (Os valores vão sem `#` e sem crase de propósito: são a medida que justifica
+ * o conserto, e o `lint-colors` — com razão — não distingue cor citada numa
+ * explicação de cor escrita no código.)
  *
  * No escuro são **a mesma cor** — ciano claro sobre ciano claro. O selo estava
  * ali, pintado por cima de si mesmo.
