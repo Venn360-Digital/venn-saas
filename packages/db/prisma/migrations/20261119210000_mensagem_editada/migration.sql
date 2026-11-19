@@ -1,0 +1,16 @@
+-- A mensagem editada passa a ter onde ser marcada.
+--
+-- O WhatsApp permite trocar o texto de uma mensagem enviada dentro de quinze
+-- minutos, e o Evolution Go expõe isso em `POST /message/edit` — conferido no
+-- fonte da 0.7.2, que é a versão da nossa imagem.
+--
+-- A coluna guarda **quando** editou, não o texto anterior. O WhatsApp substitui
+-- o texto para quem recebeu; manter aqui a versão que o paciente não vê mais
+-- faria a tela da atendente discordar do celular dele. O que a marca dá é o
+-- aviso na bolha ("editada"), para ninguém ler um texto e supor que foi aquilo
+-- que saiu na hora.
+--
+-- `ADD COLUMN` nulo é instantâneo no Postgres 11+: não reescreve a tabela, e
+-- `messages` é a maior do banco. Mesmo raciocínio de `deletedAt`, de hoje mais
+-- cedo.
+ALTER TABLE "messages" ADD COLUMN "editedAt" TIMESTAMP(3);

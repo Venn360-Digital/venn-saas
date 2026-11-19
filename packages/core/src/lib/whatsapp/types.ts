@@ -355,6 +355,45 @@ export interface ChannelProvider {
     ): Promise<DownloadedMedia | null>
 
     /**
+     * Apaga para todos uma mensagem que a clínica enviou. Opcional.
+     *
+     * ## Só o canal QR tem isto, e é limite da Meta, não nosso
+     *
+     * No canal oficial (Cloud API) a Meta **não oferece** apagar nem editar
+     * mensagem enviada por API. Então este método é do `evolution-go`, e a tela
+     * só mostra o botão onde o provedor o implementa — oferecer onde não existe
+     * seria prometer e falhar na frente do paciente.
+     *
+     * ## E a janela é do WhatsApp
+     *
+     * O WhatsApp limita há quanto tempo uma mensagem pode ser apagada para
+     * todos. Esse prazo **não é conferido aqui de propósito**: quem o conhece é
+     * o WhatsApp, e cravar um número nosso significaria recusar um apagamento
+     * que teria funcionado, ou oferecer um que vai falhar. A recusa vem do
+     * provedor e sobe para a tela com o motivo dele.
+     */
+    revoke?(credentials: InstanceCredentials, to: string, messageId: string): Promise<void>
+
+    /**
+     * Troca o texto de uma mensagem já enviada. Opcional, e **só texto**.
+     *
+     * Mídia fica de fora porque o próprio Evolution Go a deixa de fora — o
+     * `routes.go` da 0.7.2 traz `// TODO: edit MediaMessage too` ao lado da
+     * rota. Chamar com uma mensagem de mídia falharia no provedor; quem decide
+     * não oferecer o botão é a tela, pelo `contentType`.
+     *
+     * A janela de quinze minutos é do WhatsApp, e essa **sim** é conferida
+     * antes: ela é curta, conhecida, e sem a conferência o botão apareceria
+     * para toda mensagem antiga e falharia sempre.
+     */
+    editText?(
+        credentials: InstanceCredentials,
+        to: string,
+        messageId: string,
+        texto: string
+    ): Promise<void>
+
+    /**
      * Confirma leitura das mensagens recebidas (os checks azuis).
      *
      * Opcional, porque nem todo provedor precisa: o Cloud API da Meta hospeda a
@@ -452,6 +491,21 @@ export function msisdnDoJid(jid: string | null | undefined): string | null {
 
     const digitos = toMsisdn(cru).replace(/\D/g, '')
     return digitos.length > 0 ? digitos : null
+}
+
+/**
+ * Quantos minutos o WhatsApp dá para editar uma mensagem enviada.
+ *
+ * Quinze, e é regra deles — não há como estender. Mora aqui, exportado, porque
+ * **três lugares precisam concordar**: a rota que recusa, a tela que esconde o
+ * botão, e a prova que trava os dois. Um literal em cada um é a forma de
+ * defeito mais repetida deste repositório.
+ */
+export const MINUTOS_PARA_EDITAR = 15
+
+/** Se esta mensagem ainda está dentro da janela de edição do WhatsApp. */
+export function podeEditarAinda(enviadaEm: Date, agora: Date = new Date()): boolean {
+    return agora.getTime() - enviadaEm.getTime() <= MINUTOS_PARA_EDITAR * 60_000
 }
 
 /** Digits only, as both providers expect for a recipient. */

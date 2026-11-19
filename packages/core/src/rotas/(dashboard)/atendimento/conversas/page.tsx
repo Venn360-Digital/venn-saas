@@ -7,6 +7,9 @@ import { apelidoDaLinha } from '@venn/core/lib/linha'
 import { formatPhone } from '@venn/core/lib/phone'
 import { prettyPhone } from '@venn/core/lib/masks'
 import { useNow } from '@venn/core/hooks/useNow'
+// De `types.ts` e não do barril: o barril arrasta os provedores (e o
+// Prisma por tabela), e isto é uma função pura de minutos.
+import { podeEditarAinda } from '@venn/core/lib/whatsapp/types'
 import { usePermissions } from '@venn/core/hooks/usePermissions'
 
 import { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from 'react'
@@ -36,6 +39,7 @@ import {
     Music,
     PanelRight,
     Paperclip,
+    Pencil,
     Phone,
     Plug,
     Plus,
@@ -279,6 +283,8 @@ interface Message {
     reaction?: string | null
     /** Quando quem mandou apagou esta mensagem no WhatsApp. */
     deletedAt?: string | null
+    /** Quando a equipe editou o texto depois de enviar. */
+    editedAt?: string | null
 }
 
 interface OpenDeal {
@@ -789,6 +795,15 @@ export default function ConversasPage() {
 
     // Reply state
     const [replyingTo, setReplyingTo] = useState<Message | null>(null)
+    /**
+     * A mensagem que está sendo editada, ou nula.
+     *
+     * Espelha `replyingTo` de propósito: é o mesmo gesto para quem usa — uma
+     * faixa acima da caixa de texto dizendo o que vai acontecer, com um X para
+     * desistir. Inventar uma caixa de edição flutuante sobre a bolha seria um
+     * segundo lugar para digitar na mesma tela.
+     */
+    const [editando, setEditando] = useState<Message | null>(null)
 
     // Audio recording state
     const [isRecording, setIsRecording] = useState(false)
@@ -1679,6 +1694,114 @@ export default function ConversasPage() {
     }
 
     /**
+     * Se esta mensagem ainda pode ser editada.
+     *
+     * Três condições, e as três vêm de fora de nós: ser nossa (o WhatsApp não
+     * deixa mexer na mensagem de outra pessoa), ser texto (o Evolution Go não
+     * edita mídia) e estar dentro dos quinze minutos do WhatsApp.
+     *
+     * `useNow` já corre nesta tela, então o botão **desaparece sozinho** quando
+     * o prazo vence, sem a atendente ter de recarregar para descobrir que não
+     * dá mais.
+     */
+    const podeEditar = (msg: Message) =>
+        msg.direction === 'outbound' &&
+        !msg.isInternal &&
+        !msg.deletedAt &&
+        msg.contentType === 'text' &&
+        podeEditarAinda(new Date(msg.createdAt), new Date(nowMs))
+
+    /** Se dá para apagar para todos: ser nossa, e não estar apagada já. */
+    const podeApagar = (msg: Message) =>
+        msg.direction === 'outbound' && !msg.isInternal && !msg.deletedAt
+
+    const handleEditar = (msg: Message) => {
+        setEditando(msg)
+        setReplyingTo(null)
+        setMessageInput(msg.content)
+        textareaRef.current?.focus()
+    }
+
+    const cancelarEdicao = () => {
+        setEditando(null)
+        setMessageInput('')
+    }
+
+    /**
+     * Grava a edição. O erro do provedor sobe para a tela com o motivo dele.
+     *
+     * Quase sempre o motivo é a janela de tempo — e "erro ao editar" não diria
+     * isso. É a mesma escolha da rota, que corta e repassa a mensagem do
+     * Evolution em vez de trocá-la por um texto genérico.
+     */
+    const salvarEdicao = async () => {
+        if (!editando || !selectedConversation || sending) return
+        const texto = messageInput.trim()
+        if (!texto) return
+
+        setSending(true)
+        try {
+            const res = await fetch(
+                `/api/conversations/${selectedConversation}/messages/${editando.id}`,
+                {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ content: texto }),
+                }
+            )
+            if (!res.ok) {
+                const data = (await res.json().catch(() => ({}))) as { error?: string }
+                toast.error(data.error || 'Não foi possível editar a mensagem')
+                return
+            }
+            setEditando(null)
+            setMessageInput('')
+            await fetchMessages(selectedConversation)
+        } catch {
+            toast.error('Não foi possível editar a mensagem')
+        } finally {
+            setSending(false)
+        }
+    }
+
+    /**
+     * O que o Enter e o botão fazem: enviar, ou salvar a edição.
+     *
+     * Um despachante, e não dois caminhos espalhados. Enquanto havia só envio,
+     * `handleSendMessage` estava nos dois lugares; acrescentar edição sem este
+     * ponto único significaria lembrar dos dois — e o Enter é o que a atendente
+     * usa, então esquecê-lo seria mandar mensagem nova em vez de editar.
+     */
+    const confirmarComposicao = async () => {
+        if (editando) return salvarEdicao()
+        return handleSendMessage()
+    }
+
+    /** Apaga para todos. Confirma antes: é irreversível no celular de quem leu. */
+    const handleApagar = async (msg: Message) => {
+        if (!selectedConversation) return
+        if (!window.confirm('Apagar esta mensagem para todos? Quem já leu deixa de ver o texto.')) {
+            return
+        }
+
+        try {
+            const res = await fetch(
+                `/api/conversations/${selectedConversation}/messages/${msg.id}`,
+                { method: 'DELETE' }
+            )
+            if (!res.ok) {
+                const data = (await res.json().catch(() => ({}))) as { error?: string }
+                toast.error(data.error || 'Não foi possível apagar a mensagem')
+                return
+            }
+            if (editando?.id === msg.id) cancelarEdicao()
+            await fetchMessages(selectedConversation)
+        } catch {
+            toast.error('Não foi possível apagar a mensagem')
+        }
+    }
+
+    /**
      * O botão de responder, **visível**.
      *
      * Responder citando já existia e ficava só no menu de contexto — clique
@@ -2226,9 +2349,14 @@ export default function ConversasPage() {
                 return
             }
         }
+        if (e.key === 'Escape' && editando) {
+            e.preventDefault()
+            cancelarEdicao()
+            return
+        }
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault()
-            handleSendMessage()
+            void confirmarComposicao()
         }
     }
 
@@ -3451,6 +3579,13 @@ export default function ConversasPage() {
                                                             <span className="opacity-70">
                                                                 {format(new Date(msg.createdAt), 'HH:mm')}
                                                             </span>
+                                                            {/* O texto na tela não é o que saiu na
+                                                                hora, e quem lê precisa saber. */}
+                                                            {msg.editedAt && !msg.deletedAt && (
+                                                                <span className="opacity-70" title="Texto editado depois do envio">
+                                                                    · editada
+                                                                </span>
+                                                            )}
                                                             <MessageStatus status={msg.status} direction={msg.direction} />
                                                         </div>
                                                         {msg.reaction && (
@@ -3476,6 +3611,26 @@ export default function ConversasPage() {
                                                             <ContextMenuItem onSelect={() => handleForward(msg)}>
                                                                 <Reply className="-scale-x-100 text-muted-foreground" />
                                                                 Encaminhar
+                                                            </ContextMenuItem>
+                                                        )}
+                                                        {/* Editar e apagar aparecem só onde o
+                                                            WhatsApp permite: mensagem nossa, texto,
+                                                            e dentro de 15 min para editar. O
+                                                            relógio desta tela faz o item de editar
+                                                            desaparecer sozinho no fim do prazo. */}
+                                                        {podeEditar(msg) && (
+                                                            <ContextMenuItem onSelect={() => handleEditar(msg)}>
+                                                                <Pencil className="text-muted-foreground" />
+                                                                Editar
+                                                            </ContextMenuItem>
+                                                        )}
+                                                        {podeApagar(msg) && (
+                                                            <ContextMenuItem
+                                                                variant="destructive"
+                                                                onSelect={() => void handleApagar(msg)}
+                                                            >
+                                                                <Trash2 />
+                                                                Apagar para todos
                                                             </ContextMenuItem>
                                                         )}
                                                         {msg.direction === 'inbound' && (
@@ -3566,6 +3721,29 @@ export default function ConversasPage() {
                                                             <p className="mt-0.5 truncate text-xs text-muted-foreground">{item.label}</p>
                                                         </button>
                                                     ))}
+                                                </div>
+                                            )}
+
+                                            {/* Faixa de edição. Espelha a de resposta logo
+                                                abaixo: mesma forma, mesmo X para desistir. */}
+                                            {editando && (
+                                                <div className="mb-2 flex items-center gap-2 rounded-lg border-l-2 border-warning bg-warning-subtle/60 px-3 py-2">
+                                                    <Pencil className="h-3.5 w-3.5 flex-shrink-0 text-warning-subtle-foreground" />
+                                                    <div className="min-w-0 flex-1">
+                                                        <span className="text-[10px] font-medium text-warning-subtle-foreground">
+                                                            Editando mensagem enviada
+                                                        </span>
+                                                        <p className="truncate text-xs text-muted-foreground">
+                                                            {editando.content}
+                                                        </p>
+                                                    </div>
+                                                    <button
+                                                        onClick={cancelarEdicao}
+                                                        className="text-muted-foreground hover:text-foreground"
+                                                        aria-label="Cancelar edição"
+                                                    >
+                                                        <X className="h-3.5 w-3.5" />
+                                                    </button>
                                                 </div>
                                             )}
 
@@ -3738,12 +3916,12 @@ export default function ConversasPage() {
                                                             <TooltipTrigger asChild>
                                                                 <Button
                                                                     size="icon"
-                                                                    onClick={handleSendMessage}
+                                                                    onClick={() => void confirmarComposicao()}
                                                                     disabled={(!messageInput.trim() && !attachment) || sending}
                                                                     className="h-10 w-10 flex-shrink-0 rounded-lg"
-                                                                    aria-label="Enviar mensagem"
+                                                                    aria-label={editando ? 'Salvar edição' : 'Enviar mensagem'}
                                                                 >
-                                                                    <Send className="h-4 w-4" />
+                                                                    {editando ? <Check className="h-4 w-4" /> : <Send className="h-4 w-4" />}
                                                                 </Button>
                                                             </TooltipTrigger>
                                                             <TooltipContent>Enviar — Enter envia, Shift+Enter quebra a linha</TooltipContent>

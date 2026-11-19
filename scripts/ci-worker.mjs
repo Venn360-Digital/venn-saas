@@ -234,6 +234,7 @@ const PROVAS = [
     'test:sonda',
     'test:midia',
     'test:jid',
+    'test:mensagem-enviada',
 ]
 for (const prova of PROVAS) rodar(prova, `pnpm run ${prova}`)
 
