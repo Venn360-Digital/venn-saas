@@ -1,5 +1,68 @@
 # Instruções do projeto
 
+## Um repositório, seis ambientes, mais de uma sessão
+
+Os três produtos saem de `venn-saas` desde 18/11/2026. Isso trocou um problema
+por outro: antes, três repositórios impediam por construção que o trabalho de
+uma frente entrasse no da outra. Agora não impedem, e as duas vezes em que isso
+aconteceu custaram caro no mesmo dia.
+
+### 1. Uma worktree por sessão
+
+Duas sessões no mesmo diretório compartilham o `git status` e a branch marcada.
+Em 18/11 a sessão do `venn-desk` deixou um arquivo corrigido e não commitado
+dentro da branch de outra sessão, que só descobriu ao olhar o `git status` por
+outro motivo.
+
+```bash
+git worktree add .claude/worktrees/<assunto> -b feat/<assunto> origin/staging
+```
+
+O diretório `.claude/**` já está fora do eslint e do audit por causa disso.
+
+### 2. Branch sai de `staging`, nunca do topo de outra branch
+
+E **antes de abrir o PR**, conferir o que o lote carrega:
+
+```bash
+git log --oneline origin/staging..HEAD
+```
+
+Se aparecer commit que você não escreveu, pare: o PR vai entregar o trabalho de
+outra pessoa com a sua descrição.
+
+**Foi exatamente o que aconteceu no #265.** A branch saiu do topo da branch do
+#264 em vez de `staging`, então um PR intitulado "o agente fala o vocabulário da
+unidade" entregou também 2.522 linhas do widget do Venn Desk — inclusive a linha
+que o monta no layout de `(dashboard)`, compartilhado pelos três painéis.
+Ninguém revisou aquela linha no contexto dela. Sessenta minutos depois, o
+`Error 1101` derrubou o painel dos três produtos em produção. O #264 terminou
+`CLOSED` sem merge, porque o conteúdo dele já estava lá.
+
+O git não reclama disso: não é conflito, é a mesma linhagem. Quem vê é o comando
+acima.
+
+### 3. Hotfix em `main` volta para `staging` na mesma hora
+
+`main` e `staging` divergindo é o jeito novo de um ambiente rodar código
+diferente do outro. Em 18/11 a guarda do `Error 1101` foi direto para `main`
+(produção estava caída, e estava certo ir direto), e **as três homologações
+ficaram horas rodando o defeito** sem ninguém ver — porque `/login`, health e
+`/widget.js` respondem 200: eles estão fora do grupo `(dashboard)`.
+
+```bash
+git checkout staging && git merge origin/main && git push
+```
+
+### O que as sondas de borda NÃO provam
+
+Health, `/login`, `/widget.js`, `robots.txt` e os webhooks vivem fora de
+`(dashboard)`. Um defeito no layout do painel deixa os seis ambientes
+respondendo `200` com `database: ok` enquanto nenhum usuário autenticado
+consegue abrir nada. **Depois de mexer em qualquer coisa que o painel monte,
+peça a alguém abrir uma tela autenticada** — ou rode `pnpm run test:widget-ssr`,
+que é o único passo do portão que executa um render.
+
 ## Onde este sistema roda
 
 **Cloudflare.** O app é Next sobre Workers (`cloudflare.config.ts`, publicado pela

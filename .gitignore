@@ -128,3 +128,9 @@ packages/db/src/generated/
 /concepts_brief.md
 /mapeamento-dos-modelos.md
 /treino-*.png
+
+# Worktrees por sessão (regra 1 do CLAUDE.md). Versionado de propósito: até
+# 18/11/2026 isto vivia só no `.git/info/exclude`, que é local — num clone novo
+# um `git add -A` encamparia uma cópia inteira do repositório. O
+# `.claude/launch.json` continua versionado; só as worktrees saem.
+.claude/worktrees/
