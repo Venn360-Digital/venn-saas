@@ -26,10 +26,13 @@ export interface Rotina {
 }
 
 /**
- * As rotinas. **Dezoito** entradas para dezessete tarefas — a verificação de
+ * As rotinas. **Dezenove** entradas para dezoito tarefas — a verificação de
  * integração aparece duas vezes, com um intervalo de dia e outro de noite —
  * que o `cronsParaWrangler()` reduz a **quinze** gatilhos, porque padrões
  * repetidos caem no mesmo e um gatilho duplicado seria invocação dobrada.
+ *
+ * A régua de inatividade entrou em 19/11/2026 **sem acrescentar gatilho**: ela
+ * usa o mesmo padrão de dez minutos do lembrete de atividade, de propósito.
  *
  * (Os números são medidos, não contados à mão: `check:filas` afirma a
  * contagem, e foi ele que acusou quando esta frase ficou velha.)
@@ -125,6 +128,25 @@ export const ROTINAS: Rotina[] = [
 
     /** Prazo em dias; de hora em hora já era fino demais. */
     { task: 'conversation-autoclose', brt: '21 7-20 * * *' },
+
+    /**
+     * A régua de inatividade **dentro** da conversa, de dez em dez minutos.
+     *
+     * Dez minutos porque o prazo é em minutos — meia hora, por padrão — e uma
+     * passada de hora em hora transformaria "meia hora de silêncio" em
+     * "entre trinta e noventa minutos", que é uma régua que não se explica a
+     * ninguém.
+     *
+     * **E custa zero despertar a mais**: o padrão é idêntico ao do lembrete de
+     * atividade (dez em dez minutos, 7–20), então `cronsParaWrangler()` o reduz
+     * ao mesmo gatilho. É a mesma carona que a verificação de integração e o
+     * boletim já pegam um do outro.
+     *
+     * A janela 7–20 é o portão de educação: "o senhor ainda está aí?" às 3 h da
+     * manhã é pior do que não perguntar. Por isso a hora não é curinga, embora o
+     * prazo seja em minutos.
+     */
+    { task: 'conversation-inactivity', brt: '*/10 7-20 * * *' },
 
     { task: 'follow-up', brt: '0 7 * * *' },
 

@@ -15,7 +15,14 @@ import { comArtigo } from './concordancia'
  * courtesy into a robot.
  */
 
-export type NoticeKind = 'out_of_credits' | 'read_only' | 'interaction_limit'
+export type NoticeKind =
+    | 'out_of_credits'
+    | 'read_only'
+    | 'interaction_limit'
+    /** Primeiro passo da régua de inatividade: "ainda está aí?". */
+    | 'inactivity_nudge'
+    /** Segundo passo: a despedida que encerra o atendimento. */
+    | 'inactivity_farewell'
 
 /**
  * Função memoizada, e não constante: o texto lê o vocabulário, e `BRAND()` é
@@ -34,6 +41,22 @@ function TEXT(): Record<NoticeKind, string> {
     // simplesmente emudece no meio.
     interaction_limit:
         'Vou passar seu atendimento para alguém da nossa equipe, que continua com você por aqui.',
+    /**
+     * Os dois passos da inatividade, com as palavras que a clínica pediu.
+     *
+     * "o senhor / a senhora" é o tratamento que ela usa, e vai nos dois gêneros
+     * porque não sabemos de quem se trata — descobrir pelo nome erraria, e errar
+     * o tratamento de uma pessoa de idade custa mais que a deselegância de
+     * oferecer os dois.
+     *
+     * A despedida diz **por que** está encerrando e que a porta continua aberta.
+     * Sem a segunda metade, o fio termina com o paciente lendo que foi
+     * dispensado.
+     */
+    inactivity_nudge: 'Oi! O senhor/a senhora ainda está por aí? Como posso ajudar?',
+    inactivity_farewell:
+        'Devido à falta de interação, vou encerrar o atendimento por aqui. ' +
+        'Se tiver qualquer dúvida, pode me chamar novamente — é só mandar uma mensagem.',
 }
     return textCache
 }
