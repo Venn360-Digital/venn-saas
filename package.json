@@ -14,6 +14,8 @@
         "prebuild": "pnpm run lint:estaticos",
         "verificar": "node scripts/limpar-tipos-gerados.mjs && pnpm run typecheck && pnpm run typecheck:cloudflare && pnpm run lint:estaticos",
         "prebuild:preview": "pnpm run ci:worker",
+        "prebuild:preview:stagent": "pnpm run ci:worker",
+        "prebuild:preview:conecta": "pnpm run ci:worker",
         "ci:worker": "node scripts/ci-worker.mjs",
         "preportao:stg": "pnpm run verificar",
         "preportao:prod": "pnpm run verificar",
