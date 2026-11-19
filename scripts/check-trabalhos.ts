@@ -168,9 +168,16 @@ async function main() {
      *
      * Ficou invisível por horas porque este verificador **não estava em
      * workflow nenhum**. Agora está.
+     *
+     * **Este número tem um gêmeo, e os dois têm de andar juntos:**
+     * `check-filas.ts` afirma a contagem de ENTRADAS (19 hoje) e este afirma a
+     * de TAREFAS distintas (18) — a diferença é a verificação de integração,
+     * que tem duas entradas. Em 19/11/2026 a régua de inatividade entrou e eu
+     * atualizei só o de lá: o build dos três apps reprovou aqui. Quem mexer numa
+     * rotina mexe nos dois, e é por isso que cada um aponta para o outro.
      */
     const tarefas = [...new Set(naAgenda)]
-    ok('cron: as 17 tarefas estão na agenda', tarefas.length === 17, `${tarefas.length} tarefas em ${naAgenda.length} entradas`)
+    ok('cron: as 18 tarefas estão na agenda', tarefas.length === 18, `${tarefas.length} tarefas em ${naAgenda.length} entradas`)
     for (const task of naAgenda) {
         ok(`cron: "${task}" tem despacho`, noDespacho.has(task))
     }

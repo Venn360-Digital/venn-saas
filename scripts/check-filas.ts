@@ -49,6 +49,12 @@ async function main() {
     // `broadcast-dispatch` entrar, em 17 antes de `ses-verificar-remetente` e em
     // 18 antes de `conversation-inactivity`; nas três vezes foi esta prova que
     // acusou.
+    //
+    // **E tem um gêmeo:** `check-trabalhos.ts` afirma a contagem de TAREFAS
+    // distintas (18), enquanto esta afirma a de ENTRADAS (19) — a diferença é a
+    // verificação de integração, que aparece duas vezes. Em 19/11/2026 eu
+    // atualizei só este e o build dos três apps reprovou no outro. Mexeu numa
+    // rotina, mexe nos dois.
     ok('as 19 entradas da agenda convertem sem erro', rotinasEmUTC().length === 19)
 
     /**
