@@ -34,6 +34,80 @@ const eslintConfig = defineConfig([
       'react-hooks/purity': 'warn',
       'react-hooks/preserve-manual-memoization': 'warn',
       'react-hooks/refs': 'warn',
+
+      /**
+       * `confirm`, `alert` e `prompt` do navegador são ERRO, não aviso.
+       *
+       * ## Por que erro, quando as de cima são aviso
+       *
+       * As regras do React Compiler acima apontam padrões que custam
+       * renderização; estas três apontam uma **tela que pode não aparecer**. O
+       * `ConfirmDialog` da casa já explica o motivo no próprio comentário: o
+       * confirm nativo não acompanha o tema, não se traduz, pode ser suprimido
+       * pela pessoa sem o app saber, e em webview embutida às vezes não aparece —
+       * e aí "apagar após confirmar" vira "apagar", calado.
+       *
+       * ## Por que a regra existe
+       *
+       * Em 20/11/2026 eu escrevi `window.confirm` para confirmar o apagamento de
+       * uma mensagem **na mesma tela** que já usava `ConfirmDialog` para
+       * confirmar a exclusão da conversa, duas telas abaixo. Nada acusou: nem o
+       * `tsc`, nem o lint, nem o portão. Quem viu foi o Andre, usando.
+       *
+       * O padrão estava documentado e não estava garantido. Agora está.
+       *
+       * ## Por que `no-restricted-globals` e não varredura de texto
+       *
+       * Esta regra entende **escopo**: `OutcomeDialog` tem uma função local
+       * chamada `confirm`, legítima, e um `grep` a acusaria. O ESLint sabe a
+       * diferença entre o global e o identificador do arquivo.
+       */
+      'no-restricted-globals': [
+        'error',
+        {
+          name: 'confirm',
+          message: 'Use <ConfirmDialog> (components/shared/ConfirmDialog) — o confirm do navegador pode não aparecer.',
+        },
+        {
+          name: 'alert',
+          message: 'Use toast() do sonner — o alert do navegador bloqueia a aba e não acompanha o tema.',
+        },
+        {
+          name: 'prompt',
+          message: 'Use um <Dialog> com campo — o prompt do navegador não se estiliza nem se valida.',
+        },
+      ],
+
+      /**
+       * E as mesmas três por `window.`, que a regra de cima NÃO alcança.
+       *
+       * `no-restricted-globals` só vê a referência global nua: `confirm(...)`.
+       * Escrito `window.confirm(...)` — que é exatamente como eu escrevi — é acesso
+       * a propriedade, e passa batido. Medido: com só a regra de cima, o arquivo
+       * de prova reprovava em `alert` e `prompt` e **aprovava** o
+       * `window.confirm`.
+       *
+       * As duas regras juntas cobrem as duas formas. Uma sozinha é um portão com
+       * a porta do lado aberta.
+       */
+      'no-restricted-properties': [
+        'error',
+        {
+          object: 'window',
+          property: 'confirm',
+          message: 'Use <ConfirmDialog> (components/shared/ConfirmDialog) — o confirm do navegador pode não aparecer.',
+        },
+        {
+          object: 'window',
+          property: 'alert',
+          message: 'Use toast() do sonner — o alert do navegador bloqueia a aba e não acompanha o tema.',
+        },
+        {
+          object: 'window',
+          property: 'prompt',
+          message: 'Use um <Dialog> com campo — o prompt do navegador não se estiliza nem se valida.',
+        },
+      ],
     },
   },
   // Override default ignores of eslint-config-next.
