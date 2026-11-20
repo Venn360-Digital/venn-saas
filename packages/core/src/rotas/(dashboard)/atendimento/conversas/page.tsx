@@ -813,6 +813,16 @@ export default function ConversasPage() {
      * segundo lugar para digitar na mesma tela.
      */
     const [editando, setEditando] = useState<Message | null>(null)
+    /**
+     * A mensagem à espera de confirmação para ser apagada, ou nula.
+     *
+     * Estado, e não `window.confirm`: o confirm do navegador não acompanha o
+     * tema, não se traduz, pode ser suprimido pela pessoa sem o app saber, e em
+     * webview embutida às vezes **não aparece** — e aí "apagar após confirmar"
+     * vira "apagar". O `ConfirmDialog` da casa existe com esse comentário
+     * escrito nele desde antes; eu não o usei, e o Andre viu.
+     */
+    const [apagando, setApagando] = useState<Message | null>(null)
 
     // Audio recording state
     const [isRecording, setIsRecording] = useState(false)
@@ -1794,12 +1804,14 @@ export default function ConversasPage() {
         return handleSendMessage()
     }
 
-    /** Apaga para todos. Confirma antes: é irreversível no celular de quem leu. */
-    const handleApagar = async (msg: Message) => {
+    /**
+     * Apaga para todos. Quem confirma é o `ConfirmDialog`, não esta função.
+     *
+     * Separar as duas é o que permite a confirmação ser do app: o menu só marca
+     * a mensagem (`setApagando`), o diálogo pergunta, e isto executa.
+     */
+    const apagarAgora = async (msg: Message) => {
         if (!selectedConversation) return
-        if (!window.confirm('Apagar esta mensagem para todos? Quem já leu deixa de ver o texto.')) {
-            return
-        }
 
         try {
             const res = await fetch(
@@ -3644,7 +3656,7 @@ export default function ConversasPage() {
                                                         {podeApagar(msg) && (
                                                             <ContextMenuItem
                                                                 variant="destructive"
-                                                                onSelect={() => void handleApagar(msg)}
+                                                                onSelect={() => setApagando(msg)}
                                                             >
                                                                 <Trash2 />
                                                                 Apagar para todos
@@ -4292,6 +4304,33 @@ export default function ConversasPage() {
                 confirmLabel="Excluir"
                 destructive
                 onConfirm={handleDeleteConversation}
+            />
+
+            {/* Apagar uma mensagem para todos.
+                O mesmo componente do diálogo acima, e não o `confirm` do
+                navegador: o nativo não acompanha o tema, não se traduz, pode ser
+                suprimido pela pessoa sem o app saber, e em webview embutida às
+                vezes não aparece — e aí "apagar após confirmar" vira "apagar".
+                Está escrito assim em `ConfirmDialog` desde antes desta tela.
+
+                A descrição diz o que se perde, concretamente: quem já leu deixa
+                de ver o texto, e isso não volta. "Tem certeza?" não informa
+                nada. */}
+            <ConfirmDialog
+                open={apagando !== null}
+                onOpenChange={(aberto) => {
+                    if (!aberto) setApagando(null)
+                }}
+                title="Apagar mensagem para todos"
+                description={`O texto sai também do WhatsApp de ${comArtigo(v, 'pessoa')}, inclusive se já tiver sido lido. Não é possível desfazer.`}
+                confirmLabel="Apagar"
+                destructive
+                onConfirm={async () => {
+                    const alvo = apagando
+                    if (!alvo) return
+                    await apagarAgora(alvo)
+                    setApagando(null)
+                }}
             />
         </>
     )
