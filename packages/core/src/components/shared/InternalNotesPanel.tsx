@@ -44,6 +44,14 @@ export function InternalNotesPanel({
 }) {
     const [notes, setNotes] = useState<InternalNote[] | null>(null)
     const [draft, setDraft] = useState('')
+    /**
+     * O mesmo rascunho com as menções na forma que o banco entende.
+     *
+     * No campo a pessoa vê `@Roberto Alves`; o id do colega vem neste segundo
+     * valor, que é o gravado. Dois estados e não uma conversão na hora de
+     * salvar porque quem sabe o id é o seletor, não o texto.
+     */
+    const [canonico, setCanonico] = useState('')
     const [saving, setSaving] = useState(false)
 
     const load = useCallback(async () => {
@@ -72,7 +80,7 @@ export function InternalNotesPanel({
     }, [conversationId, refreshToken])
 
     const save = async () => {
-        const content = draft.trim()
+        const content = (canonico || draft).trim()
         if (!content) return
         setSaving(true)
         try {
@@ -87,6 +95,7 @@ export function InternalNotesPanel({
                 return
             }
             setDraft('')
+            setCanonico('')
             await load()
             onCreated?.()
         } catch {
@@ -103,7 +112,14 @@ export function InternalNotesPanel({
                     único gesto que põe alguém a colaborar na conversa — não há
                     botão de assinar —, e sem o seletor a pessoa teria de
                     digitar `@[Nome](cku123…)` com o id do colega. */}
-                <CampoDeNota value={draft} onChange={setDraft} onSubmit={() => void save()} />
+                <CampoDeNota
+                    value={draft}
+                    onChange={(texto, comIds) => {
+                        setDraft(texto)
+                        setCanonico(comIds)
+                    }}
+                    onSubmit={() => void save()}
+                />
                 <Button
                     size="sm"
                     onClick={() => void save()}

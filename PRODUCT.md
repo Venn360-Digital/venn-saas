@@ -892,6 +892,12 @@ um plano em negociação noutro. Dentro de um funil continua valendo um só, que
 o que faz o cartão da caixa de entrada e o agente saberem de qual negócio estão
 falando. A criação e a mudança de fase ou de contato recusam o segundo (409).
 
+**Com uma exceção: o formulário de captura.** Ele cria o negócio mesmo que a
+pessoa já tenha um aberto no funil padrão (§17, decisão do Andre em
+2026-11-20). Quando isso acontece, "o negócio aberto" do contato passa a ser o
+**mais recente** para o cartão da conversa e para o agente — é o preço aceito
+de não descartar um lead que chegou.
+
 **Excluir funil com negócios pede destino**, como excluir fase: eles vão para a
 primeira fase do funil escolhido, com a passagem registrada na jornada. As
 fases do funil excluído saem com ele, e as passagens por elas também.
@@ -925,13 +931,24 @@ a mesma nota:
 1. **Notas internas**, com `@` — como sempre foi.
 2. **O compositor**, com `@`. A mesma lista de colegas abre no campo de
    resposta; e uma mensagem com `@colega` **vai como nota interna**, nunca
-   para a pessoa atendida. A faixa acima do campo diz isso antes do Enter.
+   para a pessoa atendida. A faixa acima do campo diz isso antes do Enter, com
+   o texto que o Andre escreveu em 2026-11-20: "Com @colega no texto, esta
+   mensagem vai como nota interna, o colega marcado passa a colaborar e é
+   avisado.".
 3. **Botão direito na mensagem → Marcar colega.** Vira uma nota interna com a
    menção e um trecho da mensagem («…»), apontando a hora dela.
 
 **O colega marcado é avisado na hora**: o recado nasce com a nota e o sino
 dele acende pelo tempo real, como no recado manual. A menção aparece como chip
 (`@Nome`) no fio e no painel de notas — nunca a sintaxe interna com o id.
+
+**E o id também não aparece enquanto se digita.** Escolher na lista deixa
+`@Nome ` no campo; o id viaja à parte e só volta ao texto no envio (pedido do
+Andre em 2026-11-20, que via `@[Roberto Alves](cmwe…)` no compositor). Vale nos
+dois campos, o do chat e o da nota. Três regras fazem isso ser exato: o nome
+mais longo casa primeiro (com "Ana" e "Ana Paula" na equipe), duas pessoas de
+mesmo nome são consumidas na ordem em que foram escolhidas, e quem apagou o
+nome depois de escolher não marcou ninguém.
 
 **Filtro por atendente** na caixa de entrada, para qualquer papel: é filtro,
 não parede — o teto do atendente continua em cima dele.
@@ -967,14 +984,60 @@ formato) e aparência (cor, cantos, tema). O que faz uma resposta virar lead é 
 ou fica só no envio. **Não se publica formulário sem telefone nem e-mail
 mapeado** — captura resposta, não captura lead.
 
-**Um envio produz:** a ficha (nova, ou a existente completada no que faltava —
-**o telefone é a chave**, como em todo o produto; o e-mail decide quando não
-há telefone), as etiquetas do formulário, o registro do envio com as respostas
-inteiras, e um negócio no **funil padrão** quando a pessoa ainda não tem um
-lá, com as respostas nas observações e o responsável que o formulário indica.
+**O envio sempre fica registrado.** O resto são **três interruptores**, e eles
+pendem um do outro (decisão do Andre em 2026-11-20):
+
+1. **Criar o contato** — a ficha nova, ou a existente completada no que faltava
+   (**o telefone é a chave**, como em todo o produto; o e-mail decide quando
+   não há telefone), mais as etiquetas do formulário. Desligado, o envio é só
+   uma linha na lista de envios: negócio e conversa pendem da ficha, e sem ela
+   não acontecem.
+2. **Abrir um negócio no funil padrão** — com as respostas nas observações.
+3. **Começar o atendimento no WhatsApp** — ver abaixo, porque o que sai depende
+   do canal.
+
 Ficha nova ainda liga o funil de boas-vindas. A ficha nasce com `createdVia:
 formulario` e a origem comercial que o formulário escolheu (§10: nula é
 resposta válida).
+
+**A origem da ficha vale para o contato e para o negócio.** É a mesma coluna
+nas duas escritas, como em todo caminho do produto (§10). A **mídia** não: ela
+pende do negócio, e o formulário não a semeia — o site não sabe de qual anúncio
+a pessoa veio.
+
+**O responsável sai da regra de distribuição, não do formulário.** Era um nome
+fixo escolhido no editor; passou a ser a **Regra de distribuição de conversas e
+e-mails** da conta (Conta → Automações), decisão do Andre em 2026-11-20: a
+mesma estratégia das conversas (rodízio ou balanceado), respeitando "Atribuir
+conversas para status disponível", `recebeConversas` por pessoa e o
+departamento da linha. Com todo mundo indisponível o registro **nasce sem dono,
+na fila** — e é a varredura que lhe dá um quando alguém ficar disponível.
+Quando a chegada abre conversa, o negócio herda o dono dela; quem deixou só o
+e-mail passa pela mesma escolha, feita sem conversa nenhuma.
+
+**O negócio sem dono acompanha a conversa quando ela ganha um.** A varredura da
+fila distribuía só a conversa, e o negócio da madrugada ficava órfão para
+sempre — nada mais olhava para ele. Agora a distribuição preenche também o
+negócio **aberto e sem responsável** do mesmo contato; negócio que já tem dono
+nunca é sobrescrito.
+
+**A regra "um negócio por funil" não vale para o formulário.** Decisão do Andre
+em 2026-11-20: quem preencheu de novo pediu outra coisa, e perder o lead porque
+a pessoa já tinha negócio aberto era o oposto de captar. A implicação está
+aceita: um contato pode acabar com mais de um negócio aberto no funil padrão, e
+aí o cartão da conversa e o agente leem o **mais recente** (§15 descreve a
+regra 1:1 para os outros caminhos, que seguem recusando o segundo).
+
+**A conversa com IA, e por que QR e oficial não fazem o mesmo.** Com WhatsApp
+válido e linha conectada, a chegada abre o fio no atendimento com as respostas
+em nota interna. O que muda é o envio: no **QR** dá para falar com quem nunca
+escreveu, então a conversa nasce com a IA, a saudação do agente sai na hora e a
+partir da resposta da pessoa o fluxo é o de qualquer conversa. No **oficial da
+Meta** não dá — fora da janela de 24h ele exige template aprovado, que o
+projeto não tem (§8) —, então a conversa abre **para a equipe**, sem enviar
+nada; quando a pessoa escrever, a IA assume. Número sem WhatsApp não abre fio; a
+verificação indisponível não impede, igual ao resto do produto. Nada disso pode
+custar o lead: falhar ao abrir a conversa não impede a ficha nem o negócio.
 
 **Defesas da porta pública:** só o publicado responde; teto por IP e por
 formulário por hora, em banco; campo-armadilha que finge sucesso para robô; a
@@ -982,6 +1045,20 @@ validação roda na página e **de novo** no servidor, com a mesma função.
 
 **Depois do envio:** uma mensagem, ou um redirecionamento para a página que o
 cliente indicar. A validação devolve o erro embaixo do campo que o causou.
+
+**A aparência tem seletor de cor de verdade.** Cor livre (a roda do sistema e o
+código hexadecimal digitável, com a rampa da marca como atalho), cantos, tema
+claro ou escuro — e **fundo sólido ou transparente**, pedido do Andre em
+2026-11-20. Transparente o formulário herda a cor de fundo da página onde for
+embutido; o texto continua vindo do tema, então num site escuro escolhe-se o
+tema escuro junto. No **link direto** o fundo continua sólido: ali nós somos a
+página, e um formulário transparente sobre o branco do navegador com tema
+escuro seria ilegível.
+
+**O painel do editor não tem barra de abas.** As cinco seções (campos,
+aparência, depois do envio, incorporar, envios) são cartões empilhados, como no
+editor de funil — pedido do Andre em 2026-11-20, e a guia em pílula do shadcn
+era a única do painel, contra o padrão da casa (DESIGN.md: guia é sublinhada).
 
 ---
 

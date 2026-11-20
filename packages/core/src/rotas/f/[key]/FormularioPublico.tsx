@@ -8,7 +8,7 @@ import { Textarea } from '@venn/ui/textarea'
 import { Checkbox } from '@venn/ui/checkbox'
 import { Label } from '@venn/ui/label'
 import { cn } from '@venn/ui/utils'
-import { BRAND_HEX } from '../../../lib/palette'
+import { tintaSobre } from '../../../lib/palette'
 import {
     validarEnvio,
     type Campo,
@@ -47,17 +47,6 @@ export interface FormularioParaATela {
 }
 
 const RAIO = { reto: 'rounded-none', suave: 'rounded-lg', redondo: 'rounded-2xl' } as const
-
-/** Luminância relativa do WCAG: decide se o texto do botão é claro ou escuro. */
-function textoSobre(hex: string): string {
-    const n = parseInt(hex.slice(1), 16)
-    const canal = (c: number) => {
-        const s = c / 255
-        return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4)
-    }
-    const l = 0.2126 * canal((n >> 16) & 255) + 0.7152 * canal((n >> 8) & 255) + 0.0722 * canal(n & 255)
-    return l > 0.55 ? BRAND_HEX.navy : BRAND_HEX.white
-}
 
 export function FormularioPublico({
     formulario,
@@ -150,22 +139,50 @@ export function FormularioPublico({
     const cor = config.aparencia.cor
     const escuro = config.aparencia.tema === 'escuro'
 
+    /**
+     * O fundo transparente — e por que ele só vale embutido.
+     *
+     * Pedido do Andre em 20/11/2026: "assim ele herda a cor de fundo da página
+     * que for inserido". Herdar só faz sentido quando existe uma página em
+     * volta: no `iframe` do site do cliente (e na prévia do editor, que é o
+     * mesmo caso em miniatura). No link direto **nós** somos a página, e
+     * deixá-la transparente entregaria o branco do navegador — com o tema
+     * escuro, texto claro sobre branco, ilegível. Então ali o fundo continua
+     * sólido, e o que o cliente escolheu não se perde: ele reaparece no site.
+     */
+    const transparente = config.aparencia.fundo === 'transparente' && (embed || previa)
+
     return (
         <div
             ref={raiz}
             className={cn(
                 escuro && 'dark',
                 embed || previa ? '' : 'min-h-dvh',
-                'bg-background text-foreground'
+                transparente ? 'text-foreground' : 'bg-background text-foreground'
             )}
         >
+            {/* No `iframe` quem pinta por trás do formulário é o `body` da
+                nossa página: `globals.css` aplica `bg-background` nele. Sem
+                zerar isso, "transparente" mostraria o nosso branco em vez da
+                página do cliente — e o navegador só deixa o quadro vazar
+                quando o documento de dentro não pinta nada. */}
+            {embed && transparente ? (
+                <style href="formulario-transparente" precedence="high">
+                    {'html,body{background:transparent !important}'}
+                </style>
+            ) : null}
             <main className={cn('mx-auto w-full max-w-xl', embed || previa ? 'p-2' : 'px-4 py-10')}>
-                <div className={cn('border border-border bg-card p-6 shadow-sm sm:p-8', raio)}>
+                <div
+                    className={cn(
+                        transparente ? 'p-0' : 'border border-border bg-card p-6 shadow-sm sm:p-8',
+                        raio
+                    )}
+                >
                     {enviado ? (
                         <div className="py-6 text-center">
                             <span
                                 className="mx-auto flex size-12 items-center justify-center rounded-full"
-                                style={{ backgroundColor: cor, color: textoSobre(cor) }}
+                                style={{ backgroundColor: cor, color: tintaSobre(cor) }}
                             >
                                 <Check className="size-6" />
                             </span>
@@ -230,7 +247,7 @@ export function FormularioPublico({
                                     'flex h-11 w-full items-center justify-center gap-2 px-4 text-sm font-semibold transition-opacity disabled:opacity-70',
                                     raio
                                 )}
-                                style={{ backgroundColor: cor, color: textoSobre(cor) }}
+                                style={{ backgroundColor: cor, color: tintaSobre(cor) }}
                             >
                                 {enviando ? <Loader2 className="size-4 animate-spin" /> : null}
                                 {config.textoDoBotao}

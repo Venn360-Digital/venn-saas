@@ -53,6 +53,31 @@ export const PICKER_RAMP: readonly string[] = [
 export const DEFAULT_ENTITY_COLOR = BRAND_HEX.slate
 
 /**
+ * A tinta que se lê **sobre** uma cor escolhida pelo usuário.
+ *
+ * Luminância relativa do WCAG: acima do limiar a cor é clara e o texto vai
+ * escuro, abaixo vai claro. Mora aqui, e não no componente, por duas razões:
+ * a resposta é um dos hex desta paleta — o único arquivo onde cor literal é
+ * decisão —, e são dois lugares que precisam dela (o botão do formulário
+ * público e o ícone sobre a amostra do seletor de cor). Duas cópias da mesma
+ * conta divergiriam no limiar, e aí o mesmo teal daria texto branco num lugar
+ * e escuro no outro.
+ *
+ * Hex inválido devolve a tinta escura: é o que se lê sobre o cinza de
+ * `DEFAULT_ENTITY_COLOR`, e errar para o escuro é errar para o legível.
+ */
+export function tintaSobre(hex: string): string {
+    if (!/^#[0-9a-fA-F]{6}$/.test(hex)) return BRAND_HEX.navy
+    const n = parseInt(hex.slice(1), 16)
+    const canal = (c: number) => {
+        const s = c / 255
+        return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4)
+    }
+    const l = 0.2126 * canal((n >> 16) & 255) + 0.7152 * canal((n >> 8) & 255) + 0.0722 * canal(n & 255)
+    return l > 0.55 ? BRAND_HEX.navy : BRAND_HEX.white
+}
+
+/**
  * As etapas com que o funil de um workspace novo nasce.
  *
  * Desde a fusão, etapa e fase da jornada são a mesma coisa: estes nomes são o

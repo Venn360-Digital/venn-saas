@@ -23,21 +23,20 @@ import { Textarea } from '@venn/ui/textarea'
 import { Switch } from '@venn/ui/switch'
 import { Checkbox } from '@venn/ui/checkbox'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@venn/ui/select'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@venn/ui/tabs'
 import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from '@venn/ui/dropdown-menu'
-import { Popover, PopoverContent, PopoverTrigger } from '@venn/ui/popover'
-import { cn } from '@venn/ui/utils'
 import { InlineField } from '@venn/core/components/shared/InlineField'
+import { SeletorDeCor } from '@venn/core/components/shared/SeletorDeCor'
+import { SettingsCard } from '@venn/core/components/shared/TabsFrame'
 import { StatusBadge, FORMULARIO_STATUS } from '@venn/core/components/shared/StatusBadge'
 import { TagChip } from '@venn/core/components/shared/TagChip'
 import { usePermissions } from '@venn/core/hooks/usePermissions'
-import { PICKER_RAMP } from '@venn/core/lib/palette'
 import {
+    FUNDOS,
     MAPEAMENTOS,
     MAX_CAMPOS,
     NOME_DO_MAPEAMENTO,
@@ -80,7 +79,6 @@ export interface FormularioCarregado {
     campos: Campo[]
     config: Configuracao
     originId: string | null
-    assignedUserId: string | null
     envios: number
 }
 
@@ -94,21 +92,18 @@ interface Envio {
 
 const NOME_DO_RAIO: Record<(typeof RAIOS)[number], string> = { reto: 'Reto', suave: 'Suave', redondo: 'Arredondado' }
 const NOME_DO_TEMA: Record<(typeof TEMAS)[number], string> = { claro: 'Claro', escuro: 'Escuro' }
+const NOME_DO_FUNDO: Record<(typeof FUNDOS)[number], string> = { solido: 'Sólido', transparente: 'Transparente' }
 
 export function EditorDeFormulario({
     formulario,
     origens,
     etiquetas,
-    pessoas,
     baseUrl,
     marca,
 }: {
     formulario: FormularioCarregado
-    /** O id da unidade — só para a prévia escrever um nome no rodapé. */
-    organizacao: string
     origens: { id: string; name: string }[]
     etiquetas: { id: string; name: string; color: string }[]
-    pessoas: { userId: string; name: string }[]
     baseUrl: string
     marca: string
 }) {
@@ -120,7 +115,6 @@ export function EditorDeFormulario({
     const [campos, setCampos] = useState<Campo[]>(formulario.campos)
     const [config, setConfig] = useState<Configuracao>(formulario.config)
     const [originId, setOriginId] = useState<string | null>(formulario.originId)
-    const [assignedUserId, setAssignedUserId] = useState<string | null>(formulario.assignedUserId)
     const [sujo, setSujo] = useState(false)
     const [salvando, setSalvando] = useState(false)
     const [envios, setEnvios] = useState<Envio[] | null>(null)
@@ -141,7 +135,7 @@ export function EditorDeFormulario({
             const res = await fetch(`/api/marketing/formularios/${formulario.id}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name, fields: campos, settings: config, originId, assignedUserId }),
+                body: JSON.stringify({ name, fields: campos, settings: config, originId }),
             })
             const dados = (await res.json().catch(() => ({}))) as { error?: string; campo?: string }
             if (!res.ok) {
@@ -153,7 +147,7 @@ export function EditorDeFormulario({
         } finally {
             setSalvando(false)
         }
-    }, [formulario.id, name, campos, config, originId, assignedUserId])
+    }, [formulario.id, name, campos, config, originId])
 
     const mudarStatus = async (novo: 'draft' | 'published') => {
         if (novo === 'published' && motivo) {
@@ -181,6 +175,35 @@ export function EditorDeFormulario({
         const dados = (await res.json()) as { envios: Envio[] }
         setEnvios(dados.envios ?? [])
     }, [formulario.id])
+
+    /**
+     * Os envios, uma vez por abertura — e **só se houver algum**.
+     *
+     * Eram carregados ao clicar na aba; sem a barra de abas, a seção já está
+     * na tela. A contagem veio do servidor com o formulário, então o
+     * formulário que nunca recebeu nada não paga consulta nenhuma.
+     *
+     * A busca está escrita aqui em vez de chamar `carregarEnvios` (que o botão
+     * Atualizar usa) por causa do `react-hooks/set-state-in-effect`: gravar o
+     * estado dentro do `.then` é o que a regra pede, e passar por uma função
+     * `async` a acusa. As quatro linhas repetidas custam menos que um aviso que
+     * o próximo leitor não sabe se pode ignorar.
+     */
+    useEffect(() => {
+        if (formulario.envios === 0) return
+        let cancelado = false
+        fetch(`/api/marketing/formularios/${formulario.id}/envios`)
+            .then((res) => (res.ok ? res.json() : null))
+            .then((dados) => {
+                if (!cancelado) setEnvios(dados?.envios ?? [])
+            })
+            .catch(() => {
+                if (!cancelado) setEnvios([])
+            })
+        return () => {
+            cancelado = true
+        }
+    }, [formulario.id, formulario.envios])
 
     // Sair com edição pendente avisa — o desenho é um objeto só, e perdê-lo é
     // perder a tarde.
@@ -255,48 +278,56 @@ export function EditorDeFormulario({
             </div>
 
             <div className="grid min-h-0 flex-1 gap-0 lg:grid-cols-[minmax(380px,460px)_minmax(0,1fr)]">
-                {/* A coluna de edição. */}
-                <div className="min-h-0 overflow-y-auto border-b border-border p-4 lg:border-b-0 lg:border-r md:px-6">
-                    <Tabs defaultValue="campos" onValueChange={(aba) => { if (aba === 'envios' && envios === null) void carregarEnvios() }}>
-                        <TabsList className="w-full">
-                            <TabsTrigger value="campos">Campos</TabsTrigger>
-                            <TabsTrigger value="textos">Aparência</TabsTrigger>
-                            <TabsTrigger value="destino">Depois do envio</TabsTrigger>
-                            <TabsTrigger value="envios">Envios{formulario.envios ? ` · ${formulario.envios}` : ''}</TabsTrigger>
-                            <TabsTrigger value="incorporar">Incorporar</TabsTrigger>
-                        </TabsList>
+                {/* A coluna de edição: as seções empilhadas, na ordem em que
+                    se trabalha — desenhar, parecer, destinar, publicar, colher.
 
-                        <TabsContent value="campos" className="mt-4">
-                            <AbaCampos campos={campos} onChange={setCamposSujo} podeEditar={canEdit} />
+                    **Sem barra de abas.** Ela existiu aqui como `TabsList` do
+                    shadcn (pílula sobre `bg-muted`) e o Andre a cortou em
+                    20/11/2026: "existe uma barra de navegação horizontal no
+                    painel, entendo que é desnecessária". Ele tinha razão duas
+                    vezes — esta era a **única** `TabsList` renderizada no
+                    painel inteiro, e o padrão da casa para guias é outro (a
+                    linha 2 sublinhada da Tela 03, ver `TabsFrame`). Com cinco
+                    seções curtas, a coluna que já rola não precisava de
+                    navegação nenhuma: o cartão de ajuste as separa. */}
+                <div className="min-h-0 overflow-y-auto border-b border-border lg:border-b-0 lg:border-r">
+                    <div className="flex flex-col gap-4 p-4 md:px-6">
+                        <SettingsCard
+                            title="Campos"
+                            description="O que o formulário pergunta, e para onde cada resposta vai na ficha."
+                        >
+                            <SecaoCampos campos={campos} onChange={setCamposSujo} podeEditar={canEdit} />
                             {motivo ? <p className="mt-3 text-xs text-warning-subtle-foreground">{motivo}</p> : null}
-                        </TabsContent>
+                        </SettingsCard>
 
-                        <TabsContent value="textos" className="mt-4">
-                            <AbaAparencia config={config} onChange={setConfigSujo} podeEditar={canEdit} />
-                        </TabsContent>
+                        <SettingsCard
+                            title="Aparência"
+                            description="Os textos e as cores, como o visitante vê ao lado."
+                        >
+                            <SecaoAparencia config={config} onChange={setConfigSujo} podeEditar={canEdit} />
+                        </SettingsCard>
 
-                        <TabsContent value="destino" className="mt-4">
-                            <AbaDestino
+                        <SettingsCard
+                            title="Depois do envio"
+                            description="O que a pessoa vê, e o que o lead vira aqui dentro."
+                        >
+                            <SecaoDestino
                                 config={config}
                                 onChange={setConfigSujo}
                                 originId={originId}
                                 onOriginId={marcar(setOriginId)}
-                                assignedUserId={assignedUserId}
-                                onAssignedUserId={marcar(setAssignedUserId)}
                                 origens={origens}
                                 etiquetas={etiquetas}
-                                pessoas={pessoas}
                                 podeEditar={canEdit}
                             />
-                        </TabsContent>
+                        </SettingsCard>
 
-                        <TabsContent value="envios" className="mt-4">
-                            <AbaEnvios envios={envios} onRecarregar={carregarEnvios} />
-                        </TabsContent>
-
-                        <TabsContent value="incorporar" className="mt-4 space-y-4">
+                        <SettingsCard
+                            title="Incorporar no site"
+                            description="Um link para mandar, ou o código para colar na página."
+                        >
                             {status !== 'published' ? (
-                                <p className="rounded-md border border-warning/40 bg-warning-subtle px-3 py-2 text-xs text-warning-subtle-foreground">
+                                <p className="mb-3 rounded-md border border-warning/40 bg-warning-subtle px-3 py-2 text-xs text-warning-subtle-foreground">
                                     O formulário está em rascunho: o link e o código só funcionam depois de publicar.
                                 </p>
                             ) : null}
@@ -315,7 +346,7 @@ export function EditorDeFormulario({
                                 </div>
                                 <p className="text-xs text-muted-foreground">Para mandar por WhatsApp, e-mail ou botão do site.</p>
                             </div>
-                            <div className="space-y-1.5">
+                            <div className="mt-4 space-y-1.5">
                                 <Label className="text-xs text-muted-foreground">Código para o site</Label>
                                 <Textarea readOnly value={snippetIframe} rows={8} className="font-mono text-[11px] leading-snug" aria-label="Código de incorporação" />
                                 <div className="flex items-center justify-between gap-2">
@@ -327,8 +358,22 @@ export function EditorDeFormulario({
                                     </Button>
                                 </div>
                             </div>
-                        </TabsContent>
-                    </Tabs>
+                        </SettingsCard>
+
+                        <SettingsCard
+                            title="Envios"
+                            description="O que chegou por este formulário, do mais recente para o mais antigo."
+                            aside={
+                                formulario.envios > 0 ? (
+                                    <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => void carregarEnvios()}>
+                                        Atualizar
+                                    </Button>
+                                ) : null
+                            }
+                        >
+                            <SecaoEnvios envios={envios} semEnvios={formulario.envios === 0} />
+                        </SettingsCard>
+                    </div>
                 </div>
 
                 {/* A prévia, viva. */}
@@ -354,7 +399,7 @@ export function EditorDeFormulario({
 
 // ───────────────────────────── Campos ─────────────────────────────
 
-function AbaCampos({
+function SecaoCampos({
     campos,
     onChange,
     podeEditar,
@@ -563,7 +608,7 @@ function EditorDeCampo({
 
 // ───────────────────────────── Aparência ─────────────────────────────
 
-function AbaAparencia({
+function SecaoAparencia({
     config,
     onChange,
     podeEditar,
@@ -594,34 +639,21 @@ function AbaAparencia({
                 <p className="text-xs text-muted-foreground">Para exigir uma marcação, acrescente um campo «Caixa de marcar» obrigatório.</p>
             </div>
 
+            {/* A cor: o seletor do sistema, o código hex e a rampa como
+                atalho. Era só a rampa, e o Andre pediu o seletor completo —
+                esta cor pinta a página do site do cliente, não um chip do
+                sistema. Ver `SeletorDeCor`. */}
+            <div className="space-y-1">
+                <Label className="text-xs">Cor do botão</Label>
+                <SeletorDeCor
+                    cor={config.aparencia.cor}
+                    disabled={!podeEditar}
+                    ariaLabel="Cor do formulário"
+                    onChange={(cor) => set({ aparencia: { ...config.aparencia, cor } })}
+                />
+            </div>
+
             <div className="grid gap-3 sm:grid-cols-3">
-                <div className="space-y-1">
-                    <Label className="text-xs">Cor</Label>
-                    <Popover>
-                        <PopoverTrigger asChild>
-                            <button type="button" disabled={!podeEditar} aria-label="Cor do formulário" className="flex h-9 w-full items-center gap-2 rounded-md border border-input px-3 text-sm">
-                                <span className="size-4 rounded-full" style={{ backgroundColor: config.aparencia.cor }} />
-                                <span className="font-mono text-xs">{config.aparencia.cor}</span>
-                            </button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-2">
-                            <div className="flex gap-1.5" role="radiogroup" aria-label="Cor do formulário">
-                                {PICKER_RAMP.map((hex) => (
-                                    <button
-                                        key={hex}
-                                        type="button"
-                                        role="radio"
-                                        aria-checked={config.aparencia.cor === hex}
-                                        aria-label={`Cor ${hex}`}
-                                        onClick={() => set({ aparencia: { ...config.aparencia, cor: hex } })}
-                                        className={cn('size-6 rounded-full ring-offset-2 ring-offset-popover', config.aparencia.cor === hex ? 'ring-2 ring-ring' : 'hover:ring-2 hover:ring-border')}
-                                        style={{ backgroundColor: hex }}
-                                    />
-                                ))}
-                            </div>
-                        </PopoverContent>
-                    </Popover>
-                </div>
                 <div className="space-y-1">
                     <Label className="text-xs">Cantos</Label>
                     <Select value={config.aparencia.raio} disabled={!podeEditar} onValueChange={(v) => set({ aparencia: { ...config.aparencia, raio: v as Configuracao['aparencia']['raio'] } })}>
@@ -640,7 +672,23 @@ function AbaAparencia({
                         </SelectContent>
                     </Select>
                 </div>
+                <div className="space-y-1">
+                    <Label className="text-xs">Fundo</Label>
+                    <Select value={config.aparencia.fundo} disabled={!podeEditar} onValueChange={(v) => set({ aparencia: { ...config.aparencia, fundo: v as Configuracao['aparencia']['fundo'] } })}>
+                        <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                            {FUNDOS.map((f) => <SelectItem key={f} value={f}>{NOME_DO_FUNDO[f]}</SelectItem>)}
+                        </SelectContent>
+                    </Select>
+                </div>
             </div>
+
+            {config.aparencia.fundo === 'transparente' ? (
+                <p className="text-xs text-muted-foreground">
+                    Sem fundo próprio, o formulário herda a cor da página onde for colado. O texto continua
+                    vindo do tema — num site de fundo escuro, escolha o tema escuro junto.
+                </p>
+            ) : null}
         </div>
     )
 }
@@ -649,27 +697,21 @@ function AbaAparencia({
 
 const NENHUM = '__nenhum__'
 
-function AbaDestino({
+function SecaoDestino({
     config,
     onChange,
     originId,
     onOriginId,
-    assignedUserId,
-    onAssignedUserId,
     origens,
     etiquetas,
-    pessoas,
     podeEditar,
 }: {
     config: Configuracao
     onChange: (c: Configuracao) => void
     originId: string | null
     onOriginId: (v: string | null) => void
-    assignedUserId: string | null
-    onAssignedUserId: (v: string | null) => void
     origens: { id: string; name: string }[]
     etiquetas: { id: string; name: string; color: string }[]
-    pessoas: { userId: string; name: string }[]
     podeEditar: boolean
 }) {
     const set = (patch: Partial<Configuracao>) => onChange({ ...config, ...patch })
@@ -685,35 +727,90 @@ function AbaDestino({
                 <p className="text-xs text-muted-foreground">Vazio mostra a mensagem acima. Preenchido, a pessoa vai para esta página.</p>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2">
-                <div className="space-y-1">
-                    <Label className="text-xs">Origem da ficha</Label>
-                    <Select value={originId ?? NENHUM} disabled={!podeEditar} onValueChange={(v) => onOriginId(v === NENHUM ? null : v)}>
-                        <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value={NENHUM}>Não informar</SelectItem>
-                            {origens.map((o) => <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>)}
-                        </SelectContent>
-                    </Select>
+            {/* A origem vale para a ficha **e** para o negócio — é a mesma
+                coluna nas duas escritas, como em todo caminho do produto
+                (PRODUCT.md §10). O rótulo diz isso: antes falava só da ficha,
+                e o Andre perguntou se valia para os dois. */}
+            <div className="space-y-1">
+                <Label className="text-xs">Origem da ficha e do negócio</Label>
+                <Select value={originId ?? NENHUM} disabled={!podeEditar} onValueChange={(v) => onOriginId(v === NENHUM ? null : v)}>
+                    <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value={NENHUM}>Não informar</SelectItem>
+                        {origens.map((o) => <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>)}
+                    </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                    Em branco é resposta válida: significa que não sabemos de onde veio.
+                </p>
+            </div>
+
+            {/* Os três interruptores, na ordem em que dependem um do outro: sem
+                ficha não há negócio nem conversa. */}
+            <div className="divide-y divide-border rounded-md border border-border">
+                <div className="flex items-center justify-between gap-3 px-3 py-2.5">
+                    <div className="min-w-0">
+                        <p className="text-sm font-medium">Criar o contato</p>
+                        <p className="text-xs text-muted-foreground">
+                            A ficha do lead, com as etiquetas abaixo. Desligado, o envio fica só registrado aqui —
+                            e sem ficha não há negócio nem conversa.
+                        </p>
+                    </div>
+                    <Switch
+                        checked={config.criarContato}
+                        disabled={!podeEditar}
+                        aria-label="Criar o contato"
+                        onCheckedChange={(criarContato) => set({ criarContato })}
+                    />
                 </div>
-                <div className="space-y-1">
-                    <Label className="text-xs">Responsável pelo negócio</Label>
-                    <Select value={assignedUserId ?? NENHUM} disabled={!podeEditar} onValueChange={(v) => onAssignedUserId(v === NENHUM ? null : v)}>
-                        <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value={NENHUM}>Sem dono — fica na fila</SelectItem>
-                            {pessoas.map((p) => <SelectItem key={p.userId} value={p.userId}>{p.name}</SelectItem>)}
-                        </SelectContent>
-                    </Select>
+
+                <div className="flex items-center justify-between gap-3 px-3 py-2.5">
+                    <div className="min-w-0">
+                        <p className="text-sm font-medium">Abrir um negócio no funil padrão</p>
+                        <p className="text-xs text-muted-foreground">
+                            Na primeira fase, com as respostas nas observações. Cada envio abre o seu — quem
+                            preencheu de novo pediu outra coisa.
+                        </p>
+                    </div>
+                    <Switch
+                        checked={config.criarNegocio}
+                        disabled={!podeEditar || !config.criarContato}
+                        aria-label="Abrir um negócio no funil padrão"
+                        onCheckedChange={(criarNegocio) => set({ criarNegocio })}
+                    />
+                </div>
+
+                <div className="flex items-center justify-between gap-3 px-3 py-2.5">
+                    <div className="min-w-0">
+                        <p className="text-sm font-medium">Começar o atendimento no WhatsApp</p>
+                        <p className="text-xs text-muted-foreground">
+                            Com WhatsApp válido, o lead entra em Conversas. No canal <strong>QR</strong> a saudação
+                            do agente sai na hora e a IA conduz. No canal <strong>oficial</strong> a conversa abre
+                            com o resumo em nota interna e nada é enviado — falar primeiro ali exige template
+                            aprovado pela Meta.
+                        </p>
+                    </div>
+                    <Switch
+                        checked={config.iniciarConversa}
+                        disabled={!podeEditar || !config.criarContato}
+                        aria-label="Começar o atendimento no WhatsApp"
+                        onCheckedChange={(iniciarConversa) => set({ iniciarConversa })}
+                    />
                 </div>
             </div>
 
-            <div className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2">
-                <div>
-                    <p className="text-sm font-medium">Abrir um negócio no funil padrão</p>
-                    <p className="text-xs text-muted-foreground">Na primeira fase, com as respostas nas observações. Quem já tem negócio aberto lá não ganha outro.</p>
-                </div>
-                <Switch checked={config.criarNegocio} disabled={!podeEditar} aria-label="Abrir um negócio no funil padrão" onCheckedChange={(criarNegocio) => set({ criarNegocio })} />
+            {/* Quem fica com o lead: a regra da conta, não um nome aqui. */}
+            <div className="rounded-md border border-border bg-muted/30 px-3 py-2.5">
+                <p className="text-sm font-medium">Quem fica responsável</p>
+                <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+                    O lead entra na <strong>regra de distribuição de conversas e e-mails</strong> da conta —
+                    rodízio ou balanceado, respeitando quem recebe conversas e o ajuste de só distribuir para
+                    quem está disponível. Com todo mundo indisponível, o lead fica na fila e ganha responsável
+                    quando alguém voltar.
+                </p>
+                <Button variant="link" size="sm" className="mt-1 h-auto p-0 text-xs" asChild>
+                    <a href="/gerenciamento/conta?tab=automacoes">Ver a regra da conta</a>
+                </Button>
             </div>
 
             {etiquetas.length ? (
@@ -744,18 +841,30 @@ function AbaDestino({
 
 // ───────────────────────────── Envios ─────────────────────────────
 
-function AbaEnvios({ envios, onRecarregar }: { envios: Envio[] | null; onRecarregar: () => Promise<void> }) {
+/**
+ * Os envios.
+ *
+ * `semEnvios` vem da contagem que o servidor já trouxe: formulário que nunca
+ * recebeu nada não paga consulta nenhuma, e o estado vazio aparece na hora em
+ * vez de depois de um "carregando" que não ia encontrar nada. O botão
+ * Atualizar mora no cabeçalho do cartão, não aqui dentro.
+ */
+function SecaoEnvios({ envios, semEnvios }: { envios: Envio[] | null; semEnvios: boolean }) {
+    if (semEnvios) {
+        return <p className="text-sm text-muted-foreground">Nenhum envio ainda. Quando alguém preencher o formulário, aparece aqui e vira ficha.</p>
+    }
     if (envios === null) {
-        return <p className="text-xs text-muted-foreground">Carregando envios…</p>
+        return (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Loader2 className="size-3.5 animate-spin" /> Buscando os envios…
+            </div>
+        )
     }
     if (envios.length === 0) {
         return <p className="text-sm text-muted-foreground">Nenhum envio ainda. Quando alguém preencher o formulário, aparece aqui e vira ficha.</p>
     }
     return (
         <div className="space-y-2">
-            <div className="flex justify-end">
-                <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => void onRecarregar()}>Atualizar</Button>
-            </div>
             {envios.map((e) => (
                 <div key={e.id} className="rounded-md border border-border bg-card px-3 py-2">
                     <div className="flex items-center justify-between gap-2">

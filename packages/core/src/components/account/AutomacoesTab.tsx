@@ -82,15 +82,26 @@ export function AutomacoesTab() {
                 Vem antes das rotinas porque muda **quem trabalha**, e não o
                 que o sistema faz sozinho. É o ajuste que a clínica mexe na
                 primeira semana. ──────────────────────────────────────────── */}
-            {/* "Atribuir conversas", e a legenda sem a segunda metade —
-                pedido do Andre em 2026-11-09. A frase cortada explicava o que
-                ser responsável significa ("quem responde por ela quando uma
-                pessoa precisar entrar"); isso é vocabulário do produto, dito
-                em toda a tela de Conversas, e aqui só alongava a legenda de um
-                seletor de três opções. */}
+            {/* A legenda sem a segunda metade — pedido do Andre em
+                2026-11-09. A frase cortada explicava o que ser responsável
+                significa ("quem responde por ela quando uma pessoa precisar
+                entrar"); isso é vocabulário do produto, dito em toda a tela de
+                Conversas, e aqui só alongava a legenda de um seletor de três
+                opções.
+
+                **O título mudou de "Atribuir conversas" para o nome que o
+                Andre deu à regra em 20/11/2026**: "a regra é da distribuição
+                de conversas, que agora chama Regra de distribuição de
+                conversas e e-mails". Não é só rótulo — o lead de formulário
+                que chega só com e-mail passou a ganhar responsável por aqui
+                (`proximoResponsavel`), e a seção "Depois do envio" do editor de
+                formulários aponta para esta faixa por este nome. Nome diferente
+                do link seria mandar a pessoa procurar o que não existe. O campo
+                abaixo continua dizendo "Como atribuir", que foi a escolha dele
+                em 2026-11-09 e segue valendo para o verbo. */}
             <SettingsBand
-                title="Atribuir conversas"
-                description="Quem fica responsável por cada conversa nova. O agente continua atendendo."
+                title="Regra de distribuição de conversas e e-mails"
+                description="Quem fica responsável por cada conversa nova e por cada lead de formulário. O agente continua atendendo."
             >
                 <div className="divide-y divide-border rounded-lg border border-border">
                     <div className="flex items-start gap-3 p-4">

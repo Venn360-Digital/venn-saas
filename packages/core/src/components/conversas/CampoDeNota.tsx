@@ -6,7 +6,12 @@ import { AtSign } from 'lucide-react'
 import { RetratoEmDisco } from '../shared/Retrato'
 import { Textarea } from '@venn/ui/textarea'
 import { cn } from '@venn/ui/utils'
-import { gatilhoDeMencao, inserirMencao } from '../../lib/conversas/mencoes'
+import {
+    aplicarMencoesEscolhidas,
+    gatilhoDeMencao,
+    inserirMencaoLegivel,
+    type Escolhido,
+} from '../../lib/conversas/mencoes'
 import { normalizeSearch } from '../../lib/search'
 
 /**
@@ -19,11 +24,20 @@ import { normalizeSearch } from '../../lib/search'
  *
  * ## O gatilho mora no módulo puro, não aqui
  *
- * `gatilhoDeMencao` e `inserirMencao` vivem em `lib/conversas/mencoes.ts`, ao
- * lado de quem **lê** a menção. É de propósito: o escritor e o leitor no mesmo
- * arquivo é o que impede este seletor de inserir um formato que o
- * `extrairMencoes` não reconheça — e aí a nota marcaria alguém na tela e
- * ninguém no banco.
+ * `gatilhoDeMencao` e as duas formas de escrever a menção vivem em
+ * `lib/conversas/mencoes.ts`, ao lado de quem **lê** a menção. É de propósito:
+ * o escritor e o leitor no mesmo arquivo é o que impede este seletor de
+ * inserir um formato que o `extrairMencoes` não reconheça — e aí a nota
+ * marcaria alguém na tela e ninguém no banco.
+ *
+ * ## Quem escreve vê o nome; quem grava recebe o id
+ *
+ * Escolher na lista deixa `@Roberto Alves ` no campo, não
+ * `@[Roberto Alves](cmwe…)`. Pedido do Andre em 20/11/2026, e a razão é que o
+ * id no meio da frase é ilegível e convida a apagar metade dele. O id fica
+ * guardado aqui ao lado, e `onChange` entrega as duas formas: a legível para a
+ * tela, a canônica para gravar. `aplicarMencoesEscolhidas` descarta sozinha a
+ * escolha cujo nome a pessoa apagou depois.
  *
  * ## Listbox que o textarea dirige
  *
@@ -51,7 +65,11 @@ export function CampoDeNota({
     disabled,
 }: {
     value: string
-    onChange: (texto: string) => void
+    /**
+     * O texto como está na tela e, no segundo argumento, o mesmo texto com as
+     * menções na forma canônica — é este que vai para o banco.
+     */
+    onChange: (texto: string, canonico: string) => void
     onSubmit?: () => void
     rows?: number
     placeholder?: string
@@ -61,6 +79,7 @@ export function CampoDeNota({
     const [equipe, setEquipe] = useState<Pessoa[] | null>(null)
     const [busca, setBusca] = useState<string | null>(null)
     const [indice, setIndice] = useState(0)
+    const [escolhidos, setEscolhidos] = useState<Escolhido[]>([])
 
     /**
      * A equipe é buscada **no primeiro `@`**, não ao montar.
@@ -103,7 +122,7 @@ export function CampoDeNota({
 
     function aoDigitar(e: React.ChangeEvent<HTMLTextAreaElement>) {
         const texto = e.target.value
-        onChange(texto)
+        onChange(texto, aplicarMencoesEscolhidas(texto, escolhidos))
 
         const cursor = e.target.selectionStart ?? texto.length
         const gatilho = gatilhoDeMencao(texto.slice(0, cursor))
@@ -114,13 +133,10 @@ export function CampoDeNota({
     function escolher(pessoa: Pessoa) {
         const el = ref.current
         const cursor = el?.selectionStart ?? value.length
-        const { texto, cursor: novoCursor } = inserirMencao(
-            value,
-            cursor,
-            pessoa.nome,
-            pessoa.userId
-        )
-        onChange(texto)
+        const { texto, cursor: novoCursor } = inserirMencaoLegivel(value, cursor, pessoa.nome)
+        const proximos = [...escolhidos, { userId: pessoa.userId, nome: pessoa.nome }]
+        setEscolhidos(proximos)
+        onChange(texto, aplicarMencoesEscolhidas(texto, proximos))
         setBusca(null)
 
         // O cursor tem de voltar para depois da menção, e só depois do render —

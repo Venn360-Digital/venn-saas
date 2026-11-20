@@ -88,6 +88,20 @@ export const camposSchema = z.array(campoSchema).max(MAX_CAMPOS, `No máximo ${M
 
 export const RAIOS = ['reto', 'suave', 'redondo'] as const
 export const TEMAS = ['claro', 'escuro'] as const
+/**
+ * O fundo do formulário embutido.
+ *
+ * `solido` pinta a própria superfície (o cartão branco ou escuro, conforme o
+ * tema). `transparente` não pinta nada: o formulário **herda o fundo da página
+ * do cliente**, que é o que faz um formulário colado no meio de uma seção
+ * colorida não parecer um retângulo branco pregado ali. Pedido do Andre em
+ * 20/11/2026.
+ *
+ * Transparente não muda a cor do **texto** — essa continua vindo do tema. Site
+ * de fundo escuro pede o tema escuro junto; é por isso que são dois controles
+ * e não um.
+ */
+export const FUNDOS = ['solido', 'transparente'] as const
 
 export const configuracaoSchema = z.object({
     /** O título que aparece em cima do formulário. Vazio usa o nome. */
@@ -105,12 +119,42 @@ export const configuracaoSchema = z.object({
             cor: z.string().regex(/^#[0-9a-fA-F]{6}$/, 'cor inválida'),
             raio: z.enum(RAIOS),
             tema: z.enum(TEMAS),
+            /** `solido` pinta a superfície; `transparente` herda a do site. */
+            fundo: z.enum(FUNDOS).default('solido'),
         })
-        .default({ cor: BRAND_HEX.teal, raio: 'suave', tema: 'claro' }),
+        .default({ cor: BRAND_HEX.teal, raio: 'suave', tema: 'claro', fundo: 'solido' }),
     /** Etiquetas que a ficha recebe ao chegar por este formulário. */
     tagIds: z.array(z.string().min(1).max(64)).max(20).default([]),
+    /**
+     * Abre a ficha do lead (`Contact`) a cada envio.
+     *
+     * Desligado, o envio fica **só** registrado no formulário: nada entra na
+     * base de contatos, e por consequência não há negócio nem conversa — as
+     * duas coisas pendem de uma ficha. Serve ao formulário que coleta sem
+     * captar (uma pesquisa, uma inscrição que a equipe tria antes).
+     *
+     * Pedido do Andre em 20/11/2026, como flag: "criar um flag 'Criar
+     * contato' — neste caso, um contato deve ser criado e registrado
+     * juntamente do negócio que foi aberto".
+     */
+    criarContato: z.boolean().default(true),
     /** Abre um negócio no funil padrão para cada lead. */
     criarNegocio: z.boolean().default(true),
+    /**
+     * Abre a conversa no atendimento e deixa o agente começar.
+     *
+     * Só acontece com **WhatsApp válido** na ficha e linha conectada. O que
+     * sai depende do canal, e a diferença não é nossa escolha:
+     *
+     * - **QR**: a saudação do agente sai na hora e a IA conduz dali em diante,
+     *   como numa conversa que a pessoa tivesse começado. Texto livre para
+     *   quem nunca escreveu só sai por este canal (PRODUCT.md §8).
+     * - **oficial da Meta**: a conversa abre com o resumo em nota interna e
+     *   **nada é enviado** — fora da janela de 24h a Meta exige template
+     *   aprovado, que o projeto não tem. A equipe vê o lead na caixa de
+     *   entrada; quando a pessoa escrever, a IA assume no fluxo normal.
+     */
+    iniciarConversa: z.boolean().default(true),
     /** O texto do aceite (LGPD), quando a organização quer um. Vazio não mostra. */
     consentimento: z.string().max(300).default(''),
 })

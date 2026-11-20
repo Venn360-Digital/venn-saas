@@ -16,6 +16,7 @@ import {
     Clock,
     Columns3,
     Funnel,
+    Loader2,
     DollarSign,
     Footprints,
     LayoutGrid,
@@ -89,6 +90,7 @@ import { ViewSeg } from '@venn/core/components/shared/ViewSeg'
 import { Pagination } from '@venn/core/components/shared/Pagination'
 import { DEAL_LANES, isDealLane, type DealLane } from '@venn/core/lib/deal-lanes'
 import { useNow } from '@venn/core/hooks/useNow'
+import { useEsperaLonga } from '@venn/core/hooks/useEsperaLonga'
 import { useFusoDaUnidade } from '@venn/core/hooks/useUnidades'
 import { PERIOD_PRESETS, matchPreset } from '@venn/core/lib/period'
 import { ageTone, daysInStage, nextStep } from '@venn/core/lib/deal-health'
@@ -595,8 +597,21 @@ function NegociosPageInner() {
     const [funilId, setFunilId] = useState<string | null>(null)
     const [funisOpen, setFunisOpen] = useState(false)
     const [funisCarregados, setFunisCarregados] = useState(false)
+    /**
+     * A unidade que nunca semeou: não há segunda consulta para esperar, então
+     * a espera acaba na própria lista de funis e o estado vazio pode aparecer.
+     */
+    const semFunilNenhum = funisCarregados && funis.length === 0
     // Os telefones de todos os cartões do quadro, numa consulta só.
     const [loading, setLoading] = useState(true)
+    /**
+     * A espera cobre as **duas** cargas — a lista de funis e o trilho —, e é
+     * derivada em vez de gravada: um `setLoading` num efeito dispararia render
+     * em cascata (`react-hooks/set-state-in-effect`) para dizer o que estes
+     * dois booleanos já dizem.
+     */
+    const esperando = !semFunilNenhum && (loading || !funisCarregados)
+    const esperaLonga = useEsperaLonga(esperando)
     /**
      * Três geometrias para o mesmo funil.
      *
@@ -771,9 +786,6 @@ function NegociosPageInner() {
             console.error('Error loading funis:', error)
         } finally {
             setFunisCarregados(true)
-            // Sem funil não há o que carregar: o estado vazio não pode esperar
-            // uma consulta que nunca vai sair.
-            setLoading(false)
         }
     }, [funilDaUrl])
 
@@ -1388,8 +1400,26 @@ function NegociosPageInner() {
         },
     ]
 
-    if (loading) {
-        return <div className="flex items-center justify-center h-96"><div className="text-muted-foreground">Carregando...</div></div>
+    /**
+     * A espera, e o vazio que só vem **depois** dela.
+     *
+     * A "tela fantasma" que o Andre viu em 20/11/2026 era isto: a lista de
+     * funis volta antes do trilho, e no instante entre as duas consultas
+     * `loading` já era `false` com `stages` ainda vazio — a condição exata do
+     * estado vazio, que piscava "Nenhuma fase cadastrada" antes do funil
+     * aparecer. Agora a espera cobre as **duas** cargas, e acaba cedo só no
+     * caso em que não há segunda: unidade sem funil nenhum.
+     *
+     * O sinal é o `Loader2` atrás do limiar de 200 ms, como manda o DESIGN.md
+     * §5 — era um "Carregando..." em texto, que a regra proíbe desde
+     * 2026-10-26 e que piscava a cada navegação.
+     */
+    if (esperando) {
+        return esperaLonga ? (
+            <div className="flex h-96 items-center justify-center">
+                <Loader2 className="size-5 animate-spin text-muted-foreground" />
+            </div>
+        ) : null
     }
 
     // Sem fases não há funil em nenhuma das três visões — o estado vazio
@@ -1402,7 +1432,7 @@ function NegociosPageInner() {
          * caminho é o diálogo de Fases deste funil, não um seed que criaria
          * outro funil.
          */
-        const semFunil = funisCarregados && funis.length === 0
+        const semFunil = semFunilNenhum
         return (
             <div className="p-6">
                 <h1 className="text-h3">Negócios</h1>

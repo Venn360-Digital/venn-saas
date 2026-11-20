@@ -86,10 +86,13 @@ import {
 import { TextoDeNota } from '@venn/core/components/shared/TextoDeNota'
 import { ehMarcadorDeMidia } from '@venn/core/lib/whatsapp/payload'
 import {
+    aplicarMencoesEscolhidas,
     gatilhoDeMencao,
-    inserirMencao,
+    inserirMencaoLegivel,
     notaDeMarcacaoEmMensagem,
     temMencao,
+    temMencaoEscolhida,
+    type Escolhido,
 } from '@venn/core/lib/conversas/mencoes'
 import {
     Dialog,
@@ -715,6 +718,15 @@ export default function ConversasPage() {
     /** O seletor de `@` do compositor: o que foi digitado depois do `@`, ou nulo. */
     const [mencaoBusca, setMencaoBusca] = useState<string | null>(null)
     const [mencaoIndice, setMencaoIndice] = useState(0)
+    /**
+     * Quem foi escolhido no seletor, na ordem — o id de cada um.
+     *
+     * O texto do compositor mostra só `@Nome`; a sintaxe gravada
+     * (`@[Nome](id)`) é montada no envio a partir desta lista. Ver
+     * `aplicarMencoesEscolhidas`, que também descarta a escolha cujo nome a
+     * pessoa apagou do texto antes de enviar.
+     */
+    const [mencoesEscolhidas, setMencoesEscolhidas] = useState<Escolhido[]>([])
 
     /**
      * Os filtros ligados, como pastilhas — a metade que faz a opção B ser a B.
@@ -1638,12 +1650,21 @@ export default function ConversasPage() {
         setMencaoBusca(gatilho)
     }
 
-    /** Troca o `@algo` sob o cursor pela pessoa escolhida. */
+    /**
+     * Troca o `@algo` sob o cursor por `@Nome` — **sem o id**.
+     *
+     * O id vai para `mencoesEscolhidas` e só volta ao texto no envio
+     * (`aplicarMencoesEscolhidas`). Pedido do Andre em 20/11/2026: o
+     * compositor mostrava `@[Roberto2 Alves2](cmwez…)`, que é a sintaxe
+     * gravada, e no campo de digitação ela é ruído — o nome basta para quem
+     * escreve, e o id continua sendo quem identifica a pessoa na gravação.
+     */
     const escolherMencao = (pessoa: PessoaDaEquipe) => {
         const el = textareaRef.current
         const cursor = el?.selectionStart ?? messageInput.length
-        const { texto, cursor: novoCursor } = inserirMencao(messageInput, cursor, pessoa.nome, pessoa.userId)
+        const { texto, cursor: novoCursor } = inserirMencaoLegivel(messageInput, cursor, pessoa.nome)
         setMessageInput(texto)
+        setMencoesEscolhidas((atuais) => [...atuais, { userId: pessoa.userId, nome: pessoa.nome }])
         setMencaoBusca(null)
         requestAnimationFrame(() => {
             el?.focus()
@@ -1766,8 +1787,6 @@ export default function ConversasPage() {
                     body: formData,
                 })
             } else {
-                const body: SendMessageBody = { content: messageInput }
-                if (replyingTo) body.replyToId = replyingTo.id
                 /**
                  * Com `@colega` no texto, a mensagem é **nota interna**.
                  *
@@ -1776,8 +1795,15 @@ export default function ConversasPage() {
                  * o painel de notas cria — vira colaborador e recado pelo
                  * mesmo caminho (`aplicarMencao`). A faixa acima do campo avisa
                  * antes do Enter.
+                 *
+                 * É aqui que o `@Nome` legível do campo volta a ser
+                 * `@[Nome](id)`: o texto é o que a pessoa leu, o gravado é o
+                 * que o leitor da menção reconhece.
                  */
-                if (temMencao(messageInput)) body.isInternal = true
+                const comMencoes = aplicarMencoesEscolhidas(messageInput, mencoesEscolhidas)
+                const body: SendMessageBody = { content: comMencoes }
+                if (replyingTo) body.replyToId = replyingTo.id
+                if (temMencao(comMencoes)) body.isInternal = true
                 res = await fetch(`/api/conversations/${selectedConversation}/messages`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -1797,6 +1823,7 @@ export default function ConversasPage() {
                 if (newMsg.warning) toast.error(newMsg.warning)
                 if (newMsg.isInternal) toast.success('Registrado como nota interna — a equipe marcada foi avisada')
                 setMencaoBusca(null)
+                setMencoesEscolhidas([])
                 setMessages(prev => [...prev, newMsg])
                 setMessageInput('')
                 setAttachment(null)
@@ -4035,12 +4062,16 @@ export default function ConversasPage() {
                                             {/* A faixa que diz onde a mensagem vai cair quando
                                                 há `@colega` no texto: nota interna, não a
                                                 pessoa. Antes do Enter, e não depois. */}
-                                            {!editando && temMencao(messageInput) && (
+                                            {!editando && temMencaoEscolhida(messageInput, mencoesEscolhidas) && (
                                                 <div className="mb-2 flex items-center gap-2 rounded-lg border-l-2 border-warning bg-warning-subtle/60 px-3 py-2 text-xs text-warning-subtle-foreground">
                                                     <StickyNote className="h-3.5 w-3.5 flex-shrink-0" />
+                                                    {/* O texto é o que o Andre ditou em 20/11/2026.
+                                                        A versão anterior nomeava quem não recebe
+                                                        ("Fulano não recebe"), e ele cortou: a frase
+                                                        fica sobre o que acontece, não sobre quem
+                                                        fica de fora. */}
                                                     <span className="flex-1">
-                                                        Com <strong>@colega</strong> no texto, esta mensagem vai como <strong>nota interna</strong> —
-                                                        {' '}{conversationDetail?.conversation?.contact?.name || v.pessoa} não recebe. O colega marcado passa a colaborar e é avisado.
+                                                        Com <strong>@colega</strong> no texto, esta mensagem vai como <strong>nota interna</strong>, o colega marcado passa a colaborar e é avisado.
                                                     </span>
                                                 </div>
                                             )}
