@@ -285,6 +285,15 @@ interface Message {
     deletedAt?: string | null
     /** Quando a equipe editou o texto depois de enviar. */
     editedAt?: string | null
+    /**
+     * O id da mensagem no WhatsApp.
+     *
+     * Sem ele não há como apagar nem editar: as duas operações apontam a
+     * mensagem por esse id. Toda mensagem enviada antes de 20/11/2026 está sem —
+     * era um defeito nosso de leitura da resposta de envio, e o id não se
+     * recupera depois. Por isso os botões consultam este campo.
+     */
+    externalId?: string | null
 }
 
 interface OpenDeal {
@@ -1708,12 +1717,20 @@ export default function ConversasPage() {
         msg.direction === 'outbound' &&
         !msg.isInternal &&
         !msg.deletedAt &&
+        !!msg.externalId &&
         msg.contentType === 'text' &&
         podeEditarAinda(new Date(msg.createdAt), new Date(nowMs))
 
-    /** Se dá para apagar para todos: ser nossa, e não estar apagada já. */
+    /**
+     * Se dá para apagar para todos: ser nossa, ter id do WhatsApp, e não estar
+     * apagada já.
+     *
+     * `externalId` entrou aqui depois de a clínica clicar e levar recusa: as
+     * mensagens antigas não o têm, e botão que só serve para mostrar erro é pior
+     * que botão ausente.
+     */
     const podeApagar = (msg: Message) =>
-        msg.direction === 'outbound' && !msg.isInternal && !msg.deletedAt
+        msg.direction === 'outbound' && !msg.isInternal && !msg.deletedAt && !!msg.externalId
 
     const handleEditar = (msg: Message) => {
         setEditando(msg)

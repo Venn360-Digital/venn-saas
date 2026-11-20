@@ -141,9 +141,55 @@ interface StatusData {
     Name?: string
 }
 
+/**
+ * A resposta de `/send/*`, e o campo do id **não** se chama o que parecia.
+ *
+ * ## O defeito que isto conserta
+ *
+ * O handler responde `gin.H{"message": "success", "data": message}`, e `message`
+ * é um `MessageSendStruct` — `{ Info, Message, MessageContextInfo }`, **sem tags
+ * JSON**, então o Go serializa com o nome do campo em Go. O id da mensagem fica
+ * em `Info.ID`.
+ *
+ * Nós líamos `data.messageId`, que não existe nessa resposta. Resultado, medido
+ * em 2026-11-20 no banco de produção: **1.636 mensagens enviadas, zero com
+ * `externalId`** — e **zero `delivered` em todo o banco**, porque `handleAck`
+ * casa o recibo por `externalId` e nunca achava nada.
+ *
+ * Duas consequências que pareciam coisas diferentes:
+ *
+ * 1. **Apagar e editar eram impossíveis.** As duas rotas do provedor apontam a
+ *    mensagem pelo id dela, e nós não o tínhamos guardado.
+ * 2. **O selo de leitura era inferência, não recibo.** Os `read` que existem
+ *    vêm da regra "o paciente respondeu, então viu o que mandamos", em
+ *    `whatsapp-inbound`. Recibo de verdade do WhatsApp nunca entrou — o que
+ *    explica `delivered` não existir em nenhuma linha.
+ *
+ * A prova de que `Info.ID` é o caminho certo estava no nosso próprio código: o
+ * webhook de ENTRADA já lê `Info.ID` (ver `GoMessageInfo` em `envelopes.ts`). É
+ * a mesma struct do whatsmeow, nas duas direções. O envio lia outro nome.
+ *
+ * Os dois nomes alternativos ficam como queda: se uma versão do Evolution Go
+ * passar a achatar a resposta, ela continua funcionando — e perder o id de novo
+ * em silêncio é o que custou caro.
+ */
 interface SendData {
+    /** O caminho certo: a struct do whatsmeow, sem tags JSON. */
+    Info?: { ID?: string }
+    /** Quedas, por versão. */
     messageId?: string
+    id?: string
     success?: boolean
+}
+
+/**
+ * O id da mensagem na resposta de envio. Ver `SendData`.
+ *
+ * Exportado para ser **provado**: foi a leitura errada deste valor que deixou
+ * 1.636 envios sem id, e nada falhava alto. Prova em `test:mensagem-enviada`.
+ */
+export function idNaRespostaDeEnvio(data: SendData | undefined): string | undefined {
+    return data?.Info?.ID || data?.messageId || data?.id || undefined
 }
 
 interface DownloadMediaData {
@@ -623,7 +669,7 @@ export class EvolutionGoProvider implements ChannelProvider {
             body: JSON.stringify({ number: normalizeNumber(to), text }),
         })
 
-        return { externalId: data?.messageId }
+        return { externalId: idNaRespostaDeEnvio(data) }
     }
 
     async sendMedia(
@@ -642,7 +688,7 @@ export class EvolutionGoProvider implements ChannelProvider {
             }),
         })
 
-        return { externalId: data?.messageId }
+        return { externalId: idNaRespostaDeEnvio(data) }
     }
 
     /**
