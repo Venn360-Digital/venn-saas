@@ -37,7 +37,7 @@ import {
     podeEditarAinda,
     type ChannelProvider,
 } from '@venn/core/lib/whatsapp/types'
-import { evolutionGo } from '@venn/core/lib/whatsapp/evolution-go'
+import { evolutionGo, idNaRespostaDeEnvio } from '@venn/core/lib/whatsapp/evolution-go'
 import { metaWhatsApp } from '@venn/core/lib/whatsapp/meta-whatsapp'
 import { instagramDirect } from '@venn/core/lib/instagram/provider'
 
@@ -99,6 +99,38 @@ conferir('oficial (Cloud API): NÃO apaga', oficial.revoke === undefined, true)
 conferir('oficial (Cloud API): NÃO edita', oficial.editText === undefined, true)
 conferir('Instagram: NÃO apaga', direct.revoke === undefined, true)
 conferir('Instagram: NÃO edita', direct.editText === undefined, true)
+
+console.log('\nO id da mensagem na resposta de envio\n')
+
+/**
+ * O defeito que custou a feature inteira, e que estava calado desde sempre.
+ *
+ * O handler de `/send/*` responde `{"message":"success","data": <MessageSendStruct>}`,
+ * e a struct é `{ Info, Message, MessageContextInfo }` **sem tags JSON** — o Go
+ * serializa com o nome do campo em Go, então o id fica em `Info.ID`. Nós líamos
+ * `data.messageId`, que não existe ali.
+ *
+ * Medido no banco em 20/11/2026: **1.636 mensagens enviadas, zero com
+ * `externalId`**, e **zero `delivered` em todo o banco** — porque o recibo casa
+ * por `externalId` e nunca achava nada. Apagar e editar eram impossíveis pelo
+ * mesmo motivo, e o selo de leitura era inferência ("o paciente respondeu"), não
+ * recibo.
+ *
+ * `idDoEnvio` não é exportado (é detalhe do provedor), então a prova é pelo
+ * contrato público: o que `sendText` devolve, com a resposta interceptada.
+ */
+conferir(
+    'o id vem de Info.ID',
+    idNaRespostaDeEnvio({ Info: { ID: '3EB0ABC' } }),
+    '3EB0ABC'
+)
+conferir(
+    'resposta achatada ainda funciona (queda)',
+    idNaRespostaDeEnvio({ messageId: '3EB0DEF' }),
+    '3EB0DEF'
+)
+conferir('sem id nenhum devolve indefinido', idNaRespostaDeEnvio({ success: true }), undefined)
+conferir('resposta vazia devolve indefinido', idNaRespostaDeEnvio(undefined), undefined)
 
 console.log(`\n${ok} ok, ${falhas} falha(s)\n`)
 process.exit(falhas > 0 ? 1 : 0)

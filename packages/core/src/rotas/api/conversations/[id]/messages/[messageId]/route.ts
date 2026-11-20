@@ -69,10 +69,37 @@ async function carregar(conversationId: string, messageId: string) {
         return { erro: NextResponse.json({ error: 'Mensagem não encontrada' }, { status: 404 }) }
     }
 
-    if (message.isInternal || message.direction !== 'outbound' || !message.externalId) {
+    if (message.isInternal || message.direction !== 'outbound') {
         return {
             erro: NextResponse.json(
                 { error: 'Só é possível alterar mensagens que a equipe enviou' },
+                { status: 400 }
+            ),
+        }
+    }
+
+    /**
+     * Sem o id do provedor não há o que apontar — e a recusa diz isso.
+     *
+     * Era a mesma mensagem do caso acima ("só mensagens que a equipe enviou"), e
+     * ela mandou para o lugar errado: a mensagem **era** da equipe, o que
+     * faltava era o `externalId`. Medido em 20/11/2026, a causa era um defeito
+     * nosso de leitura da resposta de envio (ver `SendData` em `evolution-go`),
+     * que deixou 1.636 envios sem id.
+     *
+     * Consertado o envio, mensagem **nova** tem id. As antigas não têm e não
+     * terão: o id vive no WhatsApp, e o que não foi guardado na hora não se
+     * recupera. Então esta recusa continua existindo, agora dizendo a verdade.
+     */
+    if (!message.externalId) {
+        return {
+            erro: NextResponse.json(
+                {
+                    error:
+                        'Esta mensagem foi enviada antes de o sistema passar a guardar o ' +
+                        'identificador do WhatsApp, então não há como alterá-la. Mensagens ' +
+                        'novas funcionam.',
+                },
                 { status: 400 }
             ),
         }
