@@ -80,8 +80,10 @@ export async function runConversationInactivity(): Promise<void> {
         const billing = await getBillingState(agent.workspaceId)
         if (billing.readOnly) continue
 
-        despedidas += await despedirEEncerrar(agent, prefs.inactivityCloseMinutes, agora)
-        cutucadas += await cutucar(agent, prefs.inactivityNudgeMinutes, agora)
+        // Os textos são os da clínica quando ela os escreveu; vazios, o
+        // `claimAutoNotice` cai no texto do sistema.
+        despedidas += await despedirEEncerrar(agent, prefs.inactivityCloseMinutes, agora, prefs.inactivityFarewellText)
+        cutucadas += await cutucar(agent, prefs.inactivityNudgeMinutes, agora, prefs.inactivityNudgeText)
     }
 
     if (cutucadas === 0 && despedidas === 0) {
@@ -100,7 +102,9 @@ interface AgenteDaRegua {
 async function cutucar(
     agent: AgenteDaRegua,
     minutos: number,
-    agora: Date
+    agora: Date,
+    /** O texto da clínica, ou vazio para o do sistema. */
+    textoProprio: string
 ): Promise<number> {
     const corte = new Date(agora.getTime() - minutos * 60_000)
 
@@ -153,7 +157,7 @@ async function cutucar(
         })
         if (!ultima || ultima.direction === 'inbound') continue
 
-        const texto = await claimAutoNotice(conversa.id, 'inactivity_nudge')
+        const texto = await claimAutoNotice(conversa.id, 'inactivity_nudge', textoProprio)
         // Nulo significa que esta conversa já recebeu este aviso. Não repete.
         if (!texto) continue
 
@@ -178,7 +182,9 @@ async function cutucar(
 async function despedirEEncerrar(
     agent: AgenteDaRegua,
     minutos: number,
-    agora: Date
+    agora: Date,
+    /** O texto da clínica, ou vazio para o do sistema. */
+    textoProprio: string
 ): Promise<number> {
     // Zero é "nunca encerrar por inatividade": a cutucada continua valendo, e o
     // fio fica aberto até alguém o fechar ou até o prazo em dias do autoclose.
@@ -222,7 +228,7 @@ async function despedirEEncerrar(
          */
         const texto = conversa.contact.autoMessagesPausedAt
             ? null
-            : await claimAutoNotice(conversa.id, 'inactivity_farewell')
+            : await claimAutoNotice(conversa.id, 'inactivity_farewell', textoProprio)
 
         if (texto) {
             await enqueueOutboundText({

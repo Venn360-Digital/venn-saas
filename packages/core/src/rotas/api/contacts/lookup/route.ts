@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@venn/db/cliente'
 import { contactScope, getWorkspaceMember } from '@venn/core/lib/auth/workspace'
 import { connectedWhatsApp, formatPhone, hasWhatsApp, normalizePhone, phoneVariants } from '@venn/core/lib/intake'
+import { funilPadrao, noFunil } from '@venn/core/lib/pipeline/funis'
 
 /**
  * Quem é este número, antes de gravar qualquer coisa.
@@ -103,9 +104,16 @@ async function lookup(request: NextRequest) {
             lastMessageAt: null,
         }
     } else if (contact) {
+        // O negócio que o intake reusaria: o aberto no funil padrão.
+        const funil = await funilPadrao(auth.member.workspaceId)
         const [deal, conversation] = await Promise.all([
             prisma.deal.findFirst({
-                where: { workspaceId: auth.member.workspaceId, contactId: contact.id, status: 'open' },
+                where: {
+                    workspaceId: auth.member.workspaceId,
+                    contactId: contact.id,
+                    status: 'open',
+                    ...noFunil(funil?.id ?? ''),
+                },
                 orderBy: { createdAt: 'desc' },
                 select: { id: true, title: true, stage: { select: { name: true } } },
             }),

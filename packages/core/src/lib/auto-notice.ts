@@ -70,7 +70,14 @@ function TEXT(): Record<NoticeKind, string> {
  */
 export async function claimAutoNotice(
     conversationId: string,
-    kind: NoticeKind
+    kind: NoticeKind,
+    /**
+     * O texto que a clínica escreveu para este aviso, quando escreveu — a
+     * cutucada e a despedida são configuráveis por agente desde 20/11/2026
+     * (`inactivityNudgeText` / `inactivityFarewellText`). Vazio cai no texto
+     * do sistema, que é o que valia antes.
+     */
+    personalizado?: string | null
 ): Promise<string | null> {
     const conversation = await prisma.conversation.findUnique({
         where: { id: conversationId },
@@ -84,7 +91,8 @@ export async function claimAutoNotice(
         data: { autoNoticeAt: new Date(), autoNoticeKind: kind },
     })
 
-    return TEXT()[kind]
+    const proprio = personalizado?.trim()
+    return proprio || TEXT()[kind]
 }
 
 export function noticeText(kind: NoticeKind): string {

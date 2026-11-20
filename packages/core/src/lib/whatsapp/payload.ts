@@ -24,6 +24,12 @@ export interface DecodedMessage {
     content: string
     contentType: ContentType
     mediaUrl: string | null
+    /**
+     * A chave do payload que ninguém reconheceu, quando caiu no marcador de
+     * "não suportado". Para o log — a tela não a mostra, mas sem ela cada tipo
+     * novo que o WhatsApp inventar fica invisível até alguém abrir o payload.
+     */
+    tipoDesconhecido?: string
 }
 
 /**
@@ -51,7 +57,14 @@ const MARCADOR_STICKER = '🏷️ Sticker'
 /** Estes carregam uma parte variável, então são reconhecidos pelo começo. */
 const PREFIXO_DOCUMENTO = '📄 '
 const PREFIXO_CONTATO = '👤 Contato:'
+const PREFIXO_CONTATOS = '👤 Contatos:'
 const PREFIXO_LOCALIZACAO = '📍 Localização:'
+const PREFIXO_LOCALIZACAO_AO_VIVO = '📍 Localização em tempo real:'
+const PREFIXO_ENQUETE = '📊 Enquete:'
+const PREFIXO_CONVITE = '🔗 Convite para o grupo'
+const PREFIXO_PEDIDO = '🛒 Pedido'
+const PREFIXO_PRODUTO = '🛍️ Produto:'
+const PREFIXO_EVENTO = '📅 Evento:'
 
 const MARCADORES_EXATOS: ReadonlySet<string> = new Set([
     MARCADOR_VAZIO,
@@ -65,8 +78,46 @@ const MARCADORES_EXATOS: ReadonlySet<string> = new Set([
 const MARCADORES_POR_PREFIXO: readonly string[] = [
     PREFIXO_DOCUMENTO,
     PREFIXO_CONTATO,
+    PREFIXO_CONTATOS,
     PREFIXO_LOCALIZACAO,
+    PREFIXO_LOCALIZACAO_AO_VIVO,
+    PREFIXO_ENQUETE,
+    PREFIXO_CONVITE,
+    PREFIXO_PEDIDO,
+    PREFIXO_PRODUTO,
+    PREFIXO_EVENTO,
 ]
+
+/** O marcador de figurinha — para a tela não repetir a legenda sob a imagem. */
+export function ehMarcadorDeSticker(content: string): boolean {
+    return content.trim() === MARCADOR_STICKER
+}
+
+/**
+ * As chaves que **não** são conteúdo: metadado de criptografia, protocolo
+ * (apagar, fixar, guardar, expirar), distribuição de chave de grupo. Uma
+ * mensagem que só tem isto não é mensagem de ninguém para ninguém, e gravá-la
+ * como "[Tipo de mensagem não suportado]" era exatamente o balão de erro que
+ * a atendente via sem motivo. Ver `ehSoProtocolo`.
+ */
+const CHAVES_SEM_CONTEUDO: ReadonlySet<string> = new Set([
+    'messageContextInfo',
+    'protocolMessage',
+    'senderKeyDistributionMessage',
+    'pinInChatMessage',
+    'keepInChatMessage',
+    'pollUpdateMessage',
+    'encReactionMessage',
+    'encCommentMessage',
+    'deviceSentMessage',
+    'messageSecret',
+])
+
+/** A mensagem é só protocolo — nada para mostrar nem para responder. */
+function ehSoProtocolo(payload: WhatsAppMessagePayload): boolean {
+    const chaves = Object.keys(payload).filter((k) => payload[k] !== undefined && payload[k] !== null)
+    return chaves.length > 0 && chaves.every((k) => CHAVES_SEM_CONTEUDO.has(k))
+}
 
 /**
  * Se este texto foi inventado aqui em vez de escrito por quem mandou.
@@ -238,22 +289,149 @@ export function decodeMessage(
         }
     }
 
+    /**
+     * Nota de vídeo (o círculo gravado segurando o botão): é vídeo, e vai como
+     * vídeo — antes caía no "não suportado".
+     */
+    if (has(payload, 'ptvMessage')) {
+        return {
+            content: field(payload, 'ptvMessage', 'caption') ?? MARCADOR_VIDEO,
+            contentType: 'video',
+            mediaUrl: mediaUrlFor(payload, data, 'ptvMessage'),
+        }
+    }
+
+    /**
+     * Figurinha: imagem **com** mídia, desde 20/11/2026. Saía com `mediaUrl`
+     * nulo, e a bolha mostrava o texto "🏷️ Sticker" no lugar da figurinha —
+     * que é o que a atendente chamava de "não suportado". É WebP, que a tela
+     * desenha; o agente não a recebe (ver `ehImagemAnexavel`).
+     */
     if (has(payload, 'stickerMessage')) {
-        return { content: MARCADOR_STICKER, contentType: 'image', mediaUrl: null }
+        return {
+            content: MARCADOR_STICKER,
+            contentType: 'image',
+            mediaUrl: mediaUrlFor(payload, data, 'stickerMessage'),
+        }
     }
 
     if (has(payload, 'contactMessage')) {
         const name = field(payload, 'contactMessage', 'displayName') ?? 'N/A'
-        return { content: `${PREFIXO_CONTATO} ${name}`, contentType: 'text', mediaUrl: null }
+        const telefone = telefoneDoVcard(field(payload, 'contactMessage', 'vcard'))
+        return {
+            content: `${PREFIXO_CONTATO} ${name}${telefone ? ` · ${telefone}` : ''}`,
+            contentType: 'text',
+            mediaUrl: null,
+        }
+    }
+
+    // Vários contatos de uma vez: o cartão de cada um, numa linha.
+    if (has(payload, 'contactsArrayMessage')) {
+        const bloco = payload.contactsArrayMessage as Record<string, unknown>
+        const lista = Array.isArray(bloco.contacts) ? (bloco.contacts as Record<string, unknown>[]) : []
+        const linhas = lista.map((c) => {
+            const nome = typeof c.displayName === 'string' && c.displayName ? c.displayName : 'Sem nome'
+            const tel = telefoneDoVcard(typeof c.vcard === 'string' ? c.vcard : undefined)
+            return `• ${nome}${tel ? ` · ${tel}` : ''}`
+        })
+        return {
+            content: `${PREFIXO_CONTATOS}\n${linhas.join('\n') || '• (vazio)'}`,
+            contentType: 'text',
+            mediaUrl: null,
+        }
     }
 
     if (has(payload, 'locationMessage')) {
         const location = payload.locationMessage as Record<string, unknown>
+        const nome = [location.name, location.address].filter((x) => typeof x === 'string' && x).join(' — ')
         return {
-            content: `${PREFIXO_LOCALIZACAO} ${location.degreesLatitude}, ${location.degreesLongitude}`,
+            content: `${PREFIXO_LOCALIZACAO} ${nome ? `${nome} · ` : ''}${location.degreesLatitude}, ${location.degreesLongitude}`,
             contentType: 'text',
             mediaUrl: null,
         }
+    }
+
+    if (has(payload, 'liveLocationMessage')) {
+        const location = payload.liveLocationMessage as Record<string, unknown>
+        const legenda = typeof location.caption === 'string' && location.caption ? ` — ${location.caption}` : ''
+        return {
+            content: `${PREFIXO_LOCALIZACAO_AO_VIVO} ${location.degreesLatitude}, ${location.degreesLongitude}${legenda}`,
+            contentType: 'text',
+            mediaUrl: null,
+        }
+    }
+
+    /**
+     * Enquete (as três versões do protobuf): a pergunta e as opções. O voto
+     * (`pollUpdateMessage`) vem cifrado e sem nome, e é descartado em
+     * `ehSoProtocolo` — não há como saber em que a pessoa votou.
+     */
+    for (const chave of ['pollCreationMessageV3', 'pollCreationMessageV2', 'pollCreationMessage'] as const) {
+        if (!has(payload, chave)) continue
+        const bloco = payload[chave] as Record<string, unknown>
+        const opcoes = Array.isArray(bloco.options)
+            ? (bloco.options as Record<string, unknown>[])
+                  .map((o) => (typeof o.optionName === 'string' ? o.optionName : ''))
+                  .filter(Boolean)
+            : []
+        return {
+            content: `${PREFIXO_ENQUETE} ${typeof bloco.name === 'string' ? bloco.name : ''}${
+                opcoes.length ? `\n${opcoes.map((o) => `• ${o}`).join('\n')}` : ''
+            }`.trim(),
+            contentType: 'text',
+            mediaUrl: null,
+        }
+    }
+
+    /**
+     * Resposta a botão, lista ou fluxo interativo: o que a pessoa escolheu é o
+     * texto dela. Chegava como "não suportado" sempre que uma campanha com
+     * botões recebia o clique — justamente a resposta que a campanha pedia.
+     */
+    const escolha =
+        field(payload, 'buttonsResponseMessage', 'selectedDisplayText') ??
+        field(payload, 'buttonsResponseMessage', 'selectedButtonId') ??
+        field(payload, 'templateButtonReplyMessage', 'selectedDisplayText') ??
+        field(payload, 'templateButtonReplyMessage', 'selectedId') ??
+        field(payload, 'listResponseMessage', 'title') ??
+        tituloDaListaEscolhida(payload) ??
+        textoDaRespostaInterativa(payload)
+    if (escolha) return { content: escolha, contentType: 'text', mediaUrl: null }
+
+    if (has(payload, 'groupInviteMessage')) {
+        const nome = field(payload, 'groupInviteMessage', 'groupName') ?? 'sem nome'
+        const legenda = field(payload, 'groupInviteMessage', 'caption')
+        return {
+            content: `${PREFIXO_CONVITE} "${nome}"${legenda ? ` — ${legenda}` : ''}`,
+            contentType: 'text',
+            mediaUrl: null,
+        }
+    }
+
+    if (has(payload, 'orderMessage')) {
+        const bloco = payload.orderMessage as Record<string, unknown>
+        const itens = typeof bloco.itemCount === 'number' ? `${bloco.itemCount} item(ns)` : 'itens'
+        const titulo = typeof bloco.orderTitle === 'string' && bloco.orderTitle ? ` — ${bloco.orderTitle}` : ''
+        const texto = typeof bloco.message === 'string' && bloco.message ? `\n${bloco.message}` : ''
+        return { content: `${PREFIXO_PEDIDO} (${itens})${titulo}${texto}`, contentType: 'text', mediaUrl: null }
+    }
+
+    if (has(payload, 'productMessage')) {
+        const bloco = payload.productMessage as Record<string, unknown>
+        const produto = (bloco.product ?? {}) as Record<string, unknown>
+        const titulo = typeof produto.title === 'string' && produto.title ? produto.title : 'sem título'
+        const descricao = typeof produto.description === 'string' && produto.description ? ` — ${produto.description}` : ''
+        return { content: `${PREFIXO_PRODUTO} ${titulo}${descricao}`, contentType: 'text', mediaUrl: null }
+    }
+
+    if (has(payload, 'eventMessage')) {
+        const bloco = payload.eventMessage as Record<string, unknown>
+        const nome = typeof bloco.name === 'string' && bloco.name ? bloco.name : 'sem nome'
+        const descricao = typeof bloco.description === 'string' && bloco.description ? ` — ${bloco.description}` : ''
+        const quando = typeof bloco.startTime === 'string' || typeof bloco.startTime === 'number'
+            ? ` · ${new Date(Number(bloco.startTime) * 1000).toISOString()}`
+            : ''
+        return { content: `${PREFIXO_EVENTO} ${nome}${descricao}${quando}`, contentType: 'text', mediaUrl: null }
     }
 
     // Reactions carry no conversational content; the caller drops them.
@@ -261,5 +439,58 @@ export function decodeMessage(
         return { content: '', contentType: 'reaction', mediaUrl: null }
     }
 
-    return { content: MARCADOR_NAO_SUPORTADO, contentType: 'text', mediaUrl: null }
+    // Só protocolo (fixar, guardar, expirar, voto cifrado, chave de grupo):
+    // nada a mostrar. Sai como reação, que é o que o chamador já descarta.
+    if (ehSoProtocolo(payload)) {
+        return { content: '', contentType: 'reaction', mediaUrl: null }
+    }
+
+    const desconhecida = Object.keys(payload).find((k) => !CHAVES_SEM_CONTEUDO.has(k))
+    return { content: MARCADOR_NAO_SUPORTADO, contentType: 'text', mediaUrl: null, tipoDesconhecido: desconhecida }
+}
+
+/** O primeiro telefone de um vCard, como o WhatsApp o grava (`TEL;…:+55…`). */
+function telefoneDoVcard(vcard: string | undefined): string | null {
+    if (!vcard) return null
+    const m = /^TEL[^:\n]*:(.+)$/im.exec(vcard)
+    if (!m) return null
+    const digitos = m[1].replace(/\D/g, '')
+    return digitos.length >= 8 ? `+${digitos}` : null
+}
+
+/** O título da linha escolhida numa lista, que mora dois níveis abaixo. */
+function tituloDaListaEscolhida(payload: WhatsAppMessagePayload): string | undefined {
+    const lista = payload.listResponseMessage
+    if (!lista || typeof lista !== 'object') return undefined
+    const resposta = (lista as Record<string, unknown>).singleSelectReply
+    if (!resposta || typeof resposta !== 'object') return undefined
+    const id = (resposta as Record<string, unknown>).selectedRowId
+    return typeof id === 'string' && id ? id : undefined
+}
+
+/**
+ * O que a pessoa respondeu num fluxo interativo (`interactiveResponseMessage`):
+ * o texto do corpo, ou o JSON de parâmetros do fluxo nativo, que é onde o
+ * botão clicado fica.
+ */
+function textoDaRespostaInterativa(payload: WhatsAppMessagePayload): string | undefined {
+    const bloco = payload.interactiveResponseMessage
+    if (!bloco || typeof bloco !== 'object') return undefined
+    const b = bloco as Record<string, unknown>
+    const corpo = b.body && typeof b.body === 'object' ? (b.body as Record<string, unknown>).text : undefined
+    if (typeof corpo === 'string' && corpo) return corpo
+    const nativo = b.nativeFlowResponseMessage
+    if (nativo && typeof nativo === 'object') {
+        const params = (nativo as Record<string, unknown>).paramsJson
+        if (typeof params === 'string' && params) {
+            try {
+                const lido = JSON.parse(params) as Record<string, unknown>
+                const texto = lido.description ?? lido.title ?? lido.id
+                if (typeof texto === 'string' && texto) return texto
+            } catch {
+                return params
+            }
+        }
+    }
+    return undefined
 }

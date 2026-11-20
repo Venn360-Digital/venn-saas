@@ -32,6 +32,7 @@ import { WHATSAPP_CHANNELS, phoneFromConfig } from '@venn/core/lib/conversation-
 import { conversationScope, currentMembership, type WorkspaceRole } from '@venn/core/lib/auth/workspace'
 import { inicioDoDiaDe } from '@venn/core/lib/fuso'
 import { fusoDaUnidade } from '@venn/core/lib/fuso-da-unidade'
+import { funilPadrao } from '@venn/core/lib/pipeline/funis'
 
 // GET: List conversations for the user's workspace
 export async function GET(request: NextRequest) {
@@ -68,6 +69,8 @@ export async function GET(request: NextRequest) {
         const etiqueta = searchParams.get('tag') || ''
         /** Por qual etapa do funil — "all", "none", ou o id da etapa. */
         const etapa = searchParams.get('stage') || ''
+        /** Por qual atendente — "all", "none" (sem responsável), ou o `userId`. */
+        const atendente = searchParams.get('atendente') || ''
 
         const isAtendente = workspaceUser.role === 'ATENDENTE'
 
@@ -172,6 +175,23 @@ export async function GET(request: NextRequest) {
         }
 
         /**
+         * O recorte por atendente — pedido do Andre em 20/11/2026, "independente
+         * do perfil".
+         *
+         * Filtro, não parede, como o agente: vale para qualquer papel, e o
+         * teto do ATENDENTE (`limiteDoAtendente`) continua em cima dele — um
+         * atendente filtrando pela colega só vê, da carteira dela, o que já
+         * podia ver (nada, salvo a conversa em que colabora). Para a gestão é
+         * a pergunta do dia: "o que está com a Rachel?".
+         *
+         * `assignedTo` é a coluna do responsável desde o conserto de
+         * 2026-11-09; "Ver: minhas" é este mesmo filtro com o próprio id.
+         */
+        if (atendente && atendente !== 'all') {
+            where.assignedTo = atendente === 'none' ? null : atendente
+        }
+
+        /**
          * Etiqueta e etapa, em `AND`.
          *
          * Nenhum dos dois pode ser campo direto no `where`: os dois trazem
@@ -179,9 +199,15 @@ export async function GET(request: NextRequest) {
          * etapa porque atravessa o contato), e `where.OR` já é da busca. Pôr
          * qualquer um deles ali apagaria a busca — ou seria apagado por ela.
          */
+        /**
+         * O funil do atendimento. O cartão, o filtro e o seletor de etapas
+         * desta rota leem o mesmo funil — o padrão —, e é por isso que ele é
+         * resolvido uma vez aqui. Ver `negocioNoFunil`.
+         */
+        const funilDoAtendimento = await funilPadrao(workspaceUser.workspaceId)
         const recortes = [
             recorteDeEtiqueta(etiqueta),
-            recorteDeEtapa(workspaceUser.workspaceId, etapa),
+            recorteDeEtapa(workspaceUser.workspaceId, etapa, funilDoAtendimento?.id ?? null),
         ].filter((r): r is NonNullable<typeof r> => r !== null)
 
         if (recortes.length) {
@@ -302,7 +328,7 @@ export async function GET(request: NextRequest) {
             ? etapaPorContato(
                   await prisma.deal.findMany({
                       where: {
-                          ...negocioNoFunil(workspaceUser.workspaceId),
+                          ...negocioNoFunil(workspaceUser.workspaceId, funilDoAtendimento?.id ?? null),
                           contactId: { in: [...new Set(conversations.map((c) => c.contact.id))] },
                       },
                       orderBy: { createdAt: 'desc' },
@@ -534,8 +560,11 @@ export async function GET(request: NextRequest) {
                 orderBy: { name: 'asc' },
                 select: { id: true, name: true, color: true },
             }),
+            // As etapas do funil padrão — as mesmas que o cartão pinta e o
+            // filtro recorta. Oferecer etapa de outro funil aqui filtraria
+            // por algo que nenhum cartão mostra.
             prisma.pipelineStage.findMany({
-                where: { workspaceId: ws },
+                where: { workspaceId: ws, pipelineId: funilDoAtendimento?.id ?? '' },
                 orderBy: { order: 'asc' },
                 select: { id: true, name: true, color: true },
             }),

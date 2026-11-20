@@ -78,8 +78,19 @@ import {
     ContextMenuContent,
     ContextMenuItem,
     ContextMenuSeparator,
+    ContextMenuSub,
+    ContextMenuSubContent,
+    ContextMenuSubTrigger,
     ContextMenuTrigger,
 } from '@venn/ui/context-menu'
+import { TextoDeNota } from '@venn/core/components/shared/TextoDeNota'
+import { ehMarcadorDeMidia } from '@venn/core/lib/whatsapp/payload'
+import {
+    gatilhoDeMencao,
+    inserirMencao,
+    notaDeMarcacaoEmMensagem,
+    temMencao,
+} from '@venn/core/lib/conversas/mencoes'
 import {
     Dialog,
     DialogContent,
@@ -98,6 +109,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from '@venn/ui/popover'
 import { AudioMessage } from '@venn/core/components/shared/AudioMessage'
 import { TextoDeWhatsApp } from '@venn/core/components/shared/TextoDeWhatsApp'
+import { normalizeSearch } from '@venn/core/lib/search'
 import { EtapaChip } from '@venn/core/components/shared/EtapaChip'
 import { Retrato } from '@venn/core/components/shared/Retrato'
 import { useIntervaloVisivel } from '@venn/core/hooks/useIntervaloVisivel'
@@ -139,6 +151,16 @@ interface SendMessageBody {
     content: string
     replyToId?: string
     isInternal?: boolean
+}
+
+/** Uma pessoa da equipe, como `/api/equipe` devolve. */
+interface PessoaDaEquipe {
+    userId: string
+    nome: string
+    /** Endereço de `/api/retratos`. Sempre existe; 404 quando não há foto. */
+    retrato: string
+    papel: string
+    souEu: boolean
 }
 
 /**
@@ -550,7 +572,11 @@ function MediaContent({ msg }: { msg: Message }) {
                     className="rounded-lg max-w-[240px] max-h-[200px] object-cover cursor-pointer"
                     onClick={() => window.open(msg.mediaUrl!, '_blank')}
                 />
-                {msg.content && msg.content !== '📷 Imagem' && (
+                {/* Legenda só quando é fala da pessoa: "📷 Imagem" e
+                    "🏷️ Sticker" são marcadores nossos, e repetir o segundo
+                    embaixo da figurinha era o que fazia a figurinha parecer
+                    erro. */}
+                {msg.content && !ehMarcadorDeMidia(msg.content) && (
                     <TextoDeWhatsApp texto={msg.content} className="whitespace-pre-wrap break-words mt-1" />
                 )}
             </div>
@@ -677,6 +703,18 @@ export default function ConversasPage() {
     const [stages, setStages] = useState<{ id: string; name: string; color: string | null }[]>([])
     const [agents, setAgents] = useState<{ id: string; name: string }[]>([])
     const [lines, setLines] = useState<{ id: string; label: string | null; phoneNumber: string | null; agentName: string }[]>([])
+    /**
+     * Por atendente — pedido do Andre em 20/11/2026, para qualquer papel.
+     *
+     * A lista vem de `/api/equipe`, que todo membro pode ler (é a mesma do
+     * painel de equipe e do seletor de `@`). Serve ao filtro e aos dois gestos
+     * de marcar colega — o `@` no compositor e o botão direito na mensagem.
+     */
+    const [atendenteFilter, setAtendenteFilter] = useState('all')
+    const [equipe, setEquipe] = useState<PessoaDaEquipe[]>([])
+    /** O seletor de `@` do compositor: o que foi digitado depois do `@`, ou nulo. */
+    const [mencaoBusca, setMencaoBusca] = useState<string | null>(null)
+    const [mencaoIndice, setMencaoIndice] = useState(0)
 
     /**
      * Os filtros ligados, como pastilhas — a metade que faz a opção B ser a B.
@@ -746,9 +784,23 @@ export default function ConversasPage() {
                 },
             })
         }
+        if (atendenteFilter !== 'all') {
+            postas.push({
+                chave: 'atendente',
+                rotulo: 'Atendente',
+                valor:
+                    atendenteFilter === 'none'
+                        ? 'Sem responsável'
+                        : equipe.find((p) => p.userId === atendenteFilter)?.nome || 'Atendente',
+                limpar: () => {
+                    setAtendenteFilter('all')
+                    setLoading(true)
+                },
+            })
+        }
 
         return postas
-    }, [lineFilter, agentFilter, tagFilter, stageFilter, lines, agents, filterTags, stages])
+    }, [lineFilter, agentFilter, tagFilter, stageFilter, atendenteFilter, lines, agents, filterTags, stages, equipe])
 
     /**
      * O gatilho "Filtros" aparece quando há o que escolher.
@@ -758,15 +810,47 @@ export default function ConversasPage() {
      * com uma etiqueta só ainda quer separar quem a tem de quem não a tem.
      */
     const temFiltro =
-        lines.length > 1 || agents.length > 1 || filterTags.length > 0 || stages.length > 0
+        lines.length > 1 || agents.length > 1 || filterTags.length > 0 || stages.length > 0 || equipe.length > 1
 
     const limparFiltros = () => {
         setLineFilter('all')
         setAgentFilter('all')
         setTagFilter('all')
         setStageFilter('all')
+        setAtendenteFilter('all')
         setLoading(true)
     }
+
+    /**
+     * A equipe, uma vez por montagem. Pequena (as pessoas da unidade) e usada
+     * em três lugares da tela: o filtro por atendente, o `@` do compositor e
+     * o "Marcar colega" do botão direito.
+     */
+    useEffect(() => {
+        let cancelado = false
+        fetch('/api/equipe')
+            .then((res) => (res.ok ? res.json() : null))
+            .then((dados) => {
+                if (!cancelado && Array.isArray(dados?.pessoas)) setEquipe(dados.pessoas)
+            })
+            .catch(() => {
+                /* sem a lista os três gestos simplesmente não aparecem */
+            })
+        return () => {
+            cancelado = true
+        }
+    }, [])
+
+    /** Quem o `@` do compositor oferece: a equipe menos eu, filtrada pelo digitado. */
+    const candidatosDeMencao = useMemo(() => {
+        if (mencaoBusca === null) return []
+        const termo = normalizeSearch(mencaoBusca)
+        return equipe
+            .filter((p) => !p.souEu)
+            .filter((p) => !termo || normalizeSearch(p.nome).includes(termo))
+            .slice(0, 6)
+    }, [mencaoBusca, equipe])
+    const mencaoAberta = mencaoBusca !== null && candidatosDeMencao.length > 0
     const messagesEndRef = useRef<HTMLDivElement>(null)
     const messagesContainerRef = useRef<HTMLDivElement>(null)
     // Última mensagem conhecida da conversa aberta, para a rede detectar
@@ -1046,6 +1130,7 @@ export default function ConversasPage() {
             if (agentFilter !== 'all') params.set('agent', agentFilter)
             if (tagFilter !== 'all') params.set('tag', tagFilter)
             if (stageFilter !== 'all') params.set('stage', stageFilter)
+            if (atendenteFilter !== 'all') params.set('atendente', atendenteFilter)
             const res = await fetch(`/api/conversations?${params}`)
             const data = await res.json()
             if (data.conversations && Array.isArray(data.conversations)) {
@@ -1075,7 +1160,7 @@ export default function ConversasPage() {
         } finally {
             setLoading(false)
         }
-    }, [activeTab, searchQuery, ver, lineFilter, agentFilter, tagFilter, stageFilter, playNotificationSound])
+    }, [activeTab, searchQuery, ver, lineFilter, agentFilter, tagFilter, stageFilter, atendenteFilter, playNotificationSound])
 
     // Fetch conversation messages (initial load, limited to 30)
     const fetchMessages = useCallback(async (convId: string) => {
@@ -1533,10 +1618,37 @@ export default function ConversasPage() {
             setQuickSearch(match[1].toLowerCase())
             setSlashIndex(0)
             setShowQuickReplies(true)
+            setMencaoBusca(null)
             return
         }
         setShowQuickReplies(false)
         setSlashPage('commands')
+
+        /**
+         * O `@` no compositor — o segundo gesto de colaboração (20/11/2026).
+         *
+         * Mesmo gatilho e mesma inserção do campo de nota
+         * (`lib/conversas/mencoes.ts`), para o formato gravado ser um só. A
+         * diferença está no envio: mensagem com menção **vai como nota
+         * interna**, nunca para a pessoa atendida — ver `handleSendMessage`.
+         */
+        const cursor = e.target.selectionStart ?? value.length
+        const gatilho = gatilhoDeMencao(value.slice(0, cursor))
+        if (gatilho !== mencaoBusca) setMencaoIndice(0)
+        setMencaoBusca(gatilho)
+    }
+
+    /** Troca o `@algo` sob o cursor pela pessoa escolhida. */
+    const escolherMencao = (pessoa: PessoaDaEquipe) => {
+        const el = textareaRef.current
+        const cursor = el?.selectionStart ?? messageInput.length
+        const { texto, cursor: novoCursor } = inserirMencao(messageInput, cursor, pessoa.nome, pessoa.userId)
+        setMessageInput(texto)
+        setMencaoBusca(null)
+        requestAnimationFrame(() => {
+            el?.focus()
+            el?.setSelectionRange(novoCursor, novoCursor)
+        })
     }
 
     /** Replaces the `/token` under the caret with `text` (or removes it). */
@@ -1656,6 +1768,16 @@ export default function ConversasPage() {
             } else {
                 const body: SendMessageBody = { content: messageInput }
                 if (replyingTo) body.replyToId = replyingTo.id
+                /**
+                 * Com `@colega` no texto, a mensagem é **nota interna**.
+                 *
+                 * É o que torna o `@` do compositor seguro: a pessoa atendida
+                 * nunca recebe "@[Ana](cku…) olha isso", e a nota é a mesma que
+                 * o painel de notas cria — vira colaborador e recado pelo
+                 * mesmo caminho (`aplicarMencao`). A faixa acima do campo avisa
+                 * antes do Enter.
+                 */
+                if (temMencao(messageInput)) body.isInternal = true
                 res = await fetch(`/api/conversations/${selectedConversation}/messages`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -1673,6 +1795,8 @@ export default function ConversasPage() {
                  * nunca saía — a atendente só descobria pela falta de resposta.
                  */
                 if (newMsg.warning) toast.error(newMsg.warning)
+                if (newMsg.isInternal) toast.success('Registrado como nota interna — a equipe marcada foi avisada')
+                setMencaoBusca(null)
                 setMessages(prev => [...prev, newMsg])
                 setMessageInput('')
                 setAttachment(null)
@@ -1710,6 +1834,47 @@ export default function ConversasPage() {
     const handleReply = (msg: Message) => {
         setReplyingTo(msg)
         textareaRef.current?.focus()
+    }
+
+    /**
+     * Marcar um colega **numa mensagem** — o terceiro gesto de colaboração.
+     *
+     * Botão direito → "Marcar colega" → a pessoa. Não cria nada novo no banco:
+     * é uma nota interna com a menção e um trecho da mensagem
+     * (`notaDeMarcacaoEmMensagem`), pelo mesmo POST do painel de notas. Toda
+     * indicação de colaboração fica em Notas internas — decisão do Andre em
+     * 20/11/2026 —, e é a nota que `aplicarMencao` transforma em colaborador e
+     * recado.
+     */
+    const marcarColegaNaMensagem = async (msg: Message, pessoa: PessoaDaEquipe) => {
+        if (!selectedConversation) return
+        const autor =
+            msg.direction === 'inbound'
+                ? conversationDetail?.conversation?.contact?.name || v.pessoa
+                : msg.senderName || (msg.sentBy === 'agent' ? 'agente' : 'equipe')
+        const texto = notaDeMarcacaoEmMensagem({
+            nome: pessoa.nome,
+            userId: pessoa.userId,
+            autorDaMensagem: autor,
+            trecho: msg.transcript || msg.content,
+            horario: format(new Date(msg.createdAt), 'HH:mm', { locale: ptBR }),
+        })
+        try {
+            const res = await fetch(`/api/conversations/${selectedConversation}/messages`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ content: texto, isInternal: true, replyToId: msg.id }),
+            })
+            if (!res.ok) {
+                const data = (await res.json().catch(() => ({}))) as { error?: string }
+                toast.error(data.error || 'Não foi possível marcar')
+                return
+            }
+            toast.success(`${pessoa.nome} foi marcado nesta mensagem`)
+            await fetchMessages(selectedConversation)
+        } catch {
+            toast.error('Não foi possível marcar')
+        }
     }
 
     /**
@@ -2355,6 +2520,28 @@ export default function ConversasPage() {
     })
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (mencaoAberta) {
+            if (e.key === 'ArrowDown') {
+                e.preventDefault()
+                setMencaoIndice((i) => (i + 1) % candidatosDeMencao.length)
+                return
+            }
+            if (e.key === 'ArrowUp') {
+                e.preventDefault()
+                setMencaoIndice((i) => (i - 1 + candidatosDeMencao.length) % candidatosDeMencao.length)
+                return
+            }
+            if (e.key === 'Enter' || e.key === 'Tab') {
+                e.preventDefault()
+                escolherMencao(candidatosDeMencao[Math.min(mencaoIndice, candidatosDeMencao.length - 1)])
+                return
+            }
+            if (e.key === 'Escape') {
+                e.preventDefault()
+                setMencaoBusca(null)
+                return
+            }
+        }
         if (slashOpen) {
             if (e.key === 'Escape') {
                 e.preventDefault()
@@ -2615,6 +2802,41 @@ export default function ConversasPage() {
                                                         </SelectItem>
                                                     ))}
                                                     <SelectItem value="none">Sem linha definida</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                    ) : null}
+
+                                    {/* Por atendente, para qualquer papel. O
+                                        ATENDENTE continua sob o teto dele: filtrar
+                                        pela colega mostra só o que ele já podia ver
+                                        da carteira dela. */}
+                                    {equipe.length > 1 ? (
+                                        <div className="space-y-1.5">
+                                            <p className="text-[11px] font-medium text-muted-foreground">
+                                                Atendente
+                                            </p>
+                                            <Select
+                                                value={atendenteFilter}
+                                                onValueChange={(valor) => {
+                                                    setAtendenteFilter(valor)
+                                                    setLoading(true)
+                                                }}
+                                            >
+                                                <SelectTrigger
+                                                    aria-label="Filtrar por atendente"
+                                                    className="h-8 w-full text-xs"
+                                                >
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="all">Todos os atendentes</SelectItem>
+                                                    {equipe.map((p) => (
+                                                        <SelectItem key={p.userId} value={p.userId}>
+                                                            {p.nome}{p.souEu ? ' (eu)' : ''}
+                                                        </SelectItem>
+                                                    ))}
+                                                    <SelectItem value="none">Sem responsável</SelectItem>
                                                 </SelectContent>
                                             </Select>
                                         </div>
@@ -3516,7 +3738,7 @@ export default function ConversasPage() {
                                                                 <StickyNote className="h-3 w-3" />
                                                                 Nota interna · {msg.senderName || 'Atendente'}
                                                             </div>
-                                                            <TextoDeWhatsApp texto={msg.content} className="text-foreground/80 whitespace-pre-wrap" />
+                                                            <TextoDeNota texto={msg.content} className="text-foreground/80 whitespace-pre-wrap break-words" />
                                                             <div className="text-[10px] opacity-60 mt-1 text-right">
                                                                 {format(new Date(msg.createdAt), 'HH:mm', { locale: ptBR })}
                                                             </div>
@@ -3636,6 +3858,25 @@ export default function ConversasPage() {
                                                             <Copy className="text-muted-foreground" />
                                                             Copiar texto
                                                         </ContextMenuItem>
+                                                        {/* Marcar um colega nesta mensagem: vira nota
+                                                            interna com a menção e o trecho. Só aparece
+                                                            com alguém para marcar além de mim. */}
+                                                        {equipe.some((p) => !p.souEu) && (
+                                                            <ContextMenuSub>
+                                                                <ContextMenuSubTrigger>
+                                                                    <AtSign className="text-muted-foreground" />
+                                                                    Marcar colega
+                                                                </ContextMenuSubTrigger>
+                                                                <ContextMenuSubContent className="min-w-[200px]">
+                                                                    {equipe.filter((p) => !p.souEu).map((p) => (
+                                                                        <ContextMenuItem key={p.userId} onSelect={() => void marcarColegaNaMensagem(msg, p)}>
+                                                                            <Retrato endereco={p.retrato} nome={p.nome} className="size-5 text-[9px]" />
+                                                                            {p.nome}
+                                                                        </ContextMenuItem>
+                                                                    ))}
+                                                                </ContextMenuSubContent>
+                                                            </ContextMenuSub>
+                                                        )}
                                                         {!msg.isInternal && (
                                                             <ContextMenuItem onSelect={() => handleForward(msg)}>
                                                                 <Reply className="-scale-x-100 text-muted-foreground" />
@@ -3750,6 +3991,57 @@ export default function ConversasPage() {
                                                             <p className="mt-0.5 truncate text-xs text-muted-foreground">{item.label}</p>
                                                         </button>
                                                     ))}
+                                                </div>
+                                            )}
+
+                                            {/* O seletor de `@`: a mesma caixa do menu de `/`,
+                                                com retrato e nome. Quem o dirige é o textarea
+                                                (setas, Enter, Esc em `handleKeyDown`). */}
+                                            {mencaoAberta && (
+                                                <div
+                                                    role="listbox"
+                                                    aria-label="Marcar alguém da equipe"
+                                                    className="absolute bottom-full left-3 right-3 z-50 mb-1 max-h-[220px] overflow-y-auto rounded-lg border border-border bg-popover p-1 shadow-md"
+                                                >
+                                                    <div className="flex items-center justify-between px-2 py-1.5">
+                                                        <span className="flex items-center gap-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                                                            <AtSign className="size-3" aria-hidden="true" />
+                                                            Marcar colega
+                                                        </span>
+                                                        <span className="text-[10px] text-muted-foreground">
+                                                            ↑↓ navegar · Enter escolher · vai como nota interna
+                                                        </span>
+                                                    </div>
+                                                    {candidatosDeMencao.map((p, i) => (
+                                                        <button
+                                                            key={p.userId}
+                                                            type="button"
+                                                            role="option"
+                                                            aria-selected={i === mencaoIndice}
+                                                            onMouseEnter={() => setMencaoIndice(i)}
+                                                            onClick={() => escolherMencao(p)}
+                                                            className={cn(
+                                                                'flex w-full items-center gap-2 rounded-md px-3 py-2 text-left transition-colors',
+                                                                i === mencaoIndice ? 'bg-accent' : 'hover:bg-muted/50'
+                                                            )}
+                                                        >
+                                                            <Retrato endereco={p.retrato} nome={p.nome} className="size-6 text-[9px]" />
+                                                            <span className="min-w-0 flex-1 truncate text-xs font-medium">{p.nome}</span>
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            )}
+
+                                            {/* A faixa que diz onde a mensagem vai cair quando
+                                                há `@colega` no texto: nota interna, não a
+                                                pessoa. Antes do Enter, e não depois. */}
+                                            {!editando && temMencao(messageInput) && (
+                                                <div className="mb-2 flex items-center gap-2 rounded-lg border-l-2 border-warning bg-warning-subtle/60 px-3 py-2 text-xs text-warning-subtle-foreground">
+                                                    <StickyNote className="h-3.5 w-3.5 flex-shrink-0" />
+                                                    <span className="flex-1">
+                                                        Com <strong>@colega</strong> no texto, esta mensagem vai como <strong>nota interna</strong> —
+                                                        {' '}{conversationDetail?.conversation?.contact?.name || v.pessoa} não recebe. O colega marcado passa a colaborar e é avisado.
+                                                    </span>
                                                 </div>
                                             )}
 

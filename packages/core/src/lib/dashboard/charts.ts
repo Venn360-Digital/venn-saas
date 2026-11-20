@@ -4,6 +4,7 @@ import { fusoDaUnidade } from '../fuso-da-unidade'
 
 import prisma from '@venn/db/cliente'
 import { fimDoDia, inicioDoDia } from '../fuso'
+import { funilPadrao } from '@venn/core/lib/pipeline/funis'
 
 /**
  * Os números da visão Gráfico, em uma rodada.
@@ -139,6 +140,15 @@ export async function getDashboardCharts(workspaceId: string, scope: ChartScope 
         : Prisma.empty
     const ownerDealSql = owner ? Prisma.sql`and d."userId" = ${owner}` : Prisma.empty
 
+    /**
+     * As fases desenhadas são as do funil **padrão** — o do atendimento. Taxa
+     * de passagem e dias por fase são contas sobre a ordem das fases, e ordem
+     * é de um funil só: misturar as passagens de dois funis numa régua faria
+     * "passou daqui" comparar fases que não se seguem.
+     */
+    const funil = await funilPadrao(workspaceId)
+    const funilId = funil?.id ?? ''
+
     const [
         closedDeals,
         previousClosedDeals,
@@ -184,6 +194,8 @@ export async function getDashboardCharts(workspaceId: string, scope: ChartScope 
         prisma.dealStageEntry.findMany({
             where: {
                 deal: { workspaceId, ...dealOwner },
+                // Só passagens por fases do funil desenhado.
+                stage: { pipelineId: funilId },
                 ...(window && { enteredAt: { gte: window.from, lt: window.to } }),
             },
             select: { dealId: true, stageId: true },
@@ -308,7 +320,9 @@ export async function getDashboardCharts(workspaceId: string, scope: ChartScope 
                        ) as next_at
                 from deal_stage_entries e
                 join deals d on d.id = e."dealId"
+                join pipeline_stages ps on ps.id = e."stageId"
                 where d."workspaceId" = ${workspaceId}
+                  and ps."pipelineId" = ${funilId}
                   and e."enteredAt" is not null
                   ${ownerDealSql}
             ) t
@@ -316,7 +330,7 @@ export async function getDashboardCharts(workspaceId: string, scope: ChartScope 
             group by stage_id
         `,
         prisma.pipelineStage.findMany({
-            where: { workspaceId },
+            where: { workspaceId, pipelineId: funilId },
             orderBy: { order: 'asc' },
             select: { id: true, name: true, color: true },
         }),

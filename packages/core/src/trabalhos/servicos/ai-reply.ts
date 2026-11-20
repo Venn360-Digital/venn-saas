@@ -417,6 +417,24 @@ export async function generateReply(input: GenerateReplyInput): Promise<Generate
     const { knowledge } = pecas
 
     /**
+     * A saudação configurada já saiu nesta conversa?
+     *
+     * Em conversa nova `whatsapp-inbound` manda `initialMessage` literal, antes
+     * desta resposta — e o modelo, lendo as instruções centrais ("apresente-se
+     * como Laila…"), se apresentava de novo logo em seguida. Duas boas-vindas
+     * seguidas, medidas numa conta real em 20/11/2026. A pista vai para o
+     * prompt (`## Esta conversa`) quando a saudação é a **única** fala nossa no
+     * histórico: depois da primeira resposta o modelo já tem o próprio fio para
+     * seguir, e a linha deixa de ser necessária.
+     */
+    const saudacao = agent.initialMessage?.trim()
+    if (context && saudacao) {
+        const nossas = history.filter((m) => m.direction === 'outbound' && !m.isInternal)
+        context.saudacaoJaEnviada =
+            nossas.length > 0 && nossas.every((m) => m.content.trim() === saudacao)
+    }
+
+    /**
      * As imagens vêm **depois** das peças do prompt, e não ao lado delas.
      *
      * Parece desperdício não paralelizar, mas é o contrário: na conversa sem foto

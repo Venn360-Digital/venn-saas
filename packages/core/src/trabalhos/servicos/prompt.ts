@@ -545,6 +545,24 @@ export function buildSystemPrompt(
             linhas.push(`No funil ${comArtigo(vocabulario, 'organizacao', 'de')}, este atendimento está na fase "${context.dealStage}".`)
         }
 
+        /**
+         * A saudação dupla, e o que a evita.
+         *
+         * Em conversa nova o sistema envia a saudação configurada do agente
+         * **antes** desta resposta, literal e sem modelo (ver
+         * `whatsapp-inbound`). O modelo a vê no histórico como fala dele — mas
+         * as instruções centrais costumam pedir "apresente-se", e ele obedecia:
+         * duas boas-vindas em sequência, medidas numa conta real em 20/11/2026.
+         * Dizer explicitamente que a saudação já saiu é o que falta para o
+         * histórico valer mais que a instrução.
+         */
+        if (context.saudacaoJaEnviada) {
+            linhas.push(
+                'Sua saudação de boas-vindas já foi enviada automaticamente nesta conversa (é a sua primeira mensagem acima). ' +
+                    'NÃO cumprimente nem se apresente de novo: responda diretamente ao que a pessoa escreveu.'
+            )
+        }
+
         if (context.upcoming.length > 0) {
             const lista = context.upcoming.map((c) => `- ${c.quando}: ${c.titulo}`).join('\n')
             linhas.push(`Compromissos já marcados para esta pessoa:\n${lista}`)

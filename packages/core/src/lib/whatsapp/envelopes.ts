@@ -501,6 +501,36 @@ function cloudPayload(message: CloudMessage): WhatsAppMessagePayload {
                     message.interactive?.list_reply?.title ??
                     '',
             }
+        /**
+         * Os tipos que o Cloud API manda e que o canônico já sabe ler desde
+         * 20/11/2026. O cartão de contato vem como lista (`contacts[]`), o
+         * pedido como `order`, e `unsupported`/`unknown` é o próprio WhatsApp
+         * dizendo que não entregou o conteúdo — aí o marcador é honesto.
+         */
+        case 'contacts': {
+            const lista = (message as { contacts?: { name?: { formatted_name?: string }; phones?: { phone?: string }[] }[] })
+                .contacts ?? []
+            return {
+                contactsArrayMessage: {
+                    contacts: lista.map((c) => ({
+                        displayName: c.name?.formatted_name ?? '',
+                        vcard: c.phones?.[0]?.phone ? `TEL;type=CELL:${c.phones[0].phone}` : '',
+                    })),
+                },
+            }
+        }
+        case 'order': {
+            const pedido = (message as { order?: { product_items?: unknown[]; text?: string } }).order
+            return {
+                orderMessage: {
+                    itemCount: pedido?.product_items?.length ?? 0,
+                    message: pedido?.text ?? '',
+                },
+            }
+        }
+        case 'unsupported':
+        case 'unknown':
+            return { conversation: '[Mensagem que o WhatsApp não entregou — peça para a pessoa reenviar]' }
         default:
             return { conversation: `[Tipo não suportado: ${message.type ?? 'sem tipo'}]` }
     }

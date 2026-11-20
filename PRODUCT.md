@@ -6,7 +6,7 @@ este documento e a implementação, **o documento está certo e o código é o b
 O sistema visual mora em [`DESIGN.md`](DESIGN.md). Aqui ficam as regras de
 negócio: avaliação, planos, créditos, limites e retenção.
 
-Última revisão: 17 de outubro de 2026.
+Última revisão: 20 de novembro de 2026.
 
 ---
 
@@ -810,7 +810,182 @@ sido provado contra o sandbox é a ordem errada de fazer as coisas.
 
 ---
 
-## 14. O que ainda não existe
+## 14. Disponibilidade e presença
+
+Decidido com o Andre em 2026-11-20. Vale para os três produtos.
+
+**Status é presença, não fila.** Os quatro estados — Disponível (verde),
+Ocupado (vermelho), Ausente (amarelo), Desconectado (cinza) — dizem à equipe
+se a pessoa está na mesa, se vale chamar no particular, se saiu. Isso é
+independente de a pessoa **receber conversas**: o dono que não atende fila
+também está ou não está na mesa. Por isso o seletor na barra lateral, a
+bolinha sobre o retrato e a coluna Disponibilidade da lista de Usuários
+aparecem para **todo mundo**. Antes só quem entrava na distribuição os via, e o
+dono da conta aparecia como ausente ou offline para a própria equipe.
+
+**O que "Recebe conversas" decide é só a distribuição automática.** É a única
+coisa que o flag decide, e continua sendo: rodízio e balanceado só escolhem
+entre quem o tem ligado. O status de quem não o tem não faz a pessoa receber
+nada — e, ao contrário, importa onde já importava: quem é responsável por uma
+conversa (assumiu, recebeu por transferência) e se marca Ocupado ou cai em
+Ausente deixa a entrega ir para a fila geral, que é a regra do handoff para
+qualquer responsável. Ninguém espera atendimento parado com quem saiu.
+
+**Entrar devolve ao verde.** Toda sessão nova — login ou cadastro — marca a
+pessoa Disponível em todas as unidades de que participa. Vale para quem saiu
+pelo menu e para quem a sessão expirou sozinha: ontem Ocupado, hoje Disponível.
+
+**Ausente é quem parou de mexer no computador.** O relógio da presença é o
+**gesto** — teclado, mouse, roda, toque —, contado pelo navegador e gravado a
+cada dois minutos só quando houve gesto. Depois de `Ausência` minutos sem gesto
+(campo da ficha da pessoa; o padrão do sistema é 60), o verde vira amarelo; ao
+mexer de novo volta ao verde na hora, sem clique. Depois de oito horas sem
+gesto, cinza. Até 2026-11-20 o relógio era a requisição ao servidor, e isso
+media a aba e não a pessoa: a tela de conversas relê a lista a cada minuto, e
+uma aba aberta sobre uma mesa vazia mantinha a pessoa verde para sempre.
+
+**A escolha manual é pegajosa.** A escada só mexe em quem está verde. Quem se
+marca Ocupado para uma reunião, ou Ausente para o almoço, fica onde se pôs até
+mudar no menu ou até o próximo login — um gesto não desfaz uma escolha. É o que
+impede alguém voltar a receber lead por ter aberto o sistema para conferir um
+horário.
+
+**O que a pessoa vê é o que o sistema usa.** A bolinha, a lista de Usuários, o
+painel de equipe e a distribuição aplicam a mesma função sobre os mesmos dados.
+Tela dizendo uma coisa e distribuição fazendo outra foi o defeito da primeira
+versão, e não volta.
+
+---
+
+## 15. Funis de venda
+
+Decidido com o Andre em 2026-11-20. Até então o funil era implícito — "a lista
+ordenada de fases da unidade" — e por isso só podia haver um.
+
+**Uma unidade pode ter vários funis, e exatamente um é o padrão.** Cada funil
+tem as suas fases, a sua ordem e os seus prazos de follow-up. Em Vendas →
+Negócios a pessoa escolhe qual trabalha (o escolhido vive na URL, `?funil=`), e
+o padrão é o que abre sem escolha — para quem só tem um, nada muda.
+
+**O padrão é o funil do atendimento.** É o único que o módulo de atendimento
+conhece: o negócio que nasce da primeira mensagem (e o do Novo atendimento)
+entra na primeira fase dele; o cartão da caixa de entrada e o filtro por etapa
+leem a fase dele; o agente de IA só lista e só move fases dele; as regras do
+agente agem sobre o negócio aberto dele; o painel da conversa mostra a jornada
+dele; o painel de indicadores desenha as fases dele. Os outros funis são de
+trabalho manual em Negócios. A pessoa que tem negócio aberto **só** noutro
+funil aparece no atendimento como "sem negócio aberto", e criar um ali o cria
+no padrão.
+
+**Trocar o padrão é ato explícito** (a estrela em Gerenciar funis), com a
+consequência escrita ao lado: a próxima mensagem já cria negócio no novo
+padrão, e os negócios que estavam no antigo ficam onde estão. O padrão não se
+exclui — marca-se outro antes.
+
+**Um negócio pertence a um funil pela fase em que está.** Não há coluna
+duplicada no negócio para divergir. Mover um negócio para a fase de outro funil
+é como ele troca de funil.
+
+**A regra 1:1 virou 1:1 por funil.** Um contato tem no máximo um negócio
+aberto **em cada funil** — a mesma pessoa pode ter uma avaliação andando num e
+um plano em negociação noutro. Dentro de um funil continua valendo um só, que é
+o que faz o cartão da caixa de entrada e o agente saberem de qual negócio estão
+falando. A criação e a mudança de fase ou de contato recusam o segundo (409).
+
+**Excluir funil com negócios pede destino**, como excluir fase: eles vão para a
+primeira fase do funil escolhido, com a passagem registrada na jornada. As
+fases do funil excluído saem com ele, e as passagens por elas também.
+
+**Funil novo nasce com as fases padrão**, para ser usável no mesmo clique; o
+primeiro funil da unidade é o padrão, os seguintes não.
+
+**O funil de marketing é outra coisa.** Marketing → Funis são sequências
+automáticas (gatilho e passos); o gatilho "entrou na etapa" e o passo "mover
+etapa" podem apontar para a fase de qualquer funil de venda, e o combo escreve
+o nome do funil ao lado da fase quando há mais de um. O passo só move o negócio
+aberto **do mesmo funil** da fase de destino.
+
+**O título do negócio é o nome da pessoa.** Era "Novo <pessoa> - Fulano"; o
+prefixo saiu em 2026-11-20 e os títulos já gravados perderam o prefixo na
+migração.
+
+---
+
+## 16. Colaboração: marcar um colega
+
+Decidido com o Andre em 2026-11-20. A menção `@colega` já existia, escondida
+em Notas internas; passa a ter três portas e uma regra só.
+
+**Toda indicação de colaboração fica registrada em Notas internas.** Não há
+botão de "seguir" nem tabela à parte: marcar alguém é escrever uma nota
+interna com `@colega`, e é a nota que faz a pessoa passar a colaborar (ver a
+conversa, mesmo fora da fila dela) e receber o recado. As três portas produzem
+a mesma nota:
+
+1. **Notas internas**, com `@` — como sempre foi.
+2. **O compositor**, com `@`. A mesma lista de colegas abre no campo de
+   resposta; e uma mensagem com `@colega` **vai como nota interna**, nunca
+   para a pessoa atendida. A faixa acima do campo diz isso antes do Enter.
+3. **Botão direito na mensagem → Marcar colega.** Vira uma nota interna com a
+   menção e um trecho da mensagem («…»), apontando a hora dela.
+
+**O colega marcado é avisado na hora**: o recado nasce com a nota e o sino
+dele acende pelo tempo real, como no recado manual. A menção aparece como chip
+(`@Nome`) no fio e no painel de notas — nunca a sintaxe interna com o id.
+
+**Filtro por atendente** na caixa de entrada, para qualquer papel: é filtro,
+não parede — o teto do atendente continua em cima dele.
+
+**Os textos da régua de inatividade são da clínica.** "Perguntar se ainda está
+na conversa" e "Despedir-se e encerrar" ganham campo de texto por agente: até
+três linhas, `*negrito*` do WhatsApp e emoji. Vazio usa o texto do sistema.
+
+**A saudação não se repete.** Em conversa nova a saudação configurada sai
+literal, e o modelo responde em seguida à mesma mensagem — e se apresentava de
+novo, porque as instruções centrais pedem apresentação e nada dizia que ela já
+tinha acontecido. Confirmado em 2026-11-20 (era isso, não duas saudações
+configuradas). O prompt passa a dizer que a saudação já saiu enquanto ela for
+a única fala nossa no fio.
+
+---
+
+## 17. Formulários de captura
+
+Decidido com o Andre em 2026-11-20 (Marketing → Formulários).
+
+**O formulário é uma página nossa, que o site embute.** Cada formulário tem
+uma chave pública e vive em `/f/<chave>`: abre por link, ou entra no site da
+organização num `iframe` (o código de incorporação ajusta a altura sozinho). A
+chave identifica o formulário e **não autoriza nada** além de enviar — a mesma
+regra da chave do widget.
+
+**Campos são do cliente; o lead é do produto.** O cliente monta os campos
+(texto, e-mail, telefone, texto longo, número, data, escolha única, múltipla,
+caixa de marcar), com rótulo, obrigatório, opções, validação (mínimo, máximo,
+formato) e aparência (cor, cantos, tema). O que faz uma resposta virar lead é o
+**mapeamento**: cada campo diz se vai para Nome, Telefone, E-mail, Observações
+ou fica só no envio. **Não se publica formulário sem telefone nem e-mail
+mapeado** — captura resposta, não captura lead.
+
+**Um envio produz:** a ficha (nova, ou a existente completada no que faltava —
+**o telefone é a chave**, como em todo o produto; o e-mail decide quando não
+há telefone), as etiquetas do formulário, o registro do envio com as respostas
+inteiras, e um negócio no **funil padrão** quando a pessoa ainda não tem um
+lá, com as respostas nas observações e o responsável que o formulário indica.
+Ficha nova ainda liga o funil de boas-vindas. A ficha nasce com `createdVia:
+formulario` e a origem comercial que o formulário escolheu (§10: nula é
+resposta válida).
+
+**Defesas da porta pública:** só o publicado responde; teto por IP e por
+formulário por hora, em banco; campo-armadilha que finge sucesso para robô; a
+validação roda na página e **de novo** no servidor, com a mesma função.
+
+**Depois do envio:** uma mensagem, ou um redirecionamento para a página que o
+cliente indicar. A validação devolve o erro embaixo do campo que o causou.
+
+---
+
+## 18. O que ainda não existe
 
 Registrado para não ser esquecido:
 

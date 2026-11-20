@@ -11,6 +11,7 @@ import { resolveConversationLine } from '@venn/core/lib/conversation-line'
 import { conversationScope, currentMembership, type WorkspaceRole } from '@venn/core/lib/auth/workspace'
 import { avisarMensagemNova , publicarAgora } from '@venn/core/lib/outbox/avisar'
 import { aplicarMencao } from '@venn/core/lib/conversas/colaborar'
+import { transmitir } from '@venn/core/trabalhos/tempo-real'
 
 // POST: Human sends a message (text or media) in a conversation
 export async function POST(
@@ -174,7 +175,7 @@ export async function POST(
          * a lista e a conversa aberta. Emitir `conversa.alterada` junto seria o
          * dobro de fan-out para a mesma recarga.
          */
-        const { message } = await prisma.$transaction(async (tx) => {
+        const { message, avisos } = await prisma.$transaction(async (tx) => {
             const criada = await tx.message.create({
                 data: {
                     conversationId,
@@ -232,6 +233,7 @@ export async function POST(
              * nota que o explica é linha órfã; nota sem o seguidor é um pedido
              * de ajuda que ninguém recebeu. As duas juntas ou nenhuma.
              */
+            let avisos: { recadoId: string; toUserId: string }[] = []
             if (isInternal) {
                 const efeito = await aplicarMencao(tx, {
                     workspaceId: workspaceUser.workspaceId,
@@ -241,6 +243,7 @@ export async function POST(
                     autorId: user.id,
                     donoId: conversation.assignedTo ?? null,
                 })
+                avisos = efeito.avisos
                 if (efeito.recusados.length) {
                     console.warn(
                         `[MENCAO] ${efeito.recusados.length} marcação(ões) recusada(s) na nota ${criada.id}`
@@ -255,10 +258,26 @@ export async function POST(
                 direction: isInternal ? 'internal' : 'outbound',
             })
 
-            return { message: criada }
+            return { message: criada, avisos }
         })
 
         publicarAgora()
+
+        /**
+         * O sino do colega marcado, **depois do commit** e pelo caminho efêmero
+         * — o mesmo do recado manual (`api/equipe/recados`). Até 20/11/2026 a
+         * menção gravava o recado e não emitia nada: o crachá só mudava na
+         * próxima navegação. Perder o evento não perde o recado, que está
+         * gravado; é por isso que não vai pelo outbox.
+         */
+        for (const aviso of avisos) {
+            await transmitir({
+                workspaceId: workspaceUser.workspaceId,
+                tipo: 'recado',
+                dados: { recadoId: aviso.recadoId, deUserId: user.id },
+                paraUsuario: aviso.toUserId,
+            })
+        }
 
         /**
          * Para onde a resposta do atendente vai, pelo canal do fio.

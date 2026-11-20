@@ -257,52 +257,53 @@ export const getWorkspaceMember = cache(async (): Promise<AuthResult> => {
     }
 
     /**
-     * O toque de atividade — o único lugar da aplicação que o faz.
+     * A volta de quem estava desconectado.
      *
-     * Toda rota e toda página passam por esta função, então aqui é onde
-     * "esta pessoa está usando o sistema" é um fato, e não uma inferência. É
-     * o sinal que sustenta a queda automática para ausente: sem ele, quem sai
-     * às 18h esquecendo o status continuaria recebendo conversa de madrugada.
+     * Até 20/11/2026 este bloco era também **o toque de atividade** — o único
+     * lugar que escrevia `ultimaAtividadeEm`, com folga de 5 minutos. Parecia o
+     * lugar certo ("toda rota passa por aqui, então aqui a presença é fato") e
+     * media a coisa errada: requisição não é gesto. Ver a nota abaixo.
      *
-     * **Com folga, e esta é a parte que importa.** Escrever a cada requisição
-     * poria um UPDATE no caminho mais quente do produto, e num Worker cada
-     * escrita é conexão segurada no Neon (ver a memória sobre o cliente por
-     * requisição). Só reescreve quando o valor já está velho — uma escrita a
-     * cada poucos minutos por pessoa, não por clique.
-     *
-     * Sem `await` de propósito: a resposta não espera por isto, e perder um
-     * toque não tem consequência — o próximo pedido refaz. Por isso também não
-     * tem `catch` que faça algo: falhar aqui não pode derrubar autenticação.
+     * Sem `await` de propósito: a resposta não espera por isto, e perder a
+     * escrita não tem consequência — o próximo pedido refaz. Por isso também
+     * não tem `catch` que faça algo: falhar aqui não pode derrubar
+     * autenticação.
      */
-    const FOLGA_MS = 5 * 60_000
     const agora = Date.now()
 
     /**
      * **Voltar ao sistema devolve ao verde — e só a quem estava desconectado.**
      *
-     * É assim que "logar já vem disponível" acontece sem cirurgia no Better
+     * Era assim que "logar já vem disponível" acontecia sem cirurgia no Better
      * Auth: o logout grava `desconectado`, e o primeiro pedido autenticado
-     * depois encontra esse estado e o desfaz. Vale também para quem a escada
-     * levou a cinza por 8 horas parado — voltou, está de volta.
+     * depois encontra esse estado e o desfaz. Desde 20/11/2026 quem faz isso de
+     * verdade é o gancho `databaseHooks.session.create` do Better Auth — este
+     * bloco fica como rede, para a sessão que já existia antes do gancho e
+     * para o caso de o gancho falhar.
      *
      * **Não toca em quem escolheu `ocupado` ou `ausente`**, e é justamente aqui
      * que a escolha manual se prova pegajosa: sem esta condição, quem se marca
      * ocupado para uma reunião voltaria a verde ao abrir o sistema para
      * conferir um horário — e receberia lead no meio da reunião.
+     *
+     * **E não toca mais em `ultimaAtividadeEm` fora desse caso.** Até 20/11 a
+     * folga de 5 minutos aqui era o único relógio da presença, e media a coisa
+     * errada: a tela de conversas relê a lista a cada minuto, então uma aba
+     * aberta sobre uma mesa vazia mantinha a pessoa verde para sempre, e a
+     * queda para ausente nunca acontecia com o sistema aberto. O relógio
+     * passou a ser o gesto — teclado, mouse, toque — contado pelo navegador em
+     * `usePresenca` e gravado por `POST /api/me/atividade`.
      */
     const voltou = membership.status === 'desconectado'
 
-    if (
-        voltou ||
-        (membership.status === 'disponivel' &&
-            (!membership.ultimaAtividadeEm || agora - membership.ultimaAtividadeEm.getTime() > FOLGA_MS))
-    ) {
+    if (voltou) {
         void prisma.workspaceUser
             .update({
                 where: { id: membership.id },
                 data: {
                     ultimaAtividadeEm: new Date(agora),
-                    ...(voltou ? { status: 'disponivel', statusEm: new Date(agora) } : {}),
+                    status: 'disponivel',
+                    statusEm: new Date(agora),
                 },
             })
             .catch(() => { /* o próximo pedido tenta de novo */ })

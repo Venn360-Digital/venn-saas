@@ -29,9 +29,17 @@ import type { Prisma } from '@venn/db'
  * seriam trinta consultas para pintar uma tela.
  */
 
-/** O recorte que define "negócio no funil". Um lugar só. */
-export function negocioNoFunil(workspaceId: string): Prisma.DealWhereInput {
-    return { workspaceId, status: 'open' }
+/**
+ * O recorte que define "negócio no funil". Um lugar só.
+ *
+ * **Do funil padrão.** Desde 20/11/2026 a unidade pode ter mais de um funil, e
+ * o módulo de atendimento inteiro lê o padrão (PRODUCT.md §15): a pessoa com
+ * negócio aberto só noutro funil aparece aqui "sem negócio aberto", que é a
+ * verdade do ponto de vista do atendimento. `pipelineId` nulo — unidade sem
+ * fase nenhuma — não casa com negócio nenhum, como antes.
+ */
+export function negocioNoFunil(workspaceId: string, pipelineId: string | null): Prisma.DealWhereInput {
+    return { workspaceId, status: 'open', stage: { pipelineId: pipelineId ?? '' } }
 }
 
 export interface EtapaDoFunil {
@@ -100,15 +108,16 @@ export const SELECT_ETAPA = {
  */
 export function recorteDeEtapa(
     workspaceId: string,
-    etapa: string
+    etapa: string,
+    pipelineId: string | null
 ): Prisma.ConversationWhereInput | null {
     if (!etapa || etapa === 'all') return null
 
     if (etapa === 'none') {
-        return { contact: { deals: { none: negocioNoFunil(workspaceId) } } }
+        return { contact: { deals: { none: negocioNoFunil(workspaceId, pipelineId) } } }
     }
 
-    return { contact: { deals: { some: { ...negocioNoFunil(workspaceId), stageId: etapa } } } }
+    return { contact: { deals: { some: { ...negocioNoFunil(workspaceId, pipelineId), stageId: etapa } } } }
 }
 
 /**

@@ -55,11 +55,25 @@ export default async function FunilPage({ params }: { params: Promise<{ id: stri
             orderBy: { name: 'asc' },
             select: { id: true, name: true },
         }),
-        prisma.pipelineStage.findMany({
-            where: { workspaceId: membro.workspaceId },
-            orderBy: { order: 'asc' },
-            select: { id: true, name: true },
-        }),
+        /**
+         * As fases de **todos** os funis de venda: um gatilho "entrou na
+         * etapa" e um passo "mover etapa" podem apontar para qualquer funil.
+         * Com mais de um, o nome da fase vem com o do funil — dois funis podem
+         * ter "Agendamento" cada, e o combo precisa distinguir.
+         */
+        prisma.pipelineStage
+            .findMany({
+                where: { workspaceId: membro.workspaceId },
+                orderBy: [{ pipeline: { order: 'asc' } }, { order: 'asc' }],
+                select: { id: true, name: true, pipeline: { select: { name: true } } },
+            })
+            .then((fases) => {
+                const funis = new Set(fases.map((f) => f.pipeline?.name ?? ''))
+                return fases.map((f) => ({
+                    id: f.id,
+                    name: funis.size > 1 && f.pipeline ? `${f.name} · ${f.pipeline.name}` : f.name,
+                }))
+            }),
         prisma.workspaceUser.findMany({
             where: { workspaceId: membro.workspaceId, isActive: true },
             orderBy: { user: { name: 'asc' } },

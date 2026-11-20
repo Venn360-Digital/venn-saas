@@ -1,6 +1,7 @@
 import prisma from '@venn/db/cliente'
 import { SCHEDULABLE_CATEGORIES } from '../../lib/product-categories'
 import { createLogger } from '../registro'
+import { funilPadrao } from '@venn/core/lib/pipeline/funis'
 
 const log = createLogger('CONTEXT')
 
@@ -22,6 +23,17 @@ export interface ConversationContext {
     /** A fase do funil em que o negócio aberto está, se houver. */
     dealStage?: string
     dealTitle?: string
+    /**
+     * A saudação configurada do agente **acabou de sair** nesta conversa, e o
+     * modelo vai responder logo em seguida à mesma mensagem.
+     *
+     * Preenchido por `ai-reply`, não por `loadConversationContext`: é lido do
+     * histórico que a resposta já tem em mãos. Sem esta linha no prompt o
+     * agente cumprimentava duas vezes — a saudação fixa e depois "Olá! Sou a
+     * Laila…" de novo, porque as instruções centrais pedem apresentação e nada
+     * dizia que ela já tinha acontecido. Confirmado em 20/11/2026.
+     */
+    saudacaoJaEnviada?: boolean
     /** Os próximos compromissos desta pessoa, do mais próximo para o mais distante. */
     upcoming: { quando: string; titulo: string }[]
     /**
@@ -104,9 +116,12 @@ async function cadastroDoWorkspace(workspaceId: string): Promise<{
     stages: string[]
     bookable: { servicos: string[]; profissionais: string[] }
 }> {
+    // As fases que o agente conhece são as do funil padrão — o do atendimento.
+    // É também o único em que `mover_negocio` move.
+    const funil = await funilPadrao(workspaceId)
     const [fases, servicos, profissionais] = await Promise.all([
         prisma.pipelineStage.findMany({
-            where: { workspaceId },
+            where: { workspaceId, pipelineId: funil?.id ?? '' },
             orderBy: { order: 'asc' },
             select: { name: true },
         }),

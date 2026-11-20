@@ -1,7 +1,8 @@
 'use client'
 
 import { ACTIVITY_TYPE_BY_ID } from '@venn/core/lib/activity-types'
-import { useState, useEffect, useCallback } from 'react'
+import { Suspense, useState, useEffect, useCallback } from 'react'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import {
     AlertTriangle,
     ArrowRight,
@@ -10,9 +11,11 @@ import {
     CalendarRange,
     Check,
     CheckCircle2,
+    ChevronsUpDown,
     Circle,
     Clock,
     Columns3,
+    Funnel,
     DollarSign,
     Footprints,
     LayoutGrid,
@@ -38,6 +41,9 @@ import {
 import {
     DropdownMenu,
     DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@venn/ui/dropdown-menu'
 import {
@@ -97,6 +103,7 @@ import { OutcomeDialog } from '@venn/core/components/shared/OutcomeDialog'
 import { DealPanel } from '@venn/core/components/shared/DealPanel'
 import { CLOSED_RAIL_ID, PipelineRail } from '@venn/core/components/shared/PipelineRail'
 import { StageManagerDialog } from '@venn/core/components/shared/StageManagerDialog'
+import { FunisDialog, type FunilItem } from '@venn/core/components/shared/FunisDialog'
 import { NewDealDialog } from '@venn/core/components/shared/NewDealDialog'
 import { PeriodFields } from '@venn/core/components/shared/PeriodPicker'
 import { BoardScroller } from '@venn/core/components/shared/BoardScroller'
@@ -547,7 +554,21 @@ function StatusBadge({ status }: { status: string }) {
 // ─── Default tracking data ──────────────────────────────────────────
 
 // ─── Main Page ──────────────────────────────────────────────────────
+/**
+ * A casca com `Suspense`: `useSearchParams` exige a fronteira, e é por ela
+ * que o funil escolhido vive na URL (`?funil=<id>`) — endereço compartilhável,
+ * e o botão voltar funciona. `fallback={null}`, nunca esqueleto: ver DESIGN.md
+ * §5, "Fallback de `Suspense` não aceita limiar".
+ */
 export default function NegociosPage() {
+    return (
+        <Suspense fallback={null}>
+            <NegociosPageInner />
+        </Suspense>
+    )
+}
+
+function NegociosPageInner() {
     const v = useVocab()
 
     // The kanban card already gates Excluir on this; the list view did not, so
@@ -555,6 +576,25 @@ export default function NegociosPage() {
     const { canEdit } = usePermissions()
     const moeda = useMoeda()
     const [stages, setStages] = useState<Stage[]>([])
+
+    /**
+     * Qual funil a tela mostra.
+     *
+     * Desde 20/11/2026 a unidade pode ter mais de um (PRODUCT.md §15). A
+     * escolha mora na URL: `?funil=<id>` abre o funil pedido, e sem o
+     * parâmetro abre o **padrão** — o do atendimento, que é o que quem só tem
+     * um funil sempre viu. `funilId` fica nulo até a lista chegar, e as cargas
+     * esperam por ele: carregar o padrão e depois trocar para o da URL seria
+     * pintar duas vezes.
+     */
+    const router = useRouter()
+    const pathname = usePathname()
+    const searchParams = useSearchParams()
+    const funilDaUrl = searchParams.get('funil')
+    const [funis, setFunis] = useState<FunilItem[]>([])
+    const [funilId, setFunilId] = useState<string | null>(null)
+    const [funisOpen, setFunisOpen] = useState(false)
+    const [funisCarregados, setFunisCarregados] = useState(false)
     // Os telefones de todos os cartões do quadro, numa consulta só.
     const [loading, setLoading] = useState(true)
     /**
@@ -707,9 +747,58 @@ export default function NegociosPage() {
     const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
 
     // ─── Data Loading ───────────────────────────────────────────────
+    /**
+     * Os funis da unidade, e a resolução de qual mostrar.
+     *
+     * Uma vez por montagem e a cada gravação no diálogo de funis. A escolha é
+     * a da URL quando ela aponta para um funil que existe; senão o padrão.
+     * Unidade sem funil nenhum (nunca semeou) fica com `funilId` nulo e cai no
+     * estado vazio, que oferece criar as fases padrão.
+     */
+    const loadFunis = useCallback(async () => {
+        try {
+            const res = await fetch('/api/pipelines/funis')
+            if (!res.ok) return
+            const data = (await res.json()) as { funis: FunilItem[]; padraoId: string | null }
+            setFunis(data.funis ?? [])
+            setFunilId((atual) => {
+                const existe = (id: string | null) => !!id && (data.funis ?? []).some((f) => f.id === id)
+                if (existe(atual)) return atual
+                if (existe(funilDaUrl)) return funilDaUrl
+                return data.padraoId
+            })
+        } catch (error) {
+            console.error('Error loading funis:', error)
+        } finally {
+            setFunisCarregados(true)
+            // Sem funil não há o que carregar: o estado vazio não pode esperar
+            // uma consulta que nunca vai sair.
+            setLoading(false)
+        }
+    }, [funilDaUrl])
+
+    /**
+     * Trocar de funil é trocar o endereço. `replace`, não `push`: alternar
+     * entre dois funis dez vezes não deve custar dez entradas no histórico.
+     */
+    const escolherFunil = useCallback(
+        (id: string) => {
+            setFunilId(id)
+            setFocusStageId(null)
+            setSelectedDealId(null)
+            setFilterStageId('')
+            const params = new URLSearchParams(searchParams.toString())
+            params.set('funil', id)
+            router.replace(`${pathname}?${params.toString()}`, { scroll: false })
+        },
+        [pathname, router, searchParams]
+    )
+
     const loadPipeline = useCallback(async () => {
+        if (!funilId) return
         try {
             const params = new URLSearchParams()
+            params.set('funil', funilId)
             if (search) params.set('search', search)
             if (filterStatus) params.set('status', filterStatus)
             if (lane) params.set('lane', lane)
@@ -720,11 +809,13 @@ export default function NegociosPage() {
         } finally {
             setLoading(false)
         }
-    }, [search, filterStatus, lane])
+    }, [funilId, search, filterStatus, lane])
 
     const loadListDeals = useCallback(async () => {
+        if (!funilId) return
         try {
             const params = new URLSearchParams()
+            params.set('funil', funilId)
             if (search) params.set('search', search)
             if (filterStageId) params.set('stageId', filterStageId)
             if (filterStatus) params.set('status', filterStatus)
@@ -736,7 +827,7 @@ export default function NegociosPage() {
         } finally {
             setLoading(false)
         }
-    }, [search, filterStageId, filterStatus, lane])
+    }, [funilId, search, filterStageId, filterStatus, lane])
 
     /**
      * As contagens da faixa, do servidor.
@@ -746,8 +837,9 @@ export default function NegociosPage() {
      * porque é isso que move um cartão entre as faixas.
      */
     const loadLanes = useCallback(async () => {
+        if (!funilId) return
         try {
-            const res = await fetch('/api/deals/priorities')
+            const res = await fetch(`/api/deals/priorities?funil=${encodeURIComponent(funilId)}`)
             if (!res.ok) return
             const data = await res.json()
             const next = { due_soon: 0, stalled: 0, no_activity: 0 } as Record<DealLane, number>
@@ -759,7 +851,7 @@ export default function NegociosPage() {
         } catch {
             // Sem as contagens a faixa mostra "—" e o quadro segue inteiro.
         }
-    }, [])
+    }, [funilId])
 
 
     const loadLookups = useCallback(async () => {
@@ -781,8 +873,10 @@ export default function NegociosPage() {
      * perdido aparece: é metade da pergunta que se faz no fim do mês.
      */
     const loadKpiSummary = useCallback(async () => {
+        if (!funilId) return
         try {
             const params = new URLSearchParams()
+            params.set('funil', funilId)
             if (dateFrom) params.set('dateFrom', dateFrom)
             if (dateTo) params.set('dateTo', dateTo)
             const res = await fetch(`/api/deals/summary?${params}`)
@@ -796,7 +890,7 @@ export default function NegociosPage() {
         } catch {
             // Sem resumo a barra mostra trações e o funil segue inteiro.
         }
-    }, [dateFrom, dateTo])
+    }, [funilId, dateFrom, dateTo])
 
     /**
      * Relê o que a tela mostra.
@@ -860,6 +954,10 @@ export default function NegociosPage() {
     }, [loadLookups])
 
     useEffect(() => {
+        void loadFunis()
+    }, [loadFunis])
+
+    useEffect(() => {
         loadKpiSummary()
     }, [loadKpiSummary])
 
@@ -875,16 +973,16 @@ export default function NegociosPage() {
      * consulta mais cara da tela pelo motivo mais fraco.
      */
     useEffect(() => {
-        if (focusStageId !== CLOSED_RAIL_ID) return
+        if (focusStageId !== CLOSED_RAIL_ID || !funilId) return
         let cancelled = false
-        fetch('/api/deals?status=closed')
+        fetch(`/api/deals?status=closed&funil=${encodeURIComponent(funilId)}`)
             .then((res) => (res.ok ? res.json() : null))
             .then((data) => {
                 if (!cancelled && Array.isArray(data)) setClosedDeals(data)
             })
             .catch(() => { })
         return () => { cancelled = true }
-    }, [focusStageId])
+    }, [focusStageId, funilId])
 
     useEffect(() => {
         // O trilho lê do mesmo payload do quadro: etapas com os seus negócios.
@@ -906,7 +1004,9 @@ export default function NegociosPage() {
     const createDefaultPipeline = async () => {
         try {
             const res = await fetch('/api/pipelines/seed', { method: 'POST' })
-            if (res.ok) { toast.success('Funil criado'); loadPipeline() }
+            // O seed cria o funil junto com as fases: relê a lista de funis,
+            // que resolve o padrão e dispara a carga do trilho.
+            if (res.ok) { toast.success('Funil criado'); void loadFunis() }
             else toast.error('Erro ao criar funil')
         } catch { toast.error('Erro ao criar funil') }
     }
@@ -1295,16 +1395,54 @@ export default function NegociosPage() {
     // Sem fases não há funil em nenhuma das três visões — o estado vazio
     // deixou de ser só do quadro.
     if (stages.length === 0) {
+        /**
+         * Dois vazios diferentes. Sem funil nenhum, a unidade nunca semeou e o
+         * botão cria o padrão com as fases padrão. Com funil mas sem fase — o
+         * segundo funil, depois de alguém apagar todas as fases dele —, o
+         * caminho é o diálogo de Fases deste funil, não um seed que criaria
+         * outro funil.
+         */
+        const semFunil = funisCarregados && funis.length === 0
         return (
             <div className="p-6">
                 <h1 className="text-h3">Negócios</h1>
                 <div className="flex h-96 flex-col items-center justify-center">
                     <h3 className="mb-2 text-lg font-medium">Nenhuma fase cadastrada</h3>
-                    <p className="mb-6 text-muted-foreground">A jornada {comArtigo(v, 'organizacao', 'de')} começa aqui.</p>
-                    <Button onClick={createDefaultPipeline} className="gap-2">
-                        <Plus className="size-4" />Criar as fases padrão
-                    </Button>
+                    <p className="mb-6 text-muted-foreground">
+                        {semFunil
+                            ? `A jornada ${comArtigo(v, 'organizacao', 'de')} começa aqui.`
+                            : `O funil "${funis.find((f) => f.id === funilId)?.name ?? ''}" ainda não tem fases.`}
+                    </p>
+                    {semFunil ? (
+                        <Button onClick={createDefaultPipeline} className="gap-2">
+                            <Plus className="size-4" />Criar as fases padrão
+                        </Button>
+                    ) : funisCarregados ? (
+                        <div className="flex gap-2">
+                            <Button variant="outline" onClick={() => setFunisOpen(true)} className="gap-2">
+                                <Funnel className="size-4" />Funis
+                            </Button>
+                            <Button onClick={() => setStagesOpen(true)} className="gap-2">
+                                <Plus className="size-4" />Acrescentar fases
+                            </Button>
+                        </div>
+                    ) : null}
                 </div>
+                <StageManagerDialog
+                    open={stagesOpen}
+                    onOpenChange={setStagesOpen}
+                    stages={stages}
+                    funilId={funilId}
+                    onChanged={() => { loadPipeline(); void loadLanes(); void loadFunis() }}
+                />
+                <FunisDialog
+                    open={funisOpen}
+                    onOpenChange={setFunisOpen}
+                    funis={funis}
+                    funilAtualId={funilId}
+                    onChanged={() => void loadFunis()}
+                    onSelect={escolherFunil}
+                />
             </div>
         )
     }
@@ -1335,10 +1473,48 @@ export default function NegociosPage() {
                 </>
             }
             actions={
-                <Button variant="outline" size="sm" className="h-8 gap-1.5" onClick={() => setStagesOpen(true)}>
-                    <Settings2 className="size-3.5" />
-                    Fases
-                </Button>
+                <>
+                    {/* Qual funil. Um menu mesmo com um funil só, porque é
+                        também o caminho para criar o segundo — "Gerenciar
+                        funis" mora aqui dentro. A estrela marca o padrão, o do
+                        atendimento. */}
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button variant="outline" size="sm" className="h-8 max-w-[220px] gap-1.5" aria-label="Escolher o funil">
+                                <Funnel className="size-3.5 shrink-0" />
+                                <span className="truncate">
+                                    {funis.find((f) => f.id === funilId)?.name ?? 'Funil'}
+                                </span>
+                                <ChevronsUpDown className="size-3.5 shrink-0 text-muted-foreground" />
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start" className="min-w-56">
+                            <DropdownMenuLabel className="text-xs text-muted-foreground">Funis de venda</DropdownMenuLabel>
+                            {funis.map((f) => (
+                                <DropdownMenuItem key={f.id} onSelect={() => escolherFunil(f.id)}>
+                                    <span className="flex-1 truncate">{f.name}</span>
+                                    {f.isDefault ? (
+                                        <span className="text-[10px] uppercase tracking-wider text-muted-foreground">padrão</span>
+                                    ) : null}
+                                    {f.id === funilId ? <Check className="size-4" /> : null}
+                                </DropdownMenuItem>
+                            ))}
+                            {canEdit ? (
+                                <>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem onSelect={() => setFunisOpen(true)}>
+                                        <Settings2 className="size-4" />
+                                        Gerenciar funis
+                                    </DropdownMenuItem>
+                                </>
+                            ) : null}
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                    <Button variant="outline" size="sm" className="h-8 gap-1.5" onClick={() => setStagesOpen(true)}>
+                        <Settings2 className="size-3.5" />
+                        Fases
+                    </Button>
+                </>
             }
             primary={
                 <Button size="sm" className="h-8 gap-1.5" onClick={() => handleAddDeal(stages[0]?.id)}>
@@ -1618,12 +1794,23 @@ export default function NegociosPage() {
             </div>
         </IndexFrame>
 
-            {/* As fases da clínica — um lugar só, alcançável das três visões. */}
+            {/* As fases deste funil — um lugar só, alcançável das três visões. */}
             <StageManagerDialog
                 open={stagesOpen}
                 onOpenChange={setStagesOpen}
                 stages={stages}
-                onChanged={() => { loadPipeline(); void loadLanes() }}
+                funilId={funilId}
+                onChanged={() => { loadPipeline(); void loadLanes(); void loadFunis() }}
+            />
+
+            {/* Quais funis existem, e qual é o do atendimento. */}
+            <FunisDialog
+                open={funisOpen}
+                onOpenChange={setFunisOpen}
+                funis={funis}
+                funilAtualId={funilId}
+                onChanged={() => void loadFunis()}
+                onSelect={escolherFunil}
             />
 
             {/* `key`: a fase padrão é lida ao montar, e as fases chegam depois

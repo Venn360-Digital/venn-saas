@@ -17,6 +17,8 @@ const LABELS: Record<string, string> = {
     import: 'Importação',
     ligacao: 'Ligação',
     inbound: 'Escreveu primeiro',
+    /** Preencheu um formulário de captura no site (Marketing → Formulários). */
+    formulario: 'Formulário do site',
 }
 
 /**
@@ -34,7 +36,7 @@ export function createdViaLabel(createdVia: string | null | undefined): string {
 /** Como a ficha nasceu, para o filtro — com "todas" na frente. */
 export const CREATED_VIA_FILTER_OPTIONS = [
     { value: '', label: 'Qualquer cadastro' },
-    ...['inbound', 'manual', 'ligacao', 'import'].map((value) => ({
+    ...['inbound', 'formulario', 'manual', 'ligacao', 'import'].map((value) => ({
         value,
         label: LABELS[value],
     })),

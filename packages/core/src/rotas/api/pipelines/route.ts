@@ -7,6 +7,7 @@ import { searchTerms } from '@venn/core/lib/search'
 import { isDealLane, laneWhere } from '@venn/core/lib/deal-lanes'
 import { fusoDaUnidade } from '@venn/core/lib/fuso-da-unidade'
 import { periodWhere } from '@venn/core/lib/deal-filters'
+import { funilOuPadrao } from '@venn/core/lib/pipeline/funis'
 
 // GET - List pipeline stages with deals
 export async function GET(request: NextRequest) {
@@ -20,6 +21,23 @@ export async function GET(request: NextRequest) {
         const { searchParams } = new URL(request.url)
         const search = searchParams.get('search') || ''
         const status = searchParams.get('status') || 'open'
+
+        /**
+         * De qual funil. `?funil=<id>` escolhe; sem ele, o padrão — que é o que
+         * todo chamador antigo desta rota queria sem saber, porque até
+         * 20/11/2026 só havia um. A tela de Negócios passa o escolhido; o
+         * compositor da conversa e a aba de regras do agente não passam nada
+         * e recebem o do atendimento, que é o certo para os dois.
+         *
+         * Unidade sem fase nenhuma devolve lista vazia, como antes: a tela lê
+         * o vazio e oferece criar as fases padrão.
+         */
+        const funil = await funilOuPadrao(workspaceUser.workspaceId, searchParams.get('funil'))
+        if (!funil) {
+            return NextResponse.json(searchParams.get('funil') ? { error: 'Funil não encontrado' } : [], {
+                status: searchParams.get('funil') ? 404 : 200,
+            })
+        }
 
         // Build deal filter
         const dealWhere: Prisma.DealWhereInput = {}
@@ -63,7 +81,7 @@ export async function GET(request: NextRequest) {
         )
 
         const stages = await prisma.pipelineStage.findMany({
-            where: { workspaceId: workspaceUser.workspaceId },
+            where: { workspaceId: workspaceUser.workspaceId, pipelineId: funil.id },
             include: {
                 deals: {
                     where: Object.keys(dealWhere).length > 0 ? dealWhere : undefined,
@@ -136,13 +154,19 @@ export async function GET(request: NextRequest) {
          */
         const totals = await prisma.deal.groupBy({
             by: ['stageId'],
-            where: { workspaceId: workspaceUser.workspaceId },
+            where: { workspaceId: workspaceUser.workspaceId, stageId: { in: stages.map((s) => s.id) } },
             _count: { _all: true },
         })
         const totalByStage = new Map(totals.map((t) => [t.stageId, t._count._all]))
 
+        /**
+         * A resposta continua sendo a lista de fases — é o contrato que quatro
+         * telas leem —, e o funil vai num cabeçalho para quem precisar saber
+         * qual foi resolvido (a tela de Negócios, quando abre sem `?funil=`).
+         */
         return NextResponse.json(
-            stages.map((stage) => ({ ...stage, totalDeals: totalByStage.get(stage.id) ?? 0 }))
+            stages.map((stage) => ({ ...stage, totalDeals: totalByStage.get(stage.id) ?? 0 })),
+            { headers: { 'X-Funil-Id': funil.id, 'X-Funil-Padrao': funil.isDefault ? '1' : '0' } }
         )
     } catch (error) {
         console.error('[PIPELINES_GET]', error)
@@ -165,7 +189,7 @@ export async function POST(request: NextRequest) {
         }
 
         const body = await request.json()
-        const { name, color } = body
+        const { name, color, funilId } = body
 
         if (!name || typeof name !== 'string' || name.trim().length === 0) {
             return NextResponse.json({ error: 'Nome é obrigatório' }, { status: 400 })
@@ -174,14 +198,29 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Nome deve ter no máximo 30 caracteres' }, { status: 400 })
         }
 
+        /**
+         * Em qual funil a fase nasce. A tela de Negócios manda o escolhido; sem
+         * ele, o padrão. Unidade sem funil nenhum é a que nunca semeou — e aí
+         * a fase não tem onde morar: o caminho é o seed, que cria os dois.
+         */
+        const funil = await funilOuPadrao(
+            workspaceUser.workspaceId,
+            typeof funilId === 'string' ? funilId : null
+        )
+        if (!funil) {
+            return NextResponse.json({ error: 'Funil não encontrado' }, { status: 404 })
+        }
+
+        // A ordem é dentro do funil: dois funis começam os dois em 1.
         const maxOrder = await prisma.pipelineStage.aggregate({
-            where: { workspaceId: workspaceUser.workspaceId },
+            where: { workspaceId: workspaceUser.workspaceId, pipelineId: funil.id },
             _max: { order: true }
         })
 
         const stage = await prisma.pipelineStage.create({
             data: {
                 workspaceId: workspaceUser.workspaceId,
+                pipelineId: funil.id,
                 name: name.trim(),
                 color: color || DEFAULT_ENTITY_COLOR,
                 order: (maxOrder._max.order || 0) + 1

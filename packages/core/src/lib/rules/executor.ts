@@ -11,6 +11,7 @@ import { DEFAULT_ENTITY_COLOR } from '../palette'
 import { horaMinutoNoFuso } from '../fuso'
 import { resolverResponsavel } from './atribuicao'
 import { etiquetaAplicada, negocioEntrouNaEtapa } from '../funil/disparos'
+import { funilPadrao, noFunil } from '@venn/core/lib/pipeline/funis'
 
 /**
  * Carries out a matched rule's actions against the database.
@@ -271,22 +272,28 @@ export class RuleExecutor {
 
     /** Move the contact's open deal to another stage, by id or by stage name. */
     private async movePipeline(params: Record<string, unknown>, context: RuleContext): Promise<void> {
-        const stage = await this.resolveStage(params, context.workspaceId)
-        if (!stage) throw new Error('move_pipeline could not resolve the target stage')
-
+        /**
+         * O negócio primeiro, a fase depois: a fase por **nome** é resolvida
+         * dentro do funil do negócio, porque dois funis podem ter uma fase
+         * "Agendamento" cada. Sem `dealId` no contexto, o negócio é o aberto
+         * da pessoa no funil padrão — o do atendimento, que é onde a regra do
+         * agente age.
+         */
+        const funil = await funilPadrao(context.workspaceId)
         const deal = context.dealId
             ? await prisma.deal.findFirst({
                   where: { id: context.dealId, workspaceId: context.workspaceId },
-                  select: { id: true },
+                  select: { id: true, stageId: true, stage: { select: { pipelineId: true } } },
               })
             : await prisma.deal.findFirst({
                   where: {
                       workspaceId: context.workspaceId,
                       contactId: context.contactId,
                       status: 'open',
+                      ...noFunil(funil?.id ?? ''),
                   },
                   orderBy: { createdAt: 'desc' },
-                  select: { id: true },
+                  select: { id: true, stageId: true, stage: { select: { pipelineId: true } } },
               })
 
         if (!deal) {
@@ -294,14 +301,14 @@ export class RuleExecutor {
             return
         }
 
+        const stage = await this.resolveStage(params, context.workspaceId, deal.stage.pipelineId)
+        if (!stage) throw new Error('move_pipeline could not resolve the target stage')
+
         /**
-         * Buscado antes do update: depois ele já é o novo, e "mudou de etapa"
+         * Lido antes do update: depois ele já é o novo, e "mudou de etapa"
          * deixaria de ser distinguível de "já estava nela".
          */
-        const antes = await prisma.deal.findUnique({
-            where: { id: deal.id },
-            select: { stageId: true },
-        })
+        const antes = { stageId: deal.stageId }
 
         await prisma.deal.update({
             where: { id: deal.id },
@@ -317,7 +324,8 @@ export class RuleExecutor {
 
     private async resolveStage(
         params: Record<string, unknown>,
-        workspaceId: string
+        workspaceId: string,
+        pipelineId: string | null
     ): Promise<{ id: string } | null> {
         if (params.stageId) {
             return prisma.pipelineStage.findFirst({
@@ -326,9 +334,12 @@ export class RuleExecutor {
             })
         }
 
+        // Por nome, **dentro do funil do negócio**: é a forma portável — a que
+        // o mover-agente-entre-unidades grava —, e dois funis podem ter fases
+        // homônimas. Sem funil (fase órfã), cai na unidade inteira, como antes.
         if (params.stageName) {
             return prisma.pipelineStage.findFirst({
-                where: { workspaceId, name: String(params.stageName) },
+                where: { workspaceId, name: String(params.stageName), ...(pipelineId ? { pipelineId } : {}) },
                 select: { id: true },
             })
         }

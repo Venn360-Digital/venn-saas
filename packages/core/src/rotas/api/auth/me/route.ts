@@ -69,7 +69,22 @@ export async function GET() {
                       membro.minutosParaAusente ?? MINUTOS_PARA_AUSENTE_PADRAO
                   )
                 : null,
+            /**
+             * O **escolhido** vai junto, cru, porque a bolinha passou a aplicar
+             * a escada no navegador, sobre o relógio do gesto (`usePresenca`).
+             * Para isso ela precisa do que a pessoa marcou e do degrau dela —
+             * sem os dois, ou reaplicaria a escada sobre um estado já derivado,
+             * ou usaria o padrão do sistema para quem tem outro número na ficha.
+             */
+            statusEscolhido: membro ? (membro.status as StatusDoMembro) : null,
+            minutosParaAusente: membro ? (membro.minutosParaAusente ?? MINUTOS_PARA_AUSENTE_PADRAO) : null,
             recebeConversas: membro?.recebeConversas ?? false,
+            /**
+             * Participação sintética — operador da plataforma dentro da conta
+             * de um cliente. A presença dele não é da equipe de lá, e a rota de
+             * batimento recusaria; o cliente usa isto para não insistir.
+             */
+            assumida: membro?.membershipId === 'assumida',
         })
     } catch (error) {
         console.error('[ME] Error:', error)

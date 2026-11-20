@@ -139,6 +139,7 @@ export function navSections(v: Vocabulario): NavSection[] {
         { label: "Templates", href: "/marketing/templates" },
         { label: "Domínios", href: "/marketing/remetentes" },
         { label: "Funis", href: "/marketing/funis" },
+        { label: "Formulários", href: "/marketing/formularios" },
       ],
     },
   ];
@@ -198,6 +199,7 @@ function segmentLabels(v: Vocabulario): Record<string, string> {
     listas: "Listas de contatos",
     templates: "Templates",
     remetentes: "Domínios",
+    formularios: "Formulários",
     descadastro: "Cancelar inscrição",
 
     onboarding: "Primeiros passos",

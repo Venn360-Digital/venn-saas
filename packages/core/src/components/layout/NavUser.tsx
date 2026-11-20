@@ -23,16 +23,28 @@ import {
 } from '@venn/ui/sidebar'
 import { signOut as encerrarSessao } from '../../lib/auth/cliente'
 import { esquecerUnidades } from '../../hooks/useUnidades'
+import { usePresenca } from '../../hooks/usePresenca'
 import { useVocab } from '../../hooks/useVocab'
 import { comArtigo } from '../../lib/concordancia'
+import type { StatusDoMembro } from '../../lib/conversas/distribuicao'
 
 interface Me {
     user: { id: string; email: string; name: string; avatar: string | null; initials: string }
     workspace: { id: string; name: string; slug: string } | null
     /** O estado **já com a escada aplicada** — o mesmo que o sistema usa. */
     disponibilidade?: string | null
-    /** Sem isto o seletor não aparece: quem não recebe não tem o que marcar. */
+    /** O que a pessoa marcou, cru — a bolinha reaplica a escada sobre o relógio local. */
+    statusEscolhido?: StatusDoMembro | null
+    /** O primeiro degrau da escada para esta pessoa, em minutos. */
+    minutosParaAusente?: number | null
+    /**
+     * Entra na distribuição automática. Desde 20/11/2026 **não** decide se o
+     * seletor aparece — só muda a dica de cada estado, que para quem recebe
+     * fala de fila e para os outros fala de presença.
+     */
     recebeConversas?: boolean
+    /** Operador da plataforma dentro da conta de um cliente: sem presença própria lá. */
+    assumida?: boolean
 }
 
 /**
@@ -42,18 +54,31 @@ interface Me {
  * distribuição. A diferença existe para a equipe saber se vale chamar no
  * particular, e a dica de cada item diz isso, porque quem lê "ocupado" supõe
  * que recebe *menos* quando recebe *nada*.
- */
-/**
- * O que a bolinha mostra. **A mesma conta do servidor**, para a tela e o
- * sistema nunca divergirem — foi esse descompasso o defeito da primeira versão.
  *
- * O limite vem do servidor junto com o status; sem ele, a bolinha mentiria para
- * a conta que configurou outro tempo.
+ * A dica tem duas versões. Para quem **não** entra na distribuição, falar de
+ * "receber conversa" seria dizer que o controle faz uma coisa que ele não faz;
+ * para essa pessoa o status é o que a equipe vê no painel — se está na mesa,
+ * se vale chamar, se saiu —, e a dica diz isso.
  */
 const ESTADOS = [
-    { id: 'disponivel', rotulo: 'Disponível', cor: 'text-success', dica: 'Recebe conversas novas' },
-    { id: 'ocupado', rotulo: 'Ocupado', cor: 'text-destructive', dica: 'Está aqui, mas não recebe' },
-    { id: 'ausente', rotulo: 'Ausente', cor: 'text-warning', dica: 'Não recebe' },
+    {
+        id: 'disponivel',
+        rotulo: 'Disponível',
+        cor: 'text-success',
+        dica: { recebe: 'Recebe conversas novas', naoRecebe: 'Na mesa, pode chamar' },
+    },
+    {
+        id: 'ocupado',
+        rotulo: 'Ocupado',
+        cor: 'text-destructive',
+        dica: { recebe: 'Está aqui, mas não recebe', naoRecebe: 'Está aqui, não interromper' },
+    },
+    {
+        id: 'ausente',
+        rotulo: 'Ausente',
+        cor: 'text-warning',
+        dica: { recebe: 'Não recebe', naoRecebe: 'Fora da mesa' },
+    },
 ] as const
 
 /** Inclui o cinza, que ninguém escolhe — ele vem da escada ou do logout. */
@@ -113,8 +138,26 @@ export function NavUser() {
      * que o usuário precise ver confirmado antes de seguir.
      */
     const [disponibilidade, setDisponibilidade] = useState<string | null>(null)
+    /**
+     * O que a pessoa marcou, separado do que a bolinha mostra: a escada só
+     * mexe no verde, então o escolhido é a entrada e a bolinha é a saída.
+     */
+    const [statusEscolhido, setStatusEscolhido] = useState<StatusDoMembro | null>(null)
 
-    const mudarStatus = async (status: string) => {
+    /**
+     * A presença medida pelo gesto. É ela que leva a bolinha ao amarelo quando
+     * a pessoa para, e de volta ao verde quando mexe — sem recarregar nada.
+     * Ver `usePresenca`.
+     */
+    usePresenca({
+        ativo: !!me?.workspace && !me?.assumida,
+        statusEscolhido,
+        minutosParaAusente: me?.minutosParaAusente ?? 0,
+        aoMudar: setDisponibilidade,
+    })
+
+    const mudarStatus = async (status: StatusDoMembro) => {
+        setStatusEscolhido(status)
         setDisponibilidade(status)
         await fetch('/api/me/disponibilidade', {
             method: 'PATCH',
@@ -127,11 +170,12 @@ export function NavUser() {
         let cancelled = false
         fetch('/api/auth/me')
             .then((res) => (res.ok ? res.json() : null))
-            .then((data) => {
+            .then((data: Me | null) => {
                 if (cancelled) return
                 if (data) {
                     setMe(data)
                     setDisponibilidade(data.disponibilidade ?? null)
+                    setStatusEscolhido(data.statusEscolhido ?? null)
                 }
                 setLoading(false)
             })
@@ -239,7 +283,7 @@ export function NavUser() {
                                     {me?.user.initials || 'U'}
                                 </AvatarFallback>
                             </Avatar>
-                            {me?.recebeConversas && disponibilidade ? <Bolinha estado={disponibilidade} /> : null}
+                            {disponibilidade && !me?.assumida ? <Bolinha estado={disponibilidade} /> : null}
                             </span>
                             <div className="grid flex-1 text-left text-sm leading-tight">
                                 <span className="truncate font-medium">{me?.user.name || 'Usuário'}</span>
@@ -278,11 +322,19 @@ export function NavUser() {
                             No topo porque é o item que se usa várias vezes ao
                             dia — os destinos abaixo se visitam uma vez por mês.
 
-                            Só aparece para quem entra na distribuição: marcar
-                            "disponível" sem receber conversa não quer dizer
-                            nada, e um controle que não faz efeito ensina a
-                            ignorar os outros. ─────────────────────────────── */}
-                        {me?.recebeConversas ? (
+                            Para todo mundo, desde 20/11/2026. Antes só quem
+                            entrava na distribuição via o seletor, e o dono da
+                            conta — que não recebe conversa — ficava sem
+                            bolinha e aparecia como ausente ou offline no
+                            painel da equipe. Status é presença: diz à equipe
+                            se a pessoa está na mesa, e isso vale para quem
+                            não atende fila também. O que muda entre os dois
+                            é a dica, não o controle.
+
+                            A exceção é a conta assumida: o operador da
+                            plataforma não tem participação de verdade ali, e a
+                            rota recusa. ─────────────────────────────────────── */}
+                        {me?.workspace && !me.assumida ? (
                             <>
                                 <DropdownMenuGroup>
                                     {ESTADOS.map((e) => (
@@ -292,8 +344,10 @@ export function NavUser() {
                                         >
                                             <Circle className={`size-2.5 fill-current ${e.cor}`} />
                                             <span className="flex-1">{e.rotulo}</span>
-                                            <span className="text-xs text-muted-foreground">{e.dica}</span>
-                                            {disponibilidade === e.id ? <Check className="size-4" /> : null}
+                                            <span className="text-xs text-muted-foreground">
+                                                {me.recebeConversas ? e.dica.recebe : e.dica.naoRecebe}
+                                            </span>
+                                            {statusEscolhido === e.id ? <Check className="size-4" /> : null}
                                         </DropdownMenuItem>
                                     ))}
                                 </DropdownMenuGroup>

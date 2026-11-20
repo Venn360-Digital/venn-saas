@@ -51,11 +51,17 @@ export function StageManagerDialog({
     open,
     onOpenChange,
     stages,
+    funilId,
     onChanged,
 }: {
     open: boolean
     onOpenChange: (open: boolean) => void
     stages: ManagedStage[]
+    /**
+     * Em qual funil a fase nova nasce. Sem ele a rota usa o padrão — que é o
+     * certo para quem só tem um, e errado para quem está olhando o segundo.
+     */
+    funilId?: string | null
     onChanged: () => void
 }) {
     const v = useVocab()
@@ -139,6 +145,7 @@ export function StageManagerDialog({
                     name,
                     color: newColor,
                     order: (sorted.at(-1)?.order ?? 0) + 1,
+                    ...(funilId ? { funilId } : {}),
                 }),
             })
             if (!res.ok) {
@@ -332,7 +339,7 @@ export function StageManagerDialog({
                                         onClick={() => { setDeleting(stage); setMoveTo('') }}
                                         aria-label={`Excluir fase ${stage.name}`}
                                         disabled={sorted.length <= 1}
-                                        title={sorted.length <= 1 ? 'A jornada precisa de pelo menos uma fase' : undefined}
+                                        title={sorted.length <= 1 ? 'O funil precisa de pelo menos uma fase' : undefined}
                                     >
                                         <Trash2 className="size-3.5 text-muted-foreground" />
                                     </Button>

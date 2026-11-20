@@ -39,6 +39,21 @@ const responseSpeedSchema = z.preprocess((value) => {
     return value
 }, z.number().min(0).max(MAX_RESPONSE_DELAY_SECONDS))
 
+/** Quantas linhas um aviso automático pode ter. Três: é mensagem de WhatsApp. */
+export const MAX_LINHAS_DO_AVISO = 3
+/** E quantos caracteres. O teto de uma mensagem curta, não de um parágrafo. */
+export const MAX_CHARS_DO_AVISO = 400
+
+/** Conta as linhas como a tela conta: quebras explícitas, sem contar a vazia do fim. */
+export function linhasDoAviso(texto: string): number {
+    return texto.replace(/\s+$/, '').split('\n').length
+}
+
+const textoDeAvisoSchema = z
+    .string()
+    .max(MAX_CHARS_DO_AVISO, `O texto passou de ${MAX_CHARS_DO_AVISO} caracteres`)
+    .refine((t) => linhasDoAviso(t) <= MAX_LINHAS_DO_AVISO, `No máximo ${MAX_LINHAS_DO_AVISO} linhas`)
+
 export const agentPreferencesSchema = z.object({
     /** Envia "digitando…" ao canal enquanto o modelo trabalha. */
     showTypingIndicator: z.boolean(),
@@ -103,6 +118,21 @@ export const agentPreferencesSchema = z.object({
      * ninguém pedir.
      */
     inactivityCloseMinutes: z.number().int().min(0).max(43_200),
+
+    /**
+     * O texto da cutucada e o da despedida, escritos pela clínica.
+     *
+     * Pedido do Andre em 20/11/2026: os dois saíam de `auto-notice.ts`, iguais
+     * para toda clínica ("O senhor/a senhora ainda está por aí?"), e cada uma
+     * fala de um jeito. Vazio usa o texto do sistema, que é o que valia antes
+     * — então ligar a régua sem escrever nada continua funcionando.
+     *
+     * **Até três linhas**, negrito do WhatsApp (`*assim*`) e emoji: é uma
+     * mensagem de WhatsApp, e a tela diz isso. O teto de caracteres é o de uma
+     * mensagem curta; a régua não é lugar de parágrafo.
+     */
+    inactivityNudgeText: textoDeAvisoSchema,
+    inactivityFarewellText: textoDeAvisoSchema,
 })
 
 export type AgentPreferences = z.infer<typeof agentPreferencesSchema>
@@ -192,6 +222,9 @@ export const DEFAULT_AGENT_PREFERENCES: AgentPreferences = {
      */
     inactivityNudgeMinutes: 30,
     inactivityCloseMinutes: 24 * 60,
+    // Vazio: o texto do sistema (`auto-notice.ts`), até a clínica escrever o seu.
+    inactivityNudgeText: '',
+    inactivityFarewellText: '',
 }
 
 /**
@@ -234,6 +267,8 @@ export const UNCONFIGURED_AGENT_PREFERENCES: AgentPreferences = {
      */
     inactivityNudgeMinutes: 0,
     inactivityCloseMinutes: 0,
+    inactivityNudgeText: '',
+    inactivityFarewellText: '',
 }
 
 /** Se a clínica chegou a gravar preferência alguma para este agente. */
