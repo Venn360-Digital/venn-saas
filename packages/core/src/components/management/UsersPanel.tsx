@@ -241,19 +241,19 @@ export const UsersPanel = forwardRef<UsersPanelHandle, object>(function UsersPan
              * Status e quer dizer outra coisa — se a pessoa tem acesso. Dois
              * "status" na mesma tabela seriam duas perguntas com o mesmo nome.
              *
-             * Quem não recebe conversas aparece como traço, e não como
-             * "Ausente": ausente é estado de quem participa da distribuição e
-             * está fora agora; quem nunca participa não tem disponibilidade.
+             * Para todo mundo, desde 20/11/2026. Quem não recebe conversas
+             * aparecia como traço, com a tese de que "quem nunca participa não
+             * tem disponibilidade" — mas disponibilidade é presença, não fila:
+             * o dono que não atende também está ou não está na mesa, e a
+             * equipe precisa saber. O que marca quem entra na distribuição é
+             * o campo "Recebe conversas" da ficha, não um traço aqui.
              */
             id: 'disponibilidade',
             header: 'Disponibilidade',
             sortable: true,
-            sortValue: (u) => (u.recebeConversas ? u.disponibilidade : ''),
+            sortValue: (u) => u.disponibilidade,
             hideBelow: 'md',
-            cell: (u) =>
-                u.recebeConversas
-                    ? <StatusBadge value={u.disponibilidade} map={DISPONIBILIDADE} />
-                    : <span className="text-muted-foreground" title="Não entra na distribuição de conversas">—</span>,
+            cell: (u) => <StatusBadge value={u.disponibilidade} map={DISPONIBILIDADE} />,
         },
         {
             id: 'status',

@@ -435,6 +435,46 @@ function construir() {
             },
         },
 
+        databaseHooks: {
+            session: {
+                create: {
+                    /**
+                     * **Entrar devolve ao verde.** Pedido do Andre em 20/11/2026:
+                     * quem loga nasce "Disponível", em todas as unidades de que
+                     * participa (PRODUCT.md §14).
+                     *
+                     * Antes isso era por inversão — o logout gravava
+                     * `desconectado` e o primeiro pedido autenticado desfazia —,
+                     * o que só cobria quem saía pelo menu. Sessão que expirou
+                     * sozinha (4 h parada) deixava a pessoa no estado em que
+                     * estava: quem tinha se marcado `ocupado` ontem voltava hoje
+                     * `ocupado`, e quem nunca mexeu no menu ficava no `ausente`
+                     * do cadastro para sempre.
+                     *
+                     * O gancho roda a cada sessão criada — login e cadastro —,
+                     * e **não** na renovação (`updateAge`), que é `update`.
+                     * `ultimaAtividadeEm` entra junto porque a escada trata o
+                     * verde sem atividade como desconectado (ver `estadoVisivel`),
+                     * e logar é a atividade.
+                     *
+                     * Nunca lança: falhar aqui não pode impedir o login. A
+                     * inversão antiga continua em `getWorkspaceMember` como rede.
+                     */
+                    after: async (session) => {
+                        const agora = new Date()
+                        await prisma.workspaceUser
+                            .updateMany({
+                                where: { userId: session.userId, isActive: true },
+                                data: { status: 'disponivel', statusEm: agora, ultimaAtividadeEm: agora },
+                            })
+                            .catch((erro: unknown) => {
+                                console.warn('[AUTH] não deu para marcar disponível ao entrar:', String(erro))
+                            })
+                    },
+                },
+            },
+        },
+
         advanced: {
             database: {
                 /**

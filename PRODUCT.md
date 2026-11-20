@@ -6,7 +6,7 @@ este documento e a implementação, **o documento está certo e o código é o b
 O sistema visual mora em [`DESIGN.md`](DESIGN.md). Aqui ficam as regras de
 negócio: avaliação, planos, créditos, limites e retenção.
 
-Última revisão: 17 de outubro de 2026.
+Última revisão: 20 de novembro de 2026.
 
 ---
 
@@ -810,7 +810,54 @@ sido provado contra o sandbox é a ordem errada de fazer as coisas.
 
 ---
 
-## 14. O que ainda não existe
+## 14. Disponibilidade e presença
+
+Decidido com o Andre em 2026-11-20. Vale para os três produtos.
+
+**Status é presença, não fila.** Os quatro estados — Disponível (verde),
+Ocupado (vermelho), Ausente (amarelo), Desconectado (cinza) — dizem à equipe
+se a pessoa está na mesa, se vale chamar no particular, se saiu. Isso é
+independente de a pessoa **receber conversas**: o dono que não atende fila
+também está ou não está na mesa. Por isso o seletor na barra lateral, a
+bolinha sobre o retrato e a coluna Disponibilidade da lista de Usuários
+aparecem para **todo mundo**. Antes só quem entrava na distribuição os via, e o
+dono da conta aparecia como ausente ou offline para a própria equipe.
+
+**O que "Recebe conversas" decide é só a distribuição automática.** É a única
+coisa que o flag decide, e continua sendo: rodízio e balanceado só escolhem
+entre quem o tem ligado. O status de quem não o tem não faz a pessoa receber
+nada — e, ao contrário, importa onde já importava: quem é responsável por uma
+conversa (assumiu, recebeu por transferência) e se marca Ocupado ou cai em
+Ausente deixa a entrega ir para a fila geral, que é a regra do handoff para
+qualquer responsável. Ninguém espera atendimento parado com quem saiu.
+
+**Entrar devolve ao verde.** Toda sessão nova — login ou cadastro — marca a
+pessoa Disponível em todas as unidades de que participa. Vale para quem saiu
+pelo menu e para quem a sessão expirou sozinha: ontem Ocupado, hoje Disponível.
+
+**Ausente é quem parou de mexer no computador.** O relógio da presença é o
+**gesto** — teclado, mouse, roda, toque —, contado pelo navegador e gravado a
+cada dois minutos só quando houve gesto. Depois de `Ausência` minutos sem gesto
+(campo da ficha da pessoa; o padrão do sistema é 60), o verde vira amarelo; ao
+mexer de novo volta ao verde na hora, sem clique. Depois de oito horas sem
+gesto, cinza. Até 2026-11-20 o relógio era a requisição ao servidor, e isso
+media a aba e não a pessoa: a tela de conversas relê a lista a cada minuto, e
+uma aba aberta sobre uma mesa vazia mantinha a pessoa verde para sempre.
+
+**A escolha manual é pegajosa.** A escada só mexe em quem está verde. Quem se
+marca Ocupado para uma reunião, ou Ausente para o almoço, fica onde se pôs até
+mudar no menu ou até o próximo login — um gesto não desfaz uma escolha. É o que
+impede alguém voltar a receber lead por ter aberto o sistema para conferir um
+horário.
+
+**O que a pessoa vê é o que o sistema usa.** A bolinha, a lista de Usuários, o
+painel de equipe e a distribuição aplicam a mesma função sobre os mesmos dados.
+Tela dizendo uma coisa e distribuição fazendo outra foi o defeito da primeira
+versão, e não volta.
+
+---
+
+## 15. O que ainda não existe
 
 Registrado para não ser esquecido:
 

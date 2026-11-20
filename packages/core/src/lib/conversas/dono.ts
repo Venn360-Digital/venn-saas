@@ -93,6 +93,10 @@ export async function elegiveisDaLinha(
         ultimaAtribuicao: porUltima.get(m.userId) ?? null,
         abertas: porAbertas.get(m.userId) ?? 0,
         ultimaAtividadeEm: m.ultimaAtividadeEm,
+        // A paciência da pessoa vinha no `select` e não chegava à decisão: a
+        // ficha dizia 120 min e a distribuição usava 60. `estaDisponivel` lê
+        // daqui com `??`, então nulo continua caindo no padrão do sistema.
+        minutosParaAusente: m.minutosParaAusente,
     }))
 }
 
@@ -234,6 +238,7 @@ export async function donoDisponivel(
             ultimaAtribuicao: null,
             abertas: 0,
             ultimaAtividadeEm: m.ultimaAtividadeEm,
+            minutosParaAusente: m.minutosParaAusente,
         },
         politica.minutosParaAusente
     )

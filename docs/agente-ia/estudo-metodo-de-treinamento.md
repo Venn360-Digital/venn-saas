@@ -1002,9 +1002,13 @@ job: mesmo resultado, sem cron, sem escrita periódica, sem um estado a mais par
 divergir — e, por ser conta pura, provável sem banco.
 
 Não confundir com presença por sessão, descartada em 11.1: sessão dura 7 dias e
-não diz quem está na mesa. Isto é ação real na aplicação, tocada num lugar só
-(`getWorkspaceMember`) e com folga de 5 minutos, porque num Worker cada escrita
-é conexão segurada no Neon.
+não diz quem está na mesa. Isto é **gesto real** — teclado, mouse, toque —
+contado pelo navegador (`usePresenca`) e gravado por `POST /api/me/atividade`
+a cada dois minutos, só quando houve gesto. Até 20/11/2026 o relógio era tocado
+em `getWorkspaceMember`, a cada requisição autenticada: parecia a mesma coisa e
+media outra, porque o polling da tela de conversas mantinha a pessoa verde
+enquanto a aba estivesse aberta, e a queda para ausente só acontecia com a aba
+fechada. Ver PRODUCT.md §14.
 
 **Duas regras que a escada precisa respeitar:**
 

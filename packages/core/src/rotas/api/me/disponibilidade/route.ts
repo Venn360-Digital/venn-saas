@@ -50,9 +50,22 @@ export async function PATCH(request: NextRequest) {
     }
 
 
+    const agora = new Date()
     await prisma.workspaceUser.update({
         where: { id: auth.member.membershipId },
-        data: { status: parsed.data.status, statusEm: new Date() },
+        data: {
+            status: parsed.data.status,
+            statusEm: agora,
+            /**
+             * Escolher é mexer. Sem isto, quem clica em "Disponível" depois de
+             * uma hora parado continuaria amarelo pela escada — o status
+             * gravado diria verde e `estadoVisivel` diria ausente, que é a
+             * divergência que a bolinha existe para não ter. Antes o próprio
+             * pedido tocava o relógio em `getWorkspaceMember`; desde que o
+             * relógio é o gesto (`usePresenca`), a escolha grava o dela.
+             */
+            ultimaAtividadeEm: agora,
+        },
     })
 
     /**
@@ -65,8 +78,13 @@ export async function PATCH(request: NextRequest) {
      *
      * Em segundo plano e sem `await`: quem clicou em "disponível" não tem de
      * esperar a varredura, e se ela falhar o status já ficou gravado.
+     *
+     * Só para quem entra na distribuição. Desde 20/11/2026 o seletor aparece
+     * para todo mundo — o status é presença, não só fila —, e varrer a fila
+     * quando um dono que não recebe conversas fica verde não teria a quem
+     * entregar além dos outros, que já são varridos quando eles mesmos voltam.
      */
-    if (parsed.data.status === 'disponivel') {
+    if (parsed.data.status === 'disponivel' && auth.member.recebeConversas) {
         void varrerFilaSemDono(auth.member.workspaceId, auth.member.userId)
     }
 
