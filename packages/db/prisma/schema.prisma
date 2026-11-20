@@ -3096,7 +3096,16 @@ model LeadForm {
   /// A origem comercial que a ficha nova recebe — a mesma lista da linha e do
   /// negócio (PRODUCT.md §10). Nula é "não sabemos", que é resposta válida.
   originId String?
-  /// Quem fica responsável pelo negócio criado. Nulo: nasce sem dono, na fila.
+  /// **Aposentada em 20/11/2026, e a coluna fica.**
+  ///
+  /// Era o responsável fixo do negócio criado. O Andre trocou a regra: o lead
+  /// é distribuído pela política da conta — rodízio ou balanceado, respeitando
+  /// "só disponíveis" —, a mesma das conversas (PRODUCT.md §17). Um nome fixo
+  /// no formulário mandava todo lead para a mesma pessoa, inclusive de férias.
+  ///
+  /// Nenhum código a lê. Derrubá-la seria migração destrutiva por um campo que
+  /// não incomoda; sai na próxima fase contract, junto do `NOT NULL` de
+  /// `pipeline_stages.pipelineId`.
   assignedUserId String?
 
   createdAt DateTime @default(now())

@@ -231,6 +231,10 @@ const PROVAS = [
     // biblioteca e a validação do formulário de captura.
     'test:xlsx',
     'test:formularios',
+    // E a página pública do formulário renderizada DE VERDADE: é a única prova
+    // de que o fundo transparente está no HTML, e a única que pega leitura de
+    // browser no corpo do componente (a classe do Error 1101).
+    'test:formulario-ssr',
     'test:retratos',
     'test:recortes',
     'test:portao',

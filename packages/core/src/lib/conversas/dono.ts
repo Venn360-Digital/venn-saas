@@ -113,6 +113,43 @@ async function politicaDo(workspaceId: string) {
 }
 
 /**
+ * Quem seria o próximo da fila — **a decisão, sem conversa nenhuma**.
+ *
+ * Mesma política e mesmos elegíveis de `darDono`: estratégia da conta
+ * (rodízio ou balanceado), o interruptor "só disponíveis", `recebeConversas`
+ * por pessoa e o departamento da linha. O que muda é não haver o que gravar.
+ *
+ * Existe porque o lead de um **formulário de captura** também é distribuído
+ * (PRODUCT.md §17, decisão do Andre em 20/11/2026: "deve ser as mesmas regras
+ * da atribuição de conversas que já existe, ao invés de ser apenas 1
+ * responsável"), e ele produz um negócio mesmo quando não há conversa — a
+ * pessoa que deixou só o e-mail, por exemplo. Reescrever a escolha no caminho
+ * do formulário seria ter duas regras de rodízio que um dia discordam.
+ *
+ * `null` é resposta legítima: estratégia `nenhuma`, equipe toda indisponível
+ * com o interruptor ligado, ou ninguém marcado como quem recebe. Nos três o
+ * registro nasce **sem dono**, na fila — e é a varredura de
+ * `varrerFilaSemDono` que lhe dá um quando alguém ficar disponível, pelo lado
+ * da conversa.
+ */
+export async function proximoResponsavel(
+    workspaceId: string,
+    integrationId: string | null
+): Promise<string | null> {
+    try {
+        const politica = await politicaDo(workspaceId)
+        if (politica.estrategia === 'nenhuma') return null
+
+        const elegiveis = await elegiveisDaLinha(workspaceId, integrationId)
+        return escolherDono(elegiveis, politica, politica.minutosParaAusente)
+    } catch (erro) {
+        // Distribuir é melhoria, não requisito — a mesma regra de `darDono`.
+        log.warn(`não deu para escolher responsável em ${workspaceId}: ${String(erro)}`)
+        return null
+    }
+}
+
+/**
  * Dá dono a uma conversa que ainda não tem. Devolve o `userId`, ou `null`.
  *
  * **Idempotente por desenho:** o `updateMany` exige `assignedTo: null`, então
@@ -193,12 +230,55 @@ export async function darDono(entrada: {
         if (r.count === 0) return null
 
         log.info(`conversa ${entrada.conversationId} → ${escolhido} (${politica.estrategia})`)
+        await herdarNoNegocio(entrada.workspaceId, entrada.conversationId, escolhido)
         return escolhido
     } catch (erro) {
         // Distribuir é melhoria, não requisito: falhar aqui não pode impedir a
         // mensagem de ser atendida.
         log.warn(`não deu para distribuir ${entrada.conversationId}: ${String(erro)}`)
         return null
+    }
+}
+
+/**
+ * O negócio aberto desta pessoa herda o dono que a conversa acabou de ganhar.
+ *
+ * ## Por que isto não é enfeite
+ *
+ * O produto promete que "no negócio que nasce da primeira mensagem o dono é
+ * quem assume a conversa" (PRODUCT.md §11). A promessa valia no instante da
+ * criação e só ali: com o interruptor "só disponíveis" ligado e a equipe toda
+ * fora, a conversa **e** o negócio nasciam órfãos, e a varredura de
+ * `varrerFilaSemDono` dava dono à conversa de manhã e deixava o negócio sem
+ * ninguém — para sempre, porque nada mais olha para ele. O lead de formulário
+ * tornou o caso comum (ele cria negócio em toda chegada), e é parte do que o
+ * Andre pediu em 20/11/2026: se todo mundo estiver indisponível, o registro
+ * entra na fila do rodízio — e entrar na fila só vale se a fila entregar.
+ *
+ * ## Só preenche o vazio
+ *
+ * `userId: null` na condição, nunca sobrescrita: negócio que já tem
+ * responsável é decisão de alguém — do rodízio anterior ou de quem o puxou na
+ * mão — e trocar isso por causa de uma conversa seria tirar da carteira de uma
+ * pessoa o que ela já tinha.
+ *
+ * Nunca lança: é o fim do caminho da distribuição, e a conversa já tem dono.
+ */
+async function herdarNoNegocio(workspaceId: string, conversationId: string, dono: string): Promise<void> {
+    try {
+        const conversa = await prisma.conversation.findFirst({
+            where: { id: conversationId, workspaceId },
+            select: { contactId: true },
+        })
+        if (!conversa?.contactId) return
+
+        const r = await prisma.deal.updateMany({
+            where: { workspaceId, contactId: conversa.contactId, status: 'open', userId: null },
+            data: { userId: dono },
+        })
+        if (r.count > 0) log.info(`${r.count} negócio(s) de ${conversa.contactId} → ${dono}`)
+    } catch (erro) {
+        log.warn(`não deu para herdar o dono no negócio de ${conversationId}: ${String(erro)}`)
     }
 }
 

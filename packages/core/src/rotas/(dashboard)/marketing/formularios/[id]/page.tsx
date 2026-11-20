@@ -22,7 +22,7 @@ export default async function FormularioEditorPage({ params }: { params: Promise
     const { id } = await params
     const membro = await membroOuLogin()
 
-    const [form, origens, etiquetas, pessoas, h] = await Promise.all([
+    const [form, origens, etiquetas, h] = await Promise.all([
         prisma.leadForm.findFirst({
             where: { id, workspaceId: membro.workspaceId },
             include: { _count: { select: { submissions: true } } },
@@ -36,11 +36,6 @@ export default async function FormularioEditorPage({ params }: { params: Promise
             where: { workspaceId: membro.workspaceId },
             orderBy: { name: 'asc' },
             select: { id: true, name: true, color: true },
-        }),
-        prisma.workspaceUser.findMany({
-            where: { workspaceId: membro.workspaceId, isActive: true },
-            orderBy: { user: { name: 'asc' } },
-            select: { userId: true, user: { select: { name: true, lastName: true } } },
         }),
         headers(),
     ])
@@ -67,16 +62,10 @@ export default async function FormularioEditorPage({ params }: { params: Promise
                 campos: lerCampos(form.fields),
                 config: lerConfiguracao(form.settings),
                 originId: form.originId,
-                assignedUserId: form.assignedUserId,
                 envios: form._count.submissions,
             }}
-            organizacao={membro.workspaceId}
             origens={origens}
             etiquetas={etiquetas}
-            pessoas={pessoas.map((p) => ({
-                userId: p.userId,
-                name: [p.user.name, p.user.lastName].filter(Boolean).join(' ') || 'Sem nome',
-            }))}
             baseUrl={baseUrl}
             marca={BRAND().name}
         />

@@ -31,6 +31,16 @@ import { talvezEntrarNoFunil } from './entrar'
  * dispara: ele cria contato e negócio dentro do caminho de mensagem recebida, e
  * esse caminho já tem o agente de IA respondendo. Funil por cima disso falaria
  * junto com o agente, na mesma conversa.
+ *
+ * ## Onde ele passou a entrar: o formulário de captura
+ *
+ * O envio de um formulário dispara dois destes pontos — `contatoCriado` quando
+ * a ficha é nova, e `etiquetasAplicadas` para a etiqueta que a ficha ainda não
+ * tinha (decisão do Andre em 20/11/2026). É o oposto da importação em massa, e
+ * pela mesma régua: o formulário é **uma pessoa chegando agora**, por vontade
+ * dela, e quem escolhe o critério é o cliente, marcando a etiqueta no
+ * formulário. A etiqueta que a ficha já tinha não dispara: "aplicada" tem de
+ * querer dizer aplicada, senão o funil de nutrição recomeçaria a cada visita.
  */
 
 /** Uma etiqueta foi aplicada a um contato. */

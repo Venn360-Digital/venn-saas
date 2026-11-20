@@ -213,27 +213,128 @@ export function escreverMencao(nome: string, userId: string): string {
     return `@[${nome.replace(/]/g, ' ').slice(0, 80)}](${userId})`
 }
 
-/**
- * Troca o `@algo` sob o cursor pela menção escolhida.
- *
- * Devolve o texto novo **e onde o cursor deve ficar** — depois do espaço que
- * segue a menção. Sem isso a tela teria de recalcular a posição, e errar nisso
- * põe o cursor no meio de `@[Ana](cku…)`, onde a próxima tecla destrói a
- * marcação sem que nada pareça errado na tela.
+// ──────────────── A menção LEGÍVEL, que é a que se digita ─────────────────
+
+/*
+ * Houve aqui uma `inserirMencao` que escrevia `@[Nome](id)` direto no campo.
+ * Saiu em 20/11/2026: ninguém mais insere a forma canônica enquanto se digita,
+ * e deixar as duas funções lado a lado era convidar o próximo seletor a usar a
+ * errada — o id de volta no meio da frase, que é justamente o que o Andre
+ * pediu para tirar. Quem escreve a forma canônica agora é
+ * `aplicarMencoesEscolhidas`, na saída, e `notaDeMarcacaoEmMensagem`.
  */
-export function inserirMencao(
+
+/**
+ * Quem foi escolhido no seletor, na ordem em que foi escolhido.
+ *
+ * O compositor do chat mostra `@Nome` — e não `@[Nome](id)`, que é a sintaxe
+ * gravada. Pedido do Andre em 20/11/2026: "após escolher o colega fica o texto
+ * no chat assim: `@[Roberto2 Alves2](cmwez…)`, se possível deixe apenas o nome
+ * do colega".
+ *
+ * O id não cabe na tela, mas é ele que identifica a pessoa (duas Anas é o caso
+ * que fez o formato nascer assim — ver o cabeçalho deste módulo). A saída é
+ * separar as duas coisas: o **texto** fica legível, e o id viaja nesta lista,
+ * que o envio usa para montar a sintaxe canônica.
+ */
+export interface Escolhido {
+    userId: string
+    nome: string
+}
+
+/**
+ * Insere `@Nome ` no lugar do `@algo` sob o cursor — sem o id.
+ *
+ * Mora aqui, ao lado de quem lê a menção, pelo mesmo motivo que a conversão:
+ * o escritor e o leitor no mesmo arquivo é o que impede o seletor de produzir
+ * um formato que o `extrairMencoes` não reconheça depois da conversão.
+ */
+export function inserirMencaoLegivel(
     texto: string,
     cursor: number,
-    nome: string,
-    userId: string
+    nome: string
 ): { texto: string; cursor: number } {
     const antes = texto.slice(0, cursor)
     const corte = antes.lastIndexOf('@')
     if (corte < 0) return { texto, cursor }
 
-    const marcacao = escreverMencao(nome, userId) + ' '
+    const marcacao = `@${nome.trim()} `
     const novoTexto = texto.slice(0, corte) + marcacao + texto.slice(cursor)
     return { texto: novoTexto, cursor: corte + marcacao.length }
+}
+
+/**
+ * Troca cada `@Nome` legível pela sintaxe canônica `@[Nome](id)`.
+ *
+ * Três regras, e nenhuma é detalhe:
+ *
+ * 1. **o nome mais longo casa primeiro.** Com "Ana" e "Ana Paula" na equipe,
+ *    trocar "Ana" antes cortaria "Ana Paula" no meio e deixaria `@[Ana](u1)
+ *    Paula` no texto — a segunda pessoa viraria prosa.
+ * 2. **uma escolha por ocorrência, na ordem.** Duas pessoas de mesmo nome
+ *    produzem `@Ana` duas vezes, e o texto não as distingue; as escolhas são
+ *    consumidas na ordem em que foram feitas, que é a única leitura
+ *    determinística disponível — e é a ordem que quem escreveu usou.
+ * 3. **escolha sem o nome no texto é descartada.** Quem apagou `@Ana` depois de
+ *    escolher não marcou ninguém, e marcar assim mesmo poria na conversa um
+ *    colaborador que a nota não explica.
+ */
+export function aplicarMencoesEscolhidas(texto: string, escolhidos: readonly Escolhido[]): string {
+    if (!texto || escolhidos.length === 0) return texto
+
+    // Uma fila por nome, preservando a ordem de escolha (regra 2).
+    const filas = new Map<string, string[]>()
+    for (const e of escolhidos) {
+        const nome = e.nome.trim()
+        if (!nome) continue
+        const fila = filas.get(nome) ?? []
+        fila.push(e.userId)
+        filas.set(nome, fila)
+    }
+
+    // Do nome mais longo para o mais curto (regra 1).
+    const nomes = [...filas.keys()].sort((a, b) => b.length - a.length)
+
+    let saida = texto
+    for (const nome of nomes) {
+        const fila = filas.get(nome) ?? []
+        // `@` que não venha colado em letra ou dígito — a mesma recusa do
+        // gatilho, para um e-mail no texto não virar menção na conversão.
+        const marca = `@${nome}`
+        let de = 0
+        while (fila.length > 0) {
+            const i = saida.indexOf(marca, de)
+            if (i < 0) break
+            const anterior = i > 0 ? saida[i - 1] : ''
+            const seguinte = saida[i + marca.length] ?? ''
+            const noMeioDeUmaPalavra = anterior && /[\p{L}\p{N}._%+-]/u.test(anterior)
+            // O nome não pode continuar: `@Ana` não casa dentro de `@Anabela`.
+            const nomeContinua = /[\p{L}\p{N}]/u.test(seguinte)
+            if (noMeioDeUmaPalavra || nomeContinua) {
+                de = i + marca.length
+                continue
+            }
+            const userId = fila.shift() as string
+            const canonica = escreverMencao(nome, userId)
+            saida = saida.slice(0, i) + canonica + saida.slice(i + marca.length)
+            de = i + canonica.length
+        }
+    }
+
+    return saida
+}
+
+/**
+ * Há alguma menção legível a aplicar? É o que a faixa de aviso lê, e o que
+ * decide se a mensagem vai como nota interna.
+ *
+ * Compara contra o texto convertido em vez de procurar `@` solto: `@` em prosa
+ * ("manda pro joao@x.com", "preço @ 10") não é menção de ninguém, e tratá-lo
+ * como tal mandaria para a nota interna uma mensagem que era para a pessoa
+ * atendida.
+ */
+export function temMencaoEscolhida(texto: string, escolhidos: readonly Escolhido[]): boolean {
+    return temMencao(aplicarMencoesEscolhidas(texto, escolhidos))
 }
 
 /** Quantos caracteres da mensagem citada entram na nota de marcação. */

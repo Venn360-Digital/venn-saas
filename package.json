@@ -101,6 +101,7 @@
         "test:mencoes": "tsx scripts/test-mencoes.ts",
         "test:xlsx": "tsx scripts/test-xlsx.ts",
         "test:formularios": "tsx scripts/test-formularios.ts",
+    "test:formulario-ssr": "tsx scripts/test-formulario-ssr.tsx",
         "test:retratos": "tsx --conditions=react-server scripts/test-retratos.ts",
         "test:recortes": "tsx --conditions=react-server scripts/test-recortes.ts",
         "test:portao": "tsx --conditions=react-server scripts/test-portao.ts",

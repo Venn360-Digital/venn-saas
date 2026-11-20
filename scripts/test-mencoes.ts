@@ -26,9 +26,11 @@ import {
     quemPassaAColaborar,
     escreverMencao,
     gatilhoDeMencao,
-    inserirMencao,
+    aplicarMencoesEscolhidas,
+    inserirMencaoLegivel,
     notaDeMarcacaoEmMensagem,
     temMencao,
+    temMencaoEscolhida,
 } from '@venn/core/lib/conversas/mencoes'
 
 let passou = 0
@@ -169,21 +171,102 @@ conferir(
 )
 conferir(']' + ' no nome não quebra o formato', escreverMencao('Ana] Paula', 'u1'), '@[Ana  Paula](u1)')
 
-// A inserção troca o `@an` pelo nome inteiro e deixa o cursor depois do espaço.
+/**
+ * A inserção troca o `@an` pelo **nome**, sem o id, e deixa o cursor depois do
+ * espaço. O id só volta ao texto no envio — é o pedido do Andre em 20/11/2026,
+ * e é o que as provas da conversão abaixo garantem.
+ */
 conferir(
-    'troca o que estava sendo digitado',
-    inserirMencao('olha isso @an', 13, 'Ana', 'u1'),
-    { texto: 'olha isso @[Ana](u1) ', cursor: 21 }
+    'troca o que estava sendo digitado pelo nome legível',
+    inserirMencaoLegivel('olha isso @an', 13, 'Ana'),
+    { texto: 'olha isso @Ana ', cursor: 15 }
 )
 conferir(
     'preserva o que vem depois do cursor',
-    inserirMencao('@an, pode ver?', 3, 'Ana', 'u1'),
-    { texto: '@[Ana](u1) , pode ver?', cursor: 11 }
+    inserirMencaoLegivel('@an, pode ver?', 3, 'Ana'),
+    { texto: '@Ana , pode ver?', cursor: 5 }
 )
 conferir(
     'sem @ antes do cursor não mexe no texto',
-    inserirMencao('sem marcação', 5, 'Ana', 'u1'),
+    inserirMencaoLegivel('sem marcação', 5, 'Ana'),
     { texto: 'sem marcação', cursor: 5 }
+)
+
+console.log('\n— o nome legível virando a sintaxe gravada —\n')
+
+conferir(
+    'o nome escolhido volta com o id',
+    aplicarMencoesEscolhidas('@Ana olha isso', [{ userId: 'u1', nome: 'Ana' }]),
+    '@[Ana](u1) olha isso'
+)
+conferir(
+    'sem escolha nenhuma o texto não muda',
+    aplicarMencoesEscolhidas('@Ana olha isso', []),
+    '@Ana olha isso'
+)
+
+// Regra 1: o nome mais longo casa primeiro, senão "Ana Paula" viraria
+// `@[Ana](u1) Paula` e a segunda pessoa viraria prosa.
+conferir(
+    'o nome mais longo casa primeiro',
+    aplicarMencoesEscolhidas('@Ana Paula confere?', [
+        { userId: 'u1', nome: 'Ana' },
+        { userId: 'u2', nome: 'Ana Paula' },
+    ]),
+    '@[Ana Paula](u2) confere?'
+)
+
+// Regra 2: duas pessoas de mesmo nome — o texto não as distingue, então as
+// escolhas são consumidas na ordem em que foram feitas.
+conferir(
+    'duas Anas saem na ordem em que foram escolhidas',
+    aplicarMencoesEscolhidas('@Ana e @Ana, vejam', [
+        { userId: 'u1', nome: 'Ana' },
+        { userId: 'u2', nome: 'Ana' },
+    ]),
+    '@[Ana](u1) e @[Ana](u2), vejam'
+)
+
+// Regra 3: quem apagou o nome depois de escolher não marcou ninguém.
+conferir(
+    'escolha cujo nome foi apagado é descartada',
+    aplicarMencoesEscolhidas('deixa pra depois', [{ userId: 'u1', nome: 'Ana' }]),
+    'deixa pra depois'
+)
+conferir(
+    'o id só entra no texto na conversão',
+    idsMencionados(aplicarMencoesEscolhidas('@Ana olha', [{ userId: 'cku9', nome: 'Ana' }])),
+    ['cku9']
+)
+
+// `@Ana` não casa dentro de `@Anabela`: o seletor que escolheu "Ana" não pode
+// marcá-la porque o nome dela é prefixo do nome de outra pessoa.
+conferir(
+    'nome que continua em outra palavra não casa',
+    aplicarMencoesEscolhidas('@Anabela chegou', [{ userId: 'u1', nome: 'Ana' }]),
+    '@Anabela chegou'
+)
+
+/**
+ * A faixa de aviso do compositor lê daqui: ela só aparece quando **há** uma
+ * escolha viva no texto, e não quando a pessoa digitou um `@` qualquer — a
+ * faixa prometendo nota interna sem que a menção exista seria uma mentira na
+ * tela.
+ */
+conferir(
+    'a faixa acende com a escolha viva no texto',
+    temMencaoEscolhida('@Ana olha', [{ userId: 'u1', nome: 'Ana' }]),
+    true
+)
+conferir(
+    'a faixa não acende com @ solto',
+    temMencaoEscolhida('@ olha', [{ userId: 'u1', nome: 'Ana' }]),
+    false
+)
+conferir(
+    'a faixa apaga quando o nome sai do texto',
+    temMencaoEscolhida('deixa pra depois', [{ userId: 'u1', nome: 'Ana' }]),
+    false
 )
 
 console.log('\n— marcar um colega numa mensagem (botão direito) —\n')

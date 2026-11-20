@@ -169,5 +169,43 @@ conferir(
 )
 conferir('id vem do rótulo, sem acento, único', [idParaCampo('Qual o interesse?', []), idParaCampo('Nome', ['nome'])], ['qual-o-interesse', 'nome-2'])
 
+console.log('\n— o que o envio produz, e a aparência —\n')
+
+/**
+ * Os três interruptores de "Depois do envio" nascem ligados: o formulário que
+ * alguém acabou de criar tem de captar lead de verdade sem passar por
+ * configuração. Quem quiser só a lista de envios desliga "criar contato" — e
+ * aí os outros dois não têm de onde pender.
+ */
+conferir(
+    'os três nascem ligados',
+    [CONFIGURACAO_PADRAO.criarContato, CONFIGURACAO_PADRAO.criarNegocio, CONFIGURACAO_PADRAO.iniciarConversa],
+    [true, true, true]
+)
+conferir(
+    'desligar o contato é o que fica gravado',
+    lerConfiguracao({ criarContato: false }).criarContato,
+    false
+)
+conferir(
+    'valor sem sentido nos interruptores volta ao padrão',
+    lerConfiguracao({ criarContato: 'talvez', iniciarConversa: 3 }),
+    CONFIGURACAO_PADRAO
+)
+
+// O fundo: sólido por padrão, porque o transparente só faz sentido embutido e
+// mudaria a cara de todo formulário que já existe.
+conferir('o fundo nasce sólido', CONFIGURACAO_PADRAO.aparencia.fundo, 'solido')
+conferir(
+    'o fundo transparente fica gravado',
+    lerConfiguracao({ aparencia: { cor: '#0E7C86', raio: 'suave', tema: 'claro', fundo: 'transparente' } }).aparencia.fundo,
+    'transparente'
+)
+conferir(
+    'fundo que não existe volta ao sólido',
+    lerConfiguracao({ aparencia: { fundo: 'vidro' } }).aparencia.fundo,
+    'solido'
+)
+
 console.log(`\n${passou} ok, ${falhou} falha(s)\n`)
 process.exit(falhou > 0 ? 1 : 0)
