@@ -63,7 +63,7 @@ export const TEXTO_DO_GATILHO: Record<TipoDeGatilho, string> = {
  */
 export const AJUDA_DO_GATILHO: Record<TipoDeGatilho, string> = {
     etiqueta_aplicada:
-        'O jeito mais controlado de pôr gente num funil: você escolhe quem, aplicando a etiqueta.',
+        'O jeito mais controlado de pôr gente num funil: você escolhe quem, aplicando a etiqueta. Os formulários de captura também aplicam etiqueta — é por aqui que o lead do site entra.',
     etapa_do_negocio:
         'Dispara ao entrar na etapa escolhida — não a cada salvamento do cartão, só na mudança.',
     entrou_na_lista:

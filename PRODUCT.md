@@ -996,9 +996,25 @@ pendem um do outro (decisão do Andre em 2026-11-20):
 3. **Começar o atendimento no WhatsApp** — ver abaixo, porque o que sai depende
    do canal.
 
-Ficha nova ainda liga o funil de boas-vindas. A ficha nasce com `createdVia:
-formulario` e a origem comercial que o formulário escolheu (§10: nula é
-resposta válida).
+A ficha nasce com `createdVia: formulario` e a origem comercial que o
+formulário escolheu (§10: nula é resposta válida).
+
+**O lead entra em funil de marketing pela etiqueta.** Decisão do Andre em
+2026-11-20, escolhida entre quatro caminhos possíveis. A etiqueta que o
+formulário aplica dispara o gatilho "quando uma etiqueta for aplicada", então
+quem decide se o lead vai para nutrição é o cliente, marcando a etiqueta no
+formulário — e um funil por etiqueta serve a vários formulários, ou um
+formulário a vários funis, sem campo novo em lugar nenhum. **Só a etiqueta nova
+para a ficha dispara**: quem já a tinha e preencheu de novo não recebeu
+etiqueta, e tratar isso como aplicação faria a nutrição recomeçar a cada visita.
+Ficha nova ainda liga o funil de boas-vindas (`contato_criado`), que é o outro
+fato e pode ser outro funil.
+
+É o caminho que também alcança **quem já era contato** — a ficha só é nova uma
+vez —, e isso importa justamente para quem deixou só o e-mail: o funil é o único
+canal que chega nele, porque o WhatsApp não. O passo de e-mail do funil exige
+remetente verificado na unidade; sem isso a passagem roda e o passo falha em
+definitivo.
 
 **A origem da ficha vale para o contato e para o negócio.** É a mesma coluna
 nas duas escritas, como em todo caminho do produto (§10). A **mídia** não: ela

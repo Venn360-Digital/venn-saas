@@ -5,7 +5,7 @@ import type { Prisma } from '@venn/db'
 import { widgetCors } from '@venn/core/lib/widget'
 import { dentroDoLimite, ipDaRequisicao } from '@venn/core/lib/limite'
 import { phoneVariants } from '@venn/core/lib/whatsapp/types'
-import { contatoCriado } from '@venn/core/lib/funil/disparos'
+import { contatoCriado, etiquetasAplicadas } from '@venn/core/lib/funil/disparos'
 import { proximoResponsavel } from '@venn/core/lib/conversas/dono'
 import { iniciarConversaDoLead } from '@venn/core/lib/formularios/conversa'
 import { primeiraFaseDoPadrao } from '@venn/core/lib/pipeline/funis'
@@ -42,7 +42,10 @@ import {
  *
  * - **criar contato**: a ficha (nova, ou a existente completada no que
  *   faltava — telefone é a chave, como em todo o produto) e as etiquetas.
- *   Desligado, nada mais acontece: negócio e conversa pendem da ficha.
+ *   Desligado, nada mais acontece: negócio e conversa pendem da ficha. A
+ *   etiqueta **nova** para a ficha liga funil de marketing; é assim que o lead
+ *   deste formulário entra em nutrição, e é o cliente que escolhe, marcando a
+ *   etiqueta aqui.
  * - **iniciar conversa**: o fio no atendimento, quando há WhatsApp válido e
  *   linha conectada — com a saudação do agente no QR e sem envio no canal
  *   oficial da Meta. Ver `iniciarConversaDoLead`.
@@ -52,7 +55,8 @@ import {
  * **O responsável sai da regra de distribuição da conta** (rodízio ou
  * balanceado, respeitando "só disponíveis"), nunca de um nome fixo no
  * formulário: é a mesma política das conversas, e PRODUCT.md §17 registra por
- * quê. Ficha nova ainda pode ligar o funil de boas-vindas (`contatoCriado`).
+ * quê. Os funis de marketing entram no fim: a ficha nova liga o de
+ * boas-vindas, e a etiqueta nova liga o que escutar aquela etiqueta.
  */
 
 export async function OPTIONS(request: NextRequest) {
@@ -196,12 +200,32 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         }
     }
 
+    /**
+     * As etiquetas do formulário — e **quais delas são novas para esta ficha**.
+     *
+     * A diferença importa porque a etiqueta aplicada liga funil de marketing
+     * (ver o disparo no fim desta rota). "Aplicada" tem de querer dizer
+     * aplicada: quem já tinha a etiqueta e preencheu o formulário de novo não
+     * recebeu etiqueta nenhuma, e tratar isso como aplicação faria o funil de
+     * nutrição recomeçar a cada visita — a trava de passagem ativa só segura
+     * enquanto a passagem anterior não concluiu.
+     *
+     * A consulta extra sai só quando o formulário tem etiqueta configurada.
+     */
+    let etiquetasNovas: string[] = []
     if (config.tagIds.length) {
         const etiquetas = await prisma.tag.findMany({
             where: { workspaceId, id: { in: config.tagIds } },
             select: { id: true },
         })
         if (etiquetas.length) {
+            const jaTinha = await prisma.contactTag.findMany({
+                where: { contactId: contato.id, tagId: { in: etiquetas.map((t) => t.id) } },
+                select: { tagId: true },
+            })
+            const dela = new Set(jaTinha.map((t) => t.tagId))
+            etiquetasNovas = etiquetas.map((t) => t.id).filter((id) => !dela.has(id))
+
             await prisma.contactTag.createMany({
                 data: etiquetas.map((t) => ({ contactId: contato!.id, tagId: t.id })),
                 skipDuplicates: true,
@@ -278,7 +302,31 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         }
     }
 
+    /**
+     * Os funis de marketing, **no fim e nesta ordem**.
+     *
+     * Depois da ficha, do envio, da conversa e do negócio de propósito: um
+     * passo de condição ("tem negócio aberto?", "tem etiqueta?") lê o banco no
+     * instante em que a passagem começa, e disparar antes deixaria o funil
+     * decidindo sobre um lead pela metade.
+     *
+     * São dois fatos diferentes e podem ligar funis diferentes:
+     *
+     * - **ficha nova** (`contato_criado`), que é o funil de boas-vindas;
+     * - **etiqueta aplicada** (`etiqueta_aplicada`), decisão do Andre em
+     *   20/11/2026 sobre como o lead de formulário entra em funil. É o caminho
+     *   mais controlado — quem escolhe é o cliente, marcando a etiqueta no
+     *   formulário — e o único que também pega **quem já era contato**: a ficha
+     *   só é nova uma vez, e o lead que volta pedindo outra coisa é justamente
+     *   quem se quer nutrir. Vale em especial para quem deixou só o e-mail, que
+     *   é quem o WhatsApp não alcança.
+     *
+     * Antes disto as etiquetas do formulário eram gravadas direto e o gatilho
+     * nunca acendia: o funil ficava publicado e ninguém entrava por ali, que é
+     * a falha silenciosa que `check:gatilhos` existe para evitar.
+     */
     if (novo) await contatoCriado(workspaceId, contato.id)
+    if (etiquetasNovas.length) await etiquetasAplicadas(workspaceId, contato.id, etiquetasNovas)
 
     return responder(
         {

@@ -833,6 +833,15 @@ function SecaoDestino({
                             )
                         })}
                     </div>
+                    {/* A etiqueta é também o caminho do funil de marketing, e
+                        dizer isso aqui é o que torna o caminho descobrível:
+                        quem monta o formulário é quem escolhe se o lead entra
+                        em nutrição, e antes nada na tela ligava as duas coisas. */}
+                    <p className="text-xs text-muted-foreground">
+                        A etiqueta também liga funil de marketing: um funil com o gatilho
+                        &quot;quando uma etiqueta for aplicada&quot; recebe este lead. Só quando a
+                        etiqueta for nova para a ficha.
+                    </p>
                 </div>
             ) : null}
         </div>
