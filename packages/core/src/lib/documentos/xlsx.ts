@@ -106,6 +106,13 @@ async function inflar(bytes: Uint8Array, entrada: EntradaDoZip): Promise<string>
      * `BlobPart` existe no `lib.dom` e **não** no `@cloudflare/workers-types`,
      * e o typecheck do Worker reprovou o build de preview por causa dele
      * (20/11/2026). O stream é o denominador comum dos dois ambientes.
+     *
+     * O `as` no transformador existe pelo motivo espelhado: o `writable` do
+     * `DecompressionStream` é `WritableStream<BufferSource>` no `lib.dom` e
+     * `WritableStream<ArrayBuffer | ArrayBufferView>` no Worker, e nenhum dos
+     * dois casa com o `Uint8Array` da fonte pela variância do genérico — o
+     * segundo build de preview reprovou nisso. Em runtime o par é o mesmo
+     * nos dois; a forma estrutural aqui é a que `pipeThrough` espera.
      */
     const fonte = new ReadableStream<Uint8Array>({
         start(controlador) {
@@ -113,7 +120,11 @@ async function inflar(bytes: Uint8Array, entrada: EntradaDoZip): Promise<string>
             controlador.close()
         },
     })
-    const fluxo = fonte.pipeThrough(new DecompressionStream('deflate-raw'))
+    const inflador = new DecompressionStream('deflate-raw') as unknown as {
+        readable: ReadableStream<Uint8Array>
+        writable: WritableStream<Uint8Array>
+    }
+    const fluxo = fonte.pipeThrough(inflador)
     return new Response(fluxo).text()
 }
 
