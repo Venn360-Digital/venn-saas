@@ -1,5 +1,3 @@
-import 'server-only'
-
 import prisma from '@venn/db/cliente'
 import type { Prisma } from '@venn/db'
 

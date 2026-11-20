@@ -227,6 +227,10 @@ const PROVAS = [
     'test:distribuicao',
     'test:marcacao',
     'test:mencoes',
+    // Entraram em 20/11/2026 com o lote FEATS v.01: o leitor de .xlsx sem
+    // biblioteca e a validação do formulário de captura.
+    'test:xlsx',
+    'test:formularios',
     'test:retratos',
     'test:recortes',
     'test:portao',

@@ -220,7 +220,10 @@ conferir('docx, txt, md e csv também', [
     ehFormatoLegivel('d.csv'),
 ], [true, true, true, true])
 conferir('.doc antigo NÃO é', ehFormatoLegivel('antigo.doc'), false)
-conferir('planilha não é — exigiria leitor de XLSX', ehFormatoLegivel('precos.xlsx'), false)
+// Planilha entrou em 20/11/2026, com leitor próprio (`lib/documentos/xlsx.ts`,
+// provado em `test:xlsx`). O `.xls` antigo é binário e continua fora, como o `.doc`.
+conferir('planilha .xlsx É legível, desde o leitor próprio', ehFormatoLegivel('precos.xlsx'), true)
+conferir('.xls antigo NÃO é', ehFormatoLegivel('precos.xls'), false)
 conferir(
     'imagem não é: ela tem caminho melhor, que é ir anexada ao modelo',
     ehFormatoLegivel('foto.jpg'),
