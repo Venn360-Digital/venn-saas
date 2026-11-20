@@ -101,7 +101,19 @@ async function inflar(bytes: Uint8Array, entrada: EntradaDoZip): Promise<string>
     if (entrada.metodo === 0) return new TextDecoder().decode(dados)
     if (entrada.metodo !== 8) throw new XlsxIlegivel(`método de compressão ${entrada.metodo} não suportado`)
 
-    const fluxo = new Blob([dados as BlobPart]).stream().pipeThrough(new DecompressionStream('deflate-raw'))
+    /**
+     * Um `ReadableStream` com o pedaço, e não `new Blob([dados])`: o tipo
+     * `BlobPart` existe no `lib.dom` e **não** no `@cloudflare/workers-types`,
+     * e o typecheck do Worker reprovou o build de preview por causa dele
+     * (20/11/2026). O stream é o denominador comum dos dois ambientes.
+     */
+    const fonte = new ReadableStream<Uint8Array>({
+        start(controlador) {
+            controlador.enqueue(dados)
+            controlador.close()
+        },
+    })
+    const fluxo = fonte.pipeThrough(new DecompressionStream('deflate-raw'))
     return new Response(fluxo).text()
 }
 
