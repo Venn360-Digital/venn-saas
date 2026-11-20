@@ -37,7 +37,7 @@ import {
     podeEditarAinda,
     type ChannelProvider,
 } from '@venn/core/lib/whatsapp/types'
-import { evolutionGo, idNaRespostaDeEnvio } from '@venn/core/lib/whatsapp/evolution-go'
+import { evolutionGo, idNaRespostaDeEnvio, jidDeDestino } from '@venn/core/lib/whatsapp/evolution-go'
 import { metaWhatsApp } from '@venn/core/lib/whatsapp/meta-whatsapp'
 import { instagramDirect } from '@venn/core/lib/instagram/provider'
 
@@ -131,6 +131,29 @@ conferir(
 )
 conferir('sem id nenhum devolve indefinido', idNaRespostaDeEnvio({ success: true }), undefined)
 conferir('resposta vazia devolve indefinido', idNaRespostaDeEnvio(undefined), undefined)
+
+console.log('\nO destino de apagar/editar vai como JID completo\n')
+
+/**
+ * O defeito do provedor que isto contorna, e por que o JID resolve.
+ *
+ * `/message/delete` e `/message/edit` resolvem o destinatário com `ParseJID`,
+ * que chama `CreateJID` — e o `CreateJID` da 0.7.2 **acrescenta `+` ao número**.
+ * `553131918001` vira `+553131918001@s.whatsapp.net`, com o `+` dentro do
+ * usuário, que não é endereço de ninguém. O whatsmeow envia e espera para
+ * sempre: quatro tentativas em produção morreram no nosso timeout de 20 s.
+ *
+ * O provedor tem a correção (`CanonicalJID`, que só faz `TrimPrefix(user, "+")`)
+ * e a chama nas rotas de reação e recibo — nestas duas, esqueceu.
+ *
+ * `CreateJID` devolve intacto o que já contém `@s.whatsapp.net`. Daí o contorno.
+ */
+conferir('dígitos ganham o sufixo', jidDeDestino('553131918001'), '553131918001@s.whatsapp.net')
+conferir('máscara é limpa antes', jidDeDestino('+55 (31) 3191-8001'), '553131918001@s.whatsapp.net')
+conferir('JID já pronto passa intacto', jidDeDestino('553131918001@s.whatsapp.net'), '553131918001@s.whatsapp.net')
+conferir('LID passa intacto, sem virar telefone', jidDeDestino('109315692208342@lid'), '109315692208342@lid')
+// A garantia que importa: NUNCA sai um `+`, que é o que pendura o provedor.
+conferir('nunca sobra "+" no resultado', jidDeDestino('+553131918001').includes('+'), false)
 
 console.log(`\n${ok} ok, ${falhas} falha(s)\n`)
 process.exit(falhas > 0 ? 1 : 0)

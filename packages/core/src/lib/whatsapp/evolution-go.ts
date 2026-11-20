@@ -183,6 +183,46 @@ interface SendData {
 }
 
 /**
+ * O destino de `/message/delete` e `/message/edit`, como **JID completo**.
+ *
+ * ## Por que não dígitos crus — e isto é um defeito do provedor, contornado aqui
+ *
+ * As duas rotas resolvem o destinatário com `utils.ParseJID(data.Chat)`, que
+ * chama `CreateJID`. E o `CreateJID` da 0.7.2 **acrescenta `+` ao número**:
+ * `553131918001` vira `+553131918001@s.whatsapp.net`, com o `+` DENTRO do
+ * usuário do JID. Esse não é endereço de ninguém no WhatsApp.
+ *
+ * O provedor sabe disso e tem a correção — `CanonicalJID`, cujo corpo inteiro é
+ * `jid.User = strings.TrimPrefix(jid.User, "+")`, documentada como necessária
+ * para "RAW protocol nodes (chatstate / typing, read receipts, presence
+ * subscribe, reactions…)". As rotas de reação e de recibo a chamam.
+ * `DeleteMessageEveryone` e `EditMessage` **não chamam**.
+ *
+ * O efeito, medido em produção em 20/11/2026: o whatsmeow envia a revogação para
+ * um endereço inexistente e fica esperando a confirmação. Nada volta, e o nosso
+ * `AbortController` corta em 20 s — quatro tentativas registradas no log do
+ * Worker como `AbortError: The operation was aborted`, sem nenhuma pista do
+ * motivo.
+ *
+ * ## Por que o JID completo resolve
+ *
+ * `CreateJID` tem saída antecipada: se o valor já contém `@s.whatsapp.net` (ou
+ * `@lid`, `@g.us`…), ele **devolve intacto**. Mandando o JID montado, não há `+`
+ * para acrescentar — e de bônus não há a reformatação de nono dígito que o
+ * `formatBRNumber` aplicaria em cima de um número que já está na forma certa.
+ *
+ * É contorno, não conserto: o certo seria o provedor chamar `CanonicalJID` nas
+ * duas rotas. Enquanto não chamar, isto funciona sem tocar na imagem.
+ */
+export function jidDeDestino(to: string): string {
+    // O teste é no valor CRU: `normalizeNumber` tira tudo que não é dígito, então
+    // procurar `@` depois dele nunca acha nada — era código morto na primeira
+    // versão desta função.
+    if (to.includes('@')) return to.trim()
+    return `${normalizeNumber(to)}@s.whatsapp.net`
+}
+
+/**
  * O id da mensagem na resposta de envio. Ver `SendData`.
  *
  * Exportado para ser **provado**: foi a leitura errada deste valor que deixou
@@ -718,7 +758,7 @@ export class EvolutionGoProvider implements ChannelProvider {
     async revoke(credentials: InstanceCredentials, to: string, messageId: string): Promise<void> {
         await this.request<unknown>('/message/delete', this.salaDe(credentials), this.tokenOf(credentials, '/message/delete'), {
             method: 'POST',
-            body: JSON.stringify({ chat: normalizeNumber(to), messageId }),
+            body: JSON.stringify({ chat: jidDeDestino(to), messageId }),
         })
     }
 
@@ -737,7 +777,7 @@ export class EvolutionGoProvider implements ChannelProvider {
     ): Promise<void> {
         await this.request<unknown>('/message/edit', this.salaDe(credentials), this.tokenOf(credentials, '/message/edit'), {
             method: 'POST',
-            body: JSON.stringify({ chat: normalizeNumber(to), message: texto, messageId }),
+            body: JSON.stringify({ chat: jidDeDestino(to), message: texto, messageId }),
         })
     }
 
