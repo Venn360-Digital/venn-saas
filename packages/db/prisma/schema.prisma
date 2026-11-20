@@ -1741,6 +1741,20 @@ model Message {
   /// retratou, que é a informação que ela precisa para conduzir a conversa.
   deletedAt DateTime?
 
+  /// Quando a clínica **editou** o texto desta mensagem depois de enviá-la.
+  ///
+  /// O conteúdo anterior **não** é guardado, e isto é escolha: o WhatsApp
+  /// substitui o texto para quem recebeu, e manter aqui a versão que o paciente
+  /// não vê mais faria a tela da atendente discordar do celular dele — que é o
+  /// oposto do que esta tela existe para fazer. Quem precisa de histórico de
+  /// alteração precisa de uma tabela de versões, não de uma coluna.
+  ///
+  /// O que a coluna dá é o aviso: a bolha mostra "editada", para ninguém ler um
+  /// texto e supor que foi aquilo que saiu na hora.
+  ///
+  /// Só o canal QR escreve aqui. No oficial a Meta não oferece edição.
+  editedAt DateTime?
+
   createdAt DateTime @default(now())
 
   conversation Conversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)

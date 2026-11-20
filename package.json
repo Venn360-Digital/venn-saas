@@ -118,6 +118,7 @@
         "test:condicoes": "tsx scripts/test-condicoes.ts",
         "check:treinamento": "tsx scripts/check-treinamento.ts",
         "test:jid": "tsx scripts/test-jid.ts",
+        "test:mensagem-enviada": "tsx --conditions=react-server scripts/test-mensagem-enviada.ts",
         "test:midia": "tsx scripts/test-midia.ts",
         "db:generate": "pnpm --filter @venn/db run generate",
         "lint:caminhos": "node scripts/lint-caminhos.mjs",

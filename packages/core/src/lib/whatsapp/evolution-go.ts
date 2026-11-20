@@ -657,6 +657,45 @@ export class EvolutionGoProvider implements ChannelProvider {
     }
 
     /**
+     * POST /message/delete — apaga para todos.
+     *
+     * **O corpo é `{ chat, messageId }`**, e os dois nomes importam: conferido
+     * no fonte da 0.7.2 (`pkg/message/service/message_service.go`,
+     * `type MessageStruct`), que é a versão exata da nossa imagem. O handler
+     * recusa com 400 se `chat` ou `messageId` faltarem.
+     *
+     * Note que **não é `number` nem `id`**, como em `/message/react` — as rotas
+     * deste servidor não têm vocabulário único. A rota passa por um middleware
+     * que normaliza `number`, mas ele só age se o campo existir, então mandar
+     * `chat` sozinho está correto.
+     */
+    async revoke(credentials: InstanceCredentials, to: string, messageId: string): Promise<void> {
+        await this.request<unknown>('/message/delete', this.salaDe(credentials), this.tokenOf(credentials, '/message/delete'), {
+            method: 'POST',
+            body: JSON.stringify({ chat: normalizeNumber(to), messageId }),
+        })
+    }
+
+    /**
+     * POST /message/edit — troca o texto de uma mensagem enviada.
+     *
+     * Corpo `{ chat, message, messageId }`, de `type EditMessageStruct` no mesmo
+     * arquivo do fonte. Só texto: o `routes.go` da 0.7.2 traz
+     * `// TODO: edit MediaMessage too` ao lado desta rota.
+     */
+    async editText(
+        credentials: InstanceCredentials,
+        to: string,
+        messageId: string,
+        texto: string
+    ): Promise<void> {
+        await this.request<unknown>('/message/edit', this.salaDe(credentials), this.tokenOf(credentials, '/message/edit'), {
+            method: 'POST',
+            body: JSON.stringify({ chat: normalizeNumber(to), message: texto, messageId }),
+        })
+    }
+
+    /**
      * POST /message/markread — confirma leitura (checks azuis).
      *
      * `id` é **array** de propósito: medido em 2026-10-22, o struct recusa string
