@@ -91,6 +91,12 @@ export const DISPONIBILIDADE: Record<string, ToneEntry> = {
     desconectado: { label: 'Desconectado', tone: 'neutral' },
 }
 
+/** Formulário de captura: rascunho não recebe envio; publicado abre em `/f/` e recebe. */
+export const FORMULARIO_STATUS: Record<string, ToneEntry> = {
+    draft: { label: 'Rascunho', tone: 'neutral' },
+    published: { label: 'Publicado', tone: 'success' },
+}
+
 export const ACTIVE_STATE: Record<string, ToneEntry> = {
     true: { label: 'Ativo', tone: 'success' },
     false: { label: 'Inativo', tone: 'neutral' },

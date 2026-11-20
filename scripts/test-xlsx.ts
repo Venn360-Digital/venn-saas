@@ -14,6 +14,10 @@
  * (método 0) e comprimida (método 8), e o que acontece com um zip que não é
  * planilha.
  */
+// PRIMEIRO de todos: registra uma marca fictícia, porque este script roda
+// código do core e o core PEDE a marca. Ver `./lib/marca-de-teste.ts`.
+import './lib/marca-de-teste.ts'
+
 import { deflateRawSync } from 'node:zlib'
 
 import { extrairTextoDeXlsx, XlsxIlegivel } from '@venn/core/lib/documentos/xlsx'

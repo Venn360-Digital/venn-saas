@@ -167,6 +167,15 @@ export async function aplicarPortao(request: NextRequest): Promise<NextResponse>
          * `src/lib/marketing/descadastro.ts`.
          */
         pathname.startsWith('/descadastro/') ||
+        /**
+         * O formulário de captura (Marketing → Formulários): a página pública
+         * `/f/<chave>`, que o site da organização embute ou abre por link, e o
+         * envio dela. Quem chega é um visitante do site; a chave na URL
+         * identifica o formulário e não autoriza nada além de enviar — a rota
+         * tem teto por IP e por formulário e nunca devolve dado de ninguém.
+         */
+        pathname.startsWith('/f/') ||
+        pathname.startsWith('/api/formularios/') ||
         // Container probe.
         pathname === '/api/health'
 

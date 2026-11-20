@@ -949,7 +949,43 @@ a única fala nossa no fio.
 
 ---
 
-## 17. O que ainda não existe
+## 17. Formulários de captura
+
+Decidido com o Andre em 2026-11-20 (Marketing → Formulários).
+
+**O formulário é uma página nossa, que o site embute.** Cada formulário tem
+uma chave pública e vive em `/f/<chave>`: abre por link, ou entra no site da
+organização num `iframe` (o código de incorporação ajusta a altura sozinho). A
+chave identifica o formulário e **não autoriza nada** além de enviar — a mesma
+regra da chave do widget.
+
+**Campos são do cliente; o lead é do produto.** O cliente monta os campos
+(texto, e-mail, telefone, texto longo, número, data, escolha única, múltipla,
+caixa de marcar), com rótulo, obrigatório, opções, validação (mínimo, máximo,
+formato) e aparência (cor, cantos, tema). O que faz uma resposta virar lead é o
+**mapeamento**: cada campo diz se vai para Nome, Telefone, E-mail, Observações
+ou fica só no envio. **Não se publica formulário sem telefone nem e-mail
+mapeado** — captura resposta, não captura lead.
+
+**Um envio produz:** a ficha (nova, ou a existente completada no que faltava —
+**o telefone é a chave**, como em todo o produto; o e-mail decide quando não
+há telefone), as etiquetas do formulário, o registro do envio com as respostas
+inteiras, e um negócio no **funil padrão** quando a pessoa ainda não tem um
+lá, com as respostas nas observações e o responsável que o formulário indica.
+Ficha nova ainda liga o funil de boas-vindas. A ficha nasce com `createdVia:
+formulario` e a origem comercial que o formulário escolheu (§10: nula é
+resposta válida).
+
+**Defesas da porta pública:** só o publicado responde; teto por IP e por
+formulário por hora, em banco; campo-armadilha que finge sucesso para robô; a
+validação roda na página e **de novo** no servidor, com a mesma função.
+
+**Depois do envio:** uma mensagem, ou um redirecionamento para a página que o
+cliente indicar. A validação devolve o erro embaixo do campo que o causou.
+
+---
+
+## 18. O que ainda não existe
 
 Registrado para não ser esquecido:
 

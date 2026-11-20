@@ -589,6 +589,8 @@ model Workspace {
   emailSenders       EmailSender[]
   emailTemplates     EmailTemplate[]
   funnels            Funnel[]
+  leadForms          LeadForm[]
+  leadFormSubmissions LeadFormSubmission[]
 
   @@index([accountId])
   @@map("workspaces")
@@ -1116,6 +1118,7 @@ model Contact {
   listMemberships     ContactListMember[]
   broadcastRecipients BroadcastRecipient[]
   funnelRuns          FunnelRun[]
+  formSubmissions     LeadFormSubmission[]
 
   @@unique([workspaceId, phone])
   @@unique([workspaceId, instagramId])
@@ -1385,6 +1388,7 @@ model Origin {
   deals     Deal[]
   contacts  Contact[]
   lines     AgentIntegration[]
+  leadForms LeadForm[]
 
   @@unique([workspaceId, name])
   @@index([workspaceId])
@@ -3055,6 +3059,86 @@ model BroadcastRecipient {
   /// por e-mail enviado.
   @@index([sesMessageId])
   @@map("broadcast_recipients")
+}
+
+// ───────────────────────────── Formulários de captura ─────────────────────────────
+
+/// Um formulário de captura de leads, para o site da organização.
+///
+/// Pedido do Andre em 20/11/2026 (Marketing → Formulários). O formulário vive
+/// numa página pública (`/f/<chave>`) que o site embute num `iframe` ou abre
+/// por link; cada envio vira uma ficha de contato (ou completa a que já
+/// existe), um negócio no funil padrão e um registro aqui.
+///
+/// ## Por que os campos são JSON
+///
+/// A lista de campos é o desenho do formulário — tipo, rótulo, obrigatório,
+/// opções, para onde o valor vai na ficha. Acrescentar um tipo de campo não
+/// deve ser migração, pelo mesmo motivo dos blocos do e-mail e do gatilho do
+/// funil. A forma é validada em `lib/formularios/schema.ts`, nos dois lados.
+model LeadForm {
+  id          String @id @default(cuid())
+  workspaceId String
+  name        String
+
+  /// A chave da URL pública. Identifica o formulário; **não autoriza nada**
+  /// além de enviar um formulário — que é o que um visitante faz.
+  publicKey String @unique
+
+  /// `draft` | `published`. Só o publicado recebe envios e abre em `/f/`.
+  status String @default("draft")
+
+  /// Os campos, na ordem. Ver `campoSchema`.
+  fields Json
+  /// Textos, aparência e o que acontece com o lead. Ver `configuracaoSchema`.
+  settings Json
+
+  /// A origem comercial que a ficha nova recebe — a mesma lista da linha e do
+  /// negócio (PRODUCT.md §10). Nula é "não sabemos", que é resposta válida.
+  originId String?
+  /// Quem fica responsável pelo negócio criado. Nulo: nasce sem dono, na fila.
+  assignedUserId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspace   Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  origin      Origin?              @relation(fields: [originId], references: [id], onDelete: SetNull)
+  submissions LeadFormSubmission[]
+
+  @@index([workspaceId])
+  @@map("lead_forms")
+}
+
+/// Um envio de formulário — o lead como chegou, antes de virar ficha.
+///
+/// Guardado inteiro (`data`) porque a ficha só recebe o que os campos mapeiam
+/// (nome, telefone, e-mail, observações); o resto — "qual tratamento te
+/// interessa?", "como conheceu?" — é resposta que a equipe lê aqui e no resumo
+/// que vai para as observações do negócio.
+model LeadFormSubmission {
+  id          String  @id @default(cuid())
+  workspaceId String
+  formId      String
+  /// A ficha que recebeu este envio. `SetNull` para o envio sobreviver à ficha.
+  contactId   String?
+
+  /// As respostas, por id de campo.
+  data      Json
+  ip        String?
+  userAgent String?
+  /// A página onde o formulário estava (`Referer`), para saber de onde o lead veio.
+  pageUrl   String?
+  createdAt DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  form      LeadForm  @relation(fields: [formId], references: [id], onDelete: Cascade)
+  contact   Contact?  @relation(fields: [contactId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, createdAt])
+  @@index([formId, createdAt])
+  @@index([contactId])
+  @@map("lead_form_submissions")
 }
 
 // ───────────────────────────── Funil (B3) ─────────────────────────────
