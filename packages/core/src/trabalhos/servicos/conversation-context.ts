@@ -23,6 +23,17 @@ export interface ConversationContext {
     /** A fase do funil em que o negócio aberto está, se houver. */
     dealStage?: string
     dealTitle?: string
+    /**
+     * A saudação configurada do agente **acabou de sair** nesta conversa, e o
+     * modelo vai responder logo em seguida à mesma mensagem.
+     *
+     * Preenchido por `ai-reply`, não por `loadConversationContext`: é lido do
+     * histórico que a resposta já tem em mãos. Sem esta linha no prompt o
+     * agente cumprimentava duas vezes — a saudação fixa e depois "Olá! Sou a
+     * Laila…" de novo, porque as instruções centrais pedem apresentação e nada
+     * dizia que ela já tinha acontecido. Confirmado em 20/11/2026.
+     */
+    saudacaoJaEnviada?: boolean
     /** Os próximos compromissos desta pessoa, do mais próximo para o mais distante. */
     upcoming: { quando: string; titulo: string }[]
     /**

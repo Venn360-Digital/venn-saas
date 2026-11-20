@@ -911,7 +911,45 @@ migração.
 
 ---
 
-## 16. O que ainda não existe
+## 16. Colaboração: marcar um colega
+
+Decidido com o Andre em 2026-11-20. A menção `@colega` já existia, escondida
+em Notas internas; passa a ter três portas e uma regra só.
+
+**Toda indicação de colaboração fica registrada em Notas internas.** Não há
+botão de "seguir" nem tabela à parte: marcar alguém é escrever uma nota
+interna com `@colega`, e é a nota que faz a pessoa passar a colaborar (ver a
+conversa, mesmo fora da fila dela) e receber o recado. As três portas produzem
+a mesma nota:
+
+1. **Notas internas**, com `@` — como sempre foi.
+2. **O compositor**, com `@`. A mesma lista de colegas abre no campo de
+   resposta; e uma mensagem com `@colega` **vai como nota interna**, nunca
+   para a pessoa atendida. A faixa acima do campo diz isso antes do Enter.
+3. **Botão direito na mensagem → Marcar colega.** Vira uma nota interna com a
+   menção e um trecho da mensagem («…»), apontando a hora dela.
+
+**O colega marcado é avisado na hora**: o recado nasce com a nota e o sino
+dele acende pelo tempo real, como no recado manual. A menção aparece como chip
+(`@Nome`) no fio e no painel de notas — nunca a sintaxe interna com o id.
+
+**Filtro por atendente** na caixa de entrada, para qualquer papel: é filtro,
+não parede — o teto do atendente continua em cima dele.
+
+**Os textos da régua de inatividade são da clínica.** "Perguntar se ainda está
+na conversa" e "Despedir-se e encerrar" ganham campo de texto por agente: até
+três linhas, `*negrito*` do WhatsApp e emoji. Vazio usa o texto do sistema.
+
+**A saudação não se repete.** Em conversa nova a saudação configurada sai
+literal, e o modelo responde em seguida à mesma mensagem — e se apresentava de
+novo, porque as instruções centrais pedem apresentação e nada dizia que ela já
+tinha acontecido. Confirmado em 2026-11-20 (era isso, não duas saudações
+configuradas). O prompt passa a dizer que a saudação já saiu enquanto ela for
+a única fala nossa no fio.
+
+---
+
+## 17. O que ainda não existe
 
 Registrado para não ser esquecido:
 

@@ -25,7 +25,7 @@
  *   é o pior dos três resultados possíveis.
  */
 
-import { ehMarcadorDeMidia } from '../whatsapp/payload'
+import { ehMarcadorDeMidia, ehMarcadorDeSticker } from '../whatsapp/payload'
 
 /** A forma mínima que estas decisões leem. */
 export interface MensagemComMidia {
@@ -59,15 +59,27 @@ export const MAX_IMAGENS_POR_RESPOSTA = 2
  */
 export const JANELA_DE_MIDIA = 6
 
-/** A mensagem traz imagem que dá para anexar? */
+/** Extensões de imagem que o modelo lê, quando a foto veio como **documento**. */
+const IMAGEM_COMO_ARQUIVO = /\.(jpe?g|png|gif|webp)$/i
+
+/** Formatos de imagem que o modelo **não** lê — e o aviso tem de dizer qual. */
+const IMAGEM_QUE_NAO_ABRE = /\.(bmp|heic|heif|tiff?|svg|psd|raw|cr2|nef|dng)$/i
+
+/**
+ * A mensagem traz imagem que dá para anexar?
+ *
+ * Foto mandada como foto (`image`) e foto mandada como **arquivo** — o `.jpg`
+ * anexado pelo botão de documento — contam as duas: o que decide é se os bytes
+ * são de uma imagem que o modelo lê, e `imagemServeParaOModelo` confere isso
+ * depois pela assinatura. A figurinha fica de fora: é expressão, não conteúdo,
+ * e anexá-la gastaria token para o modelo descrever um desenho.
+ */
 export function ehImagemAnexavel(m: MensagemComMidia): boolean {
-    return (
-        m.direction === 'inbound' &&
-        !m.isInternal &&
-        m.contentType === 'image' &&
-        typeof m.mediaUrl === 'string' &&
-        m.mediaUrl.length > 0
-    )
+    if (m.direction !== 'inbound' || m.isInternal) return false
+    if (typeof m.mediaUrl !== 'string' || m.mediaUrl.length === 0) return false
+    if (m.contentType === 'image') return !ehMarcadorDeSticker(m.content ?? '')
+    if (m.contentType === 'file') return IMAGEM_COMO_ARQUIVO.test(nomeDoArquivo(m.content ?? ''))
+    return false
 }
 
 /**
@@ -106,10 +118,27 @@ export function imagensParaAnexar(
  */
 export function avisoDeArquivoNaoLido(nomeDoArquivo: string): string {
     const nome = nomeDoArquivo.trim()
+    /**
+     * Imagem num formato que o modelo não abre (BMP, HEIC, TIFF…) merece aviso
+     * próprio: o conserto está ao alcance da pessoa — mandar como foto, ou em
+     * JPG/PNG — e um "não leio arquivos" genérico esconderia isso.
+     */
+    if (IMAGEM_QUE_NAO_ABRE.test(nome)) {
+        const formato = nome.split('.').pop()?.toUpperCase() ?? ''
+        return (
+            `[A pessoa enviou uma imagem em ${formato}${nome ? ` (${nome})` : ''}, formato que você não consegue abrir. ` +
+            `Se precisar ver o conteúdo, peça para enviar como foto, ou em JPG/PNG. Não suponha o que há nela.]`
+        )
+    }
     return (
         `[A pessoa enviou um arquivo${nome ? `: ${nome}` : ''}. ` +
         `Você não consegue abrir nem ler arquivos — não suponha o conteúdo dele.]`
     )
+}
+
+/** O aviso para vídeo: o modelo não assiste, e não deve fingir que assistiu. */
+export function avisoDeVideoNaoVisto(): string {
+    return '[A pessoa enviou um vídeo. Você não consegue assistir a vídeos — não suponha o conteúdo dele; se precisar, peça para descrever por texto ou enviar uma foto.]'
 }
 
 /** O nome do arquivo, tirado do marcador que o decodificador montou. */
@@ -139,7 +168,14 @@ export function textoParaOModelo(m: MensagemComMidia): string {
     // Legenda de foto é fala da pessoa: vale mais que qualquer aviso nosso.
     if (!ehMarcadorDeMidia(texto)) return texto
 
+    // Foto mandada como arquivo vai anexada (ver `ehImagemAnexavel`): o texto
+    // só precisa não mentir, como a imagem comum.
+    if (m.contentType === 'file' && ehImagemAnexavel(m)) return '📷 Imagem'
     if (m.contentType === 'file') return avisoDeArquivoNaoLido(nomeDoArquivo(texto))
+    // Vídeo sem legenda: "🎬 Vídeo" cru deixava o modelo supor o que havia nele.
+    if (m.contentType === 'video') return avisoDeVideoNaoVisto()
+    // Figurinha é expressão: o marcador cru basta, e o modelo entende "🏷️".
+    if (ehMarcadorDeSticker(texto)) return '[A pessoa enviou uma figurinha.]'
 
     /**
      * Imagem anexada **mantém o marcador**, e isso é deliberado: o modelo vai

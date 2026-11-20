@@ -10,8 +10,16 @@ import {
     SelectValue,
 } from '@venn/ui/select'
 import { Input } from '@venn/ui/input'
+import { Textarea } from '@venn/ui/textarea'
 import { SettingsCard, SettingsRow } from '../../../shared/TabsFrame'
-import { INTERACTION_LIMITS, type AgentPreferences } from '../../../../types/agent-preferences'
+import { EmojiPicker } from '../../../shared/EmojiPicker'
+import {
+    INTERACTION_LIMITS,
+    MAX_CHARS_DO_AVISO,
+    MAX_LINHAS_DO_AVISO,
+    linhasDoAviso,
+    type AgentPreferences,
+} from '../../../../types/agent-preferences'
 import { useVocab } from '../../../../hooks/useVocab'
 import { comArtigo } from '../../../../lib/concordancia'
 
@@ -192,6 +200,17 @@ export function PreferenciasTab({ data, onChange, somenteLeitura = false }: Pref
                                 </div>
                             }
                         />
+                        {/* O texto da cutucada, escrito pela clínica. Vazio usa
+                            o do sistema — a régua funciona sem ninguém
+                            escrever nada. */}
+                        <TextoDoAviso
+                            id="pref-nudge-text"
+                            rotulo="Mensagem da pergunta"
+                            valor={data.inactivityNudgeText}
+                            padrao="Oi! O senhor/a senhora ainda está por aí? Como posso ajudar?"
+                            disabled={data.inactivityNudgeMinutes === 0}
+                            onChange={(inactivityNudgeText) => onChange({ inactivityNudgeText })}
+                        />
                     </div>
 
                     <div className="border-t border-border pt-4">
@@ -221,6 +240,14 @@ export function PreferenciasTab({ data, onChange, somenteLeitura = false }: Pref
                                 </div>
                             }
                         />
+                        <TextoDoAviso
+                            id="pref-farewell-text"
+                            rotulo="Mensagem de encerramento"
+                            valor={data.inactivityFarewellText}
+                            padrao="Devido à falta de interação, vou encerrar o atendimento por aqui. Se tiver qualquer dúvida, pode me chamar novamente — é só mandar uma mensagem."
+                            disabled={data.inactivityNudgeMinutes === 0 || data.inactivityCloseMinutes === 0}
+                            onChange={(inactivityFarewellText) => onChange({ inactivityFarewellText })}
+                        />
                     </div>
 
                     <div className="border-t border-border pt-4">
@@ -248,6 +275,81 @@ export function PreferenciasTab({ data, onChange, somenteLeitura = false }: Pref
                     </div>
                 </div>
             </SettingsCard>
+        </div>
+    )
+}
+
+/**
+ * O texto de um aviso automático da régua de inatividade.
+ *
+ * Três linhas no máximo, `*negrito*` do WhatsApp e emoji — é uma mensagem de
+ * WhatsApp, e a tela diz isso em vez de deixar a pessoa descobrir no envio. O
+ * `placeholder` é o texto do sistema: vazio significa "use esse", então quem
+ * nunca escreveu continua vendo o que vai sair.
+ *
+ * A conta de linhas é a mesma do schema (`linhasDoAviso`): a tela avisa no
+ * mesmo ponto em que a API recusaria.
+ */
+function TextoDoAviso({
+    id,
+    rotulo,
+    valor,
+    padrao,
+    disabled,
+    onChange,
+}: {
+    id: string
+    rotulo: string
+    valor: string
+    padrao: string
+    disabled?: boolean
+    onChange: (texto: string) => void
+}) {
+    const linhas = linhasDoAviso(valor)
+    const linhasDemais = linhas > MAX_LINHAS_DO_AVISO
+    const longo = valor.length > MAX_CHARS_DO_AVISO
+
+    const inserirEmoji = (emoji: string) => {
+        const el = document.getElementById(id) as HTMLTextAreaElement | null
+        const inicio = el?.selectionStart ?? valor.length
+        const fim = el?.selectionEnd ?? valor.length
+        onChange(valor.slice(0, inicio) + emoji + valor.slice(fim))
+        requestAnimationFrame(() => {
+            el?.focus()
+            el?.setSelectionRange(inicio + emoji.length, inicio + emoji.length)
+        })
+    }
+
+    return (
+        <div className="mt-3 space-y-1.5">
+            <label htmlFor={id} className="text-xs font-medium text-muted-foreground">
+                {rotulo}
+            </label>
+            <div className="relative">
+                <Textarea
+                    id={id}
+                    value={valor}
+                    rows={3}
+                    disabled={disabled}
+                    placeholder={padrao}
+                    maxLength={MAX_CHARS_DO_AVISO + 50}
+                    aria-invalid={linhasDemais || longo ? true : undefined}
+                    onChange={(e) => onChange(e.target.value)}
+                    className="min-h-[76px] resize-none pr-11 text-sm"
+                />
+                <EmojiPicker
+                    onSelect={inserirEmoji}
+                    disabled={disabled}
+                    className="absolute bottom-1 right-1 size-8 text-muted-foreground hover:text-foreground"
+                />
+            </div>
+            <p className={linhasDemais || longo ? 'text-xs text-destructive' : 'text-xs text-muted-foreground'}>
+                {linhasDemais
+                    ? `No máximo ${MAX_LINHAS_DO_AVISO} linhas — está com ${linhas}.`
+                    : longo
+                      ? `O texto passou de ${MAX_CHARS_DO_AVISO} caracteres.`
+                      : `Até ${MAX_LINHAS_DO_AVISO} linhas. *Negrito* entre asteriscos e emojis valem. Vazio usa o texto padrão.`}
+            </p>
         </div>
     )
 }

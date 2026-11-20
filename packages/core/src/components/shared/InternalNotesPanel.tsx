@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 
 import { Button } from '@venn/ui/button'
 import { CampoDeNota } from '../conversas/CampoDeNota'
+import { TextoDeNota } from './TextoDeNota'
 
 interface InternalNote {
     id: string
@@ -133,7 +134,7 @@ export function InternalNotesPanel({
                             key={note.id}
                             className="rounded-md border border-warning-subtle bg-warning-subtle/40 px-2.5 py-2"
                         >
-                            <p className="whitespace-pre-wrap text-[13px] leading-relaxed">{note.content}</p>
+                            <TextoDeNota texto={note.content} className="whitespace-pre-wrap break-words text-[13px] leading-relaxed" />
                             <p className="num mt-1 text-[11px] text-muted-foreground">
                                 {note.author ? `${note.author} · ` : ''}
                                 {new Date(note.createdAt).toLocaleString('pt-BR', {

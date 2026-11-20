@@ -235,3 +235,38 @@ export function inserirMencao(
     const novoTexto = texto.slice(0, corte) + marcacao + texto.slice(cursor)
     return { texto: novoTexto, cursor: corte + marcacao.length }
 }
+
+/** Quantos caracteres da mensagem citada entram na nota de marcação. */
+const TETO_DO_TRECHO = 160
+
+/**
+ * A nota interna que **marcar um colega numa mensagem** produz.
+ *
+ * É o terceiro gesto de colaboração (20/11/2026), ao lado da nota com `@` e
+ * do `@` no compositor: botão direito numa mensagem → "Marcar colega". Ele não
+ * ganha tabela nem campo próprio — vira uma nota interna com a menção e um
+ * trecho da mensagem, porque **toda indicação de colaboração fica registrada
+ * em Notas internas**, e porque é a mesma nota que `aplicarMencao` já sabe
+ * transformar em colaborador e em recado.
+ *
+ * O trecho vai **entre aspas angulares e cortado**: quem recebe o recado lê do
+ * que se trata sem abrir a conversa, e uma mensagem de três parágrafos não
+ * vira uma nota de três parágrafos.
+ */
+export function notaDeMarcacaoEmMensagem(entrada: {
+    nome: string
+    userId: string
+    /** Quem escreveu a mensagem marcada: o nome da pessoa atendida, ou da equipe. */
+    autorDaMensagem: string
+    /** O texto da mensagem, ou o marcador de mídia que ela tem. */
+    trecho: string
+    /** O horário como a tela mostra ("14:32"), para a nota apontar a mensagem. */
+    horario: string
+}): string {
+    const limpo = entrada.trecho.replace(/\s+/g, ' ').trim()
+    const cortado = limpo.length > TETO_DO_TRECHO ? `${limpo.slice(0, TETO_DO_TRECHO - 1)}…` : limpo
+    return (
+        `${escreverMencao(entrada.nome, entrada.userId)} dá uma olhada na mensagem de ` +
+        `${entrada.autorDaMensagem} às ${entrada.horario}: «${cortado || '(sem texto)'}»`
+    )
+}

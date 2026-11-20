@@ -30,21 +30,28 @@ export function ehFormatoLegivel(nomeDoArquivo: string): boolean {
     return (
         nome.endsWith('.pdf') ||
         nome.endsWith('.docx') ||
-        /\.(txt|md|markdown|csv|json)$/.test(nome)
+        nome.endsWith('.xlsx') ||
+        /\.(txt|md|markdown|csv|tsv|json)$/.test(nome)
     )
 }
 
 /**
  * Extrai o texto. Lança `FormatoNaoSuportado` no que não sabe ler.
  *
- * Imagem e planilha ficam de fora de propósito: extrair delas exige OCR e um
- * leitor de XLSX, que o projeto não tem — e **imagem tem caminho melhor**, que é
- * ir anexada ao modelo multimodal (ver `lib/ai/midia-no-prompt.ts`). Aceitar e
- * ignorar seria pior: o arquivo apareceria na lista e o agente nunca saberia o
- * que havia nele.
+ * Imagem fica de fora de propósito: extrair dela exige OCR, e **imagem tem
+ * caminho melhor**, que é ir anexada ao modelo multimodal (ver
+ * `lib/ai/midia-no-prompt.ts`). Planilha entrou em 20/11/2026 — `.xlsx`, pelo
+ * leitor próprio em `./xlsx.ts`; o `.xls` antigo é binário e fica fora, como o
+ * `.doc`. Aceitar e ignorar seria pior: o arquivo apareceria na lista e o agente
+ * nunca saberia o que havia nele.
  */
 export async function extrairTexto(bytes: Uint8Array, nomeDoArquivo: string): Promise<string> {
     const nome = nomeDoArquivo.toLowerCase()
+
+    if (nome.endsWith('.xlsx')) {
+        const { extrairTextoDeXlsx } = await import('./xlsx')
+        return extrairTextoDeXlsx(bytes)
+    }
 
     if (nome.endsWith('.pdf')) {
         const { PDFParse } = await import('pdf-parse')
@@ -63,14 +70,16 @@ export async function extrairTexto(bytes: Uint8Array, nomeDoArquivo: string): Pr
         return result.value
     }
 
-    if (/\.(txt|md|markdown|csv|json)$/.test(nome)) {
+    if (/\.(txt|md|markdown|csv|tsv|json)$/.test(nome)) {
         return Buffer.from(bytes).toString('utf8')
     }
 
     throw new FormatoNaoSuportado(
         nome.endsWith('.doc')
             ? 'Formato .doc antigo não é lido. Salve como .docx ou PDF.'
-            : 'Formato não suportado. Envie PDF, DOCX, TXT, MD ou CSV.'
+            : nome.endsWith('.xls')
+              ? 'Formato .xls antigo não é lido. Salve como .xlsx ou CSV.'
+              : 'Formato não suportado. Envie PDF, DOCX, XLSX, TXT, MD ou CSV.'
     )
 }
 

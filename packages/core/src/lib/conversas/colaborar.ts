@@ -21,6 +21,16 @@ export interface ResultadoDaMencao {
     novosColaboradores: string[]
     /** Quantos recados foram criados. */
     recados: number
+    /**
+     * Os recados criados, para quem chama **transmitir depois do commit**.
+     *
+     * O evento `recado` do tempo real é o que acende o sino do colega na hora;
+     * `aplicarMencao` roda dentro da transação e não pode emiti-lo (o recado
+     * ainda não existe para quem o for buscar). Então devolve os ids e a rota
+     * emite depois de gravar — até 20/11/2026 ninguém emitia, e a menção só
+     * aparecia na próxima recarga do painel.
+     */
+    avisos: { recadoId: string; toUserId: string }[]
     /** Marcados que a regra recusou — para o log, nunca para a tela. */
     recusados: string[]
 }
@@ -51,7 +61,7 @@ export async function aplicarMencao(
     }
 ): Promise<ResultadoDaMencao> {
     const marcados = idsMencionados(entrada.texto)
-    if (!marcados.length) return { novosColaboradores: [], recados: 0, recusados: [] }
+    if (!marcados.length) return { novosColaboradores: [], recados: 0, avisos: [], recusados: [] }
 
     /**
      * Quem dos marcados é membro **ativo** desta unidade.
@@ -78,7 +88,7 @@ export async function aplicarMencao(
     })
 
     const recusados = marcados.filter((id) => !aChamar.includes(id))
-    if (!aChamar.length) return { novosColaboradores: [], recados: 0, recusados }
+    if (!aChamar.length) return { novosColaboradores: [], recados: 0, avisos: [], recusados }
 
     /**
      * Quem já colaborava não é novidade.
@@ -118,18 +128,25 @@ export async function aplicarMencao(
      * ele não precisa é de uma segunda linha na tabela de colaboradores.
      */
     const corpo = notaEmTextoSimples(entrada.texto)
-    await tx.teamMessage.createMany({
-        data: aChamar.map((toUserId) => ({
-            workspaceId: entrada.workspaceId,
-            fromUserId: entrada.autorId,
-            toUserId,
-            body: corpo.slice(0, 2000),
-            conversationId: entrada.conversationId,
-            messageId: entrada.messageId,
-        })),
-    })
+    // Um `create` por pessoa, e não `createMany`: o id de cada recado é o que
+    // o evento de tempo real carrega, e `createMany` não devolve ids.
+    const avisos: { recadoId: string; toUserId: string }[] = []
+    for (const toUserId of aChamar) {
+        const recado = await tx.teamMessage.create({
+            data: {
+                workspaceId: entrada.workspaceId,
+                fromUserId: entrada.autorId,
+                toUserId,
+                body: corpo.slice(0, 2000),
+                conversationId: entrada.conversationId,
+                messageId: entrada.messageId,
+            },
+            select: { id: true },
+        })
+        avisos.push({ recadoId: recado.id, toUserId })
+    }
 
-    return { novosColaboradores: novos, recados: aChamar.length, recusados }
+    return { novosColaboradores: novos, recados: aChamar.length, avisos, recusados }
 }
 
 /**

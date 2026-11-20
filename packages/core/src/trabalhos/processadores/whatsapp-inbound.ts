@@ -62,6 +62,11 @@ export async function processWhatsAppInbound(payload: WhatsAppInboundJob): Promi
     const workspace = agent.workspace
 
     const decoded = decodeMessage(inbound.message, {})
+    // O tipo que ninguém reconheceu fica no log, com a chave: é como um tipo
+    // novo do WhatsApp deixa de ser invisível até alguém abrir o payload.
+    if (decoded.tipoDesconhecido) {
+        log.warn(`tipo de mensagem não suportado: "${decoded.tipoDesconhecido}" (gravada com o marcador)`)
+    }
 
     /**
      * Quem escreveu, no vocabulário do canal.

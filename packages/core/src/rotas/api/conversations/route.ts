@@ -69,6 +69,8 @@ export async function GET(request: NextRequest) {
         const etiqueta = searchParams.get('tag') || ''
         /** Por qual etapa do funil — "all", "none", ou o id da etapa. */
         const etapa = searchParams.get('stage') || ''
+        /** Por qual atendente — "all", "none" (sem responsável), ou o `userId`. */
+        const atendente = searchParams.get('atendente') || ''
 
         const isAtendente = workspaceUser.role === 'ATENDENTE'
 
@@ -170,6 +172,23 @@ export async function GET(request: NextRequest) {
          */
         if (agent && agent !== 'all') {
             where.agentId = agent === 'none' ? null : agent
+        }
+
+        /**
+         * O recorte por atendente — pedido do Andre em 20/11/2026, "independente
+         * do perfil".
+         *
+         * Filtro, não parede, como o agente: vale para qualquer papel, e o
+         * teto do ATENDENTE (`limiteDoAtendente`) continua em cima dele — um
+         * atendente filtrando pela colega só vê, da carteira dela, o que já
+         * podia ver (nada, salvo a conversa em que colabora). Para a gestão é
+         * a pergunta do dia: "o que está com a Rachel?".
+         *
+         * `assignedTo` é a coluna do responsável desde o conserto de
+         * 2026-11-09; "Ver: minhas" é este mesmo filtro com o próprio id.
+         */
+        if (atendente && atendente !== 'all') {
+            where.assignedTo = atendente === 'none' ? null : atendente
         }
 
         /**

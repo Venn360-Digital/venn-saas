@@ -27,6 +27,7 @@ import {
     escreverMencao,
     gatilhoDeMencao,
     inserirMencao,
+    notaDeMarcacaoEmMensagem,
     temMencao,
 } from '@venn/core/lib/conversas/mencoes'
 
@@ -183,6 +184,51 @@ conferir(
     'sem @ antes do cursor não mexe no texto',
     inserirMencao('sem marcação', 5, 'Ana', 'u1'),
     { texto: 'sem marcação', cursor: 5 }
+)
+
+console.log('\n— marcar um colega numa mensagem (botão direito) —\n')
+
+/**
+ * O terceiro gesto produz uma nota que o leitor já entende: a menção no
+ * formato gravado, e o trecho citado — cortado, para uma mensagem longa não
+ * virar uma nota longa.
+ */
+conferir(
+    'a nota leva a menção no formato gravado e o trecho entre aspas',
+    notaDeMarcacaoEmMensagem({
+        nome: 'Ana',
+        userId: 'u1',
+        autorDaMensagem: 'Carlos',
+        trecho: 'quanto custa o implante?',
+        horario: '14:32',
+    }),
+    '@[Ana](u1) dá uma olhada na mensagem de Carlos às 14:32: «quanto custa o implante?»'
+)
+conferir(
+    'a nota é lida pelo extrator como qualquer outra',
+    idsMencionados(
+        notaDeMarcacaoEmMensagem({ nome: 'Ana', userId: 'u1', autorDaMensagem: 'Carlos', trecho: 'oi', horario: '09:00' })
+    ),
+    ['u1']
+)
+conferir(
+    'trecho longo é cortado com reticências',
+    notaDeMarcacaoEmMensagem({
+        nome: 'Ana',
+        userId: 'u1',
+        autorDaMensagem: 'Carlos',
+        trecho: 'x'.repeat(300),
+        horario: '09:00',
+    }).endsWith(`${'x'.repeat(159)}…»`),
+    true
+)
+conferir(
+    'quebras de linha do trecho viram espaço, e vazio vira (sem texto)',
+    [
+        notaDeMarcacaoEmMensagem({ nome: 'Ana', userId: 'u1', autorDaMensagem: 'C', trecho: 'a\n\nb', horario: '1' }).includes('«a b»'),
+        notaDeMarcacaoEmMensagem({ nome: 'Ana', userId: 'u1', autorDaMensagem: 'C', trecho: '  ', horario: '1' }).includes('«(sem texto)»'),
+    ],
+    [true, true]
 )
 
 console.log(`\n${passou} ok, ${falhou} falhas\n`)

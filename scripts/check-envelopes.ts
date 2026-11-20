@@ -340,6 +340,114 @@ function main() {
         'tipo de verdade desconhecido: continua avisando',
         decodeMessage({ algoQueNaoExiste: {} }, {}).content === NAO_SUPORTADO
     )
+    ok(
+        'tipo desconhecido: a chave vai para o log',
+        decodeMessage({ algoQueNaoExiste: {} }, {}).tipoDesconhecido === 'algoQueNaoExiste'
+    )
+
+    // ------------------------------------------------- os tipos que caíam no "não suportado"
+    //
+    // Levantados em 20/11/2026 a partir do que a atendente via no fio do
+    // CONECTA: figurinha sem imagem, nota de vídeo, enquete, resposta de botão,
+    // vários contatos, localização ao vivo, convite de grupo, pedido, produto,
+    // evento — e mensagens que são só protocolo (fixar, guardar, voto cifrado),
+    // que viravam balão de erro sem haver mensagem nenhuma.
+    ok(
+        'figurinha: imagem COM mídia, para a bolha desenhá-la',
+        (() => {
+            const d = decodeMessage({ stickerMessage: { url: 'https://x/sticker.webp' } }, {})
+            return d.contentType === 'image' && d.mediaUrl === 'https://x/sticker.webp' && d.content === '🏷️ Sticker'
+        })()
+    )
+    ok(
+        'nota de vídeo (ptv): é vídeo',
+        decodeMessage({ ptvMessage: { url: 'https://x/v.mp4' } }, {}).contentType === 'video'
+    )
+    ok(
+        'enquete: pergunta e opções',
+        decodeMessage(
+            { pollCreationMessageV3: { name: 'Qual horário?', options: [{ optionName: 'Manhã' }, { optionName: 'Tarde' }] } },
+            {}
+        ).content === '📊 Enquete: Qual horário?\n• Manhã\n• Tarde'
+    )
+    ok(
+        'voto de enquete (cifrado): descartado como reação',
+        decodeMessage({ pollUpdateMessage: { vote: {} }, messageContextInfo: {} }, {}).contentType === 'reaction'
+    )
+    ok(
+        'resposta de botão: o texto do botão é a fala',
+        decodeMessage({ buttonsResponseMessage: { selectedDisplayText: 'Quero agendar' } }, {}).content === 'Quero agendar'
+    )
+    ok(
+        'resposta de lista: o título da linha',
+        decodeMessage({ listResponseMessage: { title: 'Implante' } }, {}).content === 'Implante'
+    )
+    ok(
+        'fluxo interativo: o texto do corpo',
+        decodeMessage({ interactiveResponseMessage: { body: { text: 'Sim, confirmo' } } }, {}).content === 'Sim, confirmo'
+    )
+    ok(
+        'vários contatos: um por linha, com telefone do vCard',
+        decodeMessage(
+            {
+                contactsArrayMessage: {
+                    contacts: [
+                        { displayName: 'Ana', vcard: 'BEGIN:VCARD\nTEL;type=CELL:+55 31 98850-1161\nEND:VCARD' },
+                        { displayName: 'Bia' },
+                    ],
+                },
+            },
+            {}
+        ).content === '👤 Contatos:\n• Ana · +5531988501161\n• Bia'
+    )
+    ok(
+        'contato único: nome e telefone',
+        decodeMessage(
+            { contactMessage: { displayName: 'Ana', vcard: 'TEL;waid=5531988501161:+55 31 98850-1161' } },
+            {}
+        ).content === '👤 Contato: Ana · +5531988501161'
+    )
+    ok(
+        'localização ao vivo: reconhecida',
+        decodeMessage({ liveLocationMessage: { degreesLatitude: -19.9, degreesLongitude: -43.9 } }, {}).content.startsWith(
+            '📍 Localização em tempo real:'
+        )
+    )
+    ok(
+        'localização com nome: o nome vem antes das coordenadas',
+        decodeMessage(
+            { locationMessage: { degreesLatitude: -19.9, degreesLongitude: -43.9, name: 'Clínica', address: 'Rua A' } },
+            {}
+        ).content === '📍 Localização: Clínica — Rua A · -19.9, -43.9'
+    )
+    ok(
+        'convite de grupo: o nome do grupo',
+        decodeMessage({ groupInviteMessage: { groupName: 'Família' } }, {}).content === '🔗 Convite para o grupo "Família"'
+    )
+    ok(
+        'pedido do catálogo: contagem de itens',
+        decodeMessage({ orderMessage: { itemCount: 2, orderTitle: 'Kit' } }, {}).content === '🛒 Pedido (2 item(ns)) — Kit'
+    )
+    ok(
+        'produto do catálogo: o título',
+        decodeMessage({ productMessage: { product: { title: 'Clareamento' } } }, {}).content === '🛍️ Produto: Clareamento'
+    )
+    ok(
+        'evento: o nome',
+        decodeMessage({ eventMessage: { name: 'Mutirão' } }, {}).content.startsWith('📅 Evento: Mutirão')
+    )
+    ok(
+        'só protocolo (fixar mensagem): nada a gravar',
+        decodeMessage({ pinInChatMessage: { key: {} }, messageContextInfo: {} }, {}).contentType === 'reaction'
+    )
+    ok(
+        'protocolo que não é apagamento, sozinho: nada a gravar',
+        decodeMessage({ protocolMessage: { type: 'EPHEMERAL_SETTING' } }, {}).contentType === 'reaction'
+    )
+    ok(
+        'texto com messageContextInfo ao lado: continua texto',
+        decodeMessage({ conversation: 'oi', messageContextInfo: {} }, {}).content === 'oi'
+    )
 
     console.log(falhas === 0 ? '\nTODOS OS TESTES PASSARAM' : `\n${falhas} FALHA(S)`)
     process.exit(falhas === 0 ? 0 : 1)
