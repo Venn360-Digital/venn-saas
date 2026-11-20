@@ -24,6 +24,7 @@
         "test:availability": "tsx scripts/test-availability.ts",
         "check:widget": "node scripts/check-widget.mjs",
         "check:suporte": "node scripts/check-suporte.mjs",
+        "sondar:evolution": "node scripts/sondar-evolution.mjs",
         "check:tailwind": "node scripts/check-tailwind.mjs",
         "check:marca": "node scripts/check-marca.mjs",
         "check:marca-tardia": "tsx --conditions=react-server scripts/check-marca-tardia.ts servidor && tsx scripts/check-marca-tardia.ts cliente",
