@@ -5,7 +5,7 @@ import { requireWritable } from '@venn/core/lib/billing'
 import { MANAGER_ROLES, getWorkspaceMember } from '@venn/core/lib/auth/workspace'
 import { connectedWhatsApp, hasWhatsApp, normalizePhone, phoneVariants } from '@venn/core/lib/intake'
 import { contatoCriado } from '@venn/core/lib/funil/disparos'
-import { vocab } from '../../../../lib/vocabulario'
+import { primeiraFaseDoPadrao } from '@venn/core/lib/pipeline/funis'
 
 type Mode = 'active' | 'call'
 
@@ -102,30 +102,30 @@ export async function POST(request: NextRequest) {
     }
 
     // ── negócio ──
-    let deal = await prisma.deal.findFirst({
-        where: { workspaceId, contactId: contact.id, status: 'open' },
+    // No funil padrão, o do atendimento — o mesmo em que a primeira mensagem
+    // criaria o negócio. Negócio aberto da pessoa em OUTRO funil não conta:
+    // é trabalho manual de Vendas, e o atendimento tem o seu.
+    const firstStage = await primeiraFaseDoPadrao(workspaceId)
+    if (!firstStage) {
+        return NextResponse.json(
+            { error: 'O funil não tem etapas. Crie a primeira etapa em Vendas → Negócios.' },
+            { status: 409 }
+        )
+    }
+    let deal: { id: string; stageId: string } | null = await prisma.deal.findFirst({
+        where: { workspaceId, contactId: contact.id, status: 'open', stage: { pipelineId: firstStage.pipelineId } },
         orderBy: { createdAt: 'desc' },
         select: { id: true, stageId: true },
     })
 
     if (!deal) {
-        const firstStage = await prisma.pipelineStage.findFirst({
-            where: { workspaceId },
-            orderBy: { order: 'asc' },
-            select: { id: true },
-        })
-        if (!firstStage) {
-            return NextResponse.json(
-                { error: 'O funil não tem etapas. Crie a primeira etapa em Vendas → Negócios.' },
-                { status: 409 }
-            )
-        }
         const created = await prisma.deal.create({
             data: {
                 workspaceId,
                 contactId: contact.id,
                 userId,
-                title: `Novo ${vocab().pessoa} - ${name || canonical}`,
+                // Só o nome — o prefixo "Novo <pessoa> - " saiu em 20/11/2026.
+                title: name || canonical,
                 stageId: firstStage.id,
                 status: 'open',
                 originId,

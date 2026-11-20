@@ -1,6 +1,7 @@
 import prisma from '@venn/db/cliente'
 import { SCHEDULABLE_CATEGORIES } from '../../lib/product-categories'
 import { createLogger } from '../registro'
+import { funilPadrao } from '@venn/core/lib/pipeline/funis'
 
 const log = createLogger('CONTEXT')
 
@@ -104,9 +105,12 @@ async function cadastroDoWorkspace(workspaceId: string): Promise<{
     stages: string[]
     bookable: { servicos: string[]; profissionais: string[] }
 }> {
+    // As fases que o agente conhece são as do funil padrão — o do atendimento.
+    // É também o único em que `mover_negocio` move.
+    const funil = await funilPadrao(workspaceId)
     const [fases, servicos, profissionais] = await Promise.all([
         prisma.pipelineStage.findMany({
-            where: { workspaceId },
+            where: { workspaceId, pipelineId: funil?.id ?? '' },
             orderBy: { order: 'asc' },
             select: { name: true },
         }),

@@ -5,6 +5,7 @@ import { phoneVariants } from '../../lib/whatsapp/types'
 import { withLock } from '../trava'
 import { createLogger } from '../registro'
 import { vocab } from '../../lib/vocabulario'
+import { negocioAbertoNoFunil, primeiraFaseDoPadrao } from '@venn/core/lib/pipeline/funis'
 
 const log = createLogger('CONVERSATION')
 
@@ -364,21 +365,20 @@ async function ensureOpenDeal(
     /** A mídia que a linha semeia, quando ela semeia alguma. */
     mediaId: string | null
 ): Promise<void> {
-    const openDeal = await prisma.deal.findFirst({
-        where: { contactId: contact.id, workspaceId, status: 'open' },
-        select: { id: true },
-    })
-    if (openDeal) return
-
-    const firstStage = await prisma.pipelineStage.findFirst({
-        where: { workspaceId },
-        orderBy: { order: 'asc' },
-        select: { id: true },
-    })
+    /**
+     * No funil **padrão** — o do atendimento. É nele que o negócio da primeira
+     * mensagem nasce, e é contra ele que se confere se já existe um: a mesma
+     * pessoa pode ter negócio aberto noutro funil (trabalho manual de Vendas)
+     * sem que isso impeça o atendimento de ter o seu. Ver PRODUCT.md §15.
+     */
+    const firstStage = await primeiraFaseDoPadrao(workspaceId)
     if (!firstStage) {
         log.warn(`workspace ${workspaceId} has no pipeline stages; skipping deal creation`)
         return
     }
+
+    const openDeal = await negocioAbertoNoFunil(workspaceId, contact.id, firstStage.pipelineId)
+    if (openDeal) return
 
     /**
      * A primeira passagem nasce junto com o negócio.
@@ -393,9 +393,19 @@ async function ensureOpenDeal(
         data: {
             workspaceId,
             contactId: contact.id,
-            // Sem o `instagramId` no fim, um paciente do Direct viraria
-            // "Novo paciente - null": lá o telefone não existe.
-            title: `Novo ${vocab().pessoa} - ${contact.name || contact.phone || contact.instagramId}`,
+            /**
+             * O título é o nome da pessoa — só ele.
+             *
+             * Era "Novo <pessoa> - Fulano", e o prefixo só alongava o nome:
+             * numa coluna de cartões todos começavam igual e o que distinguia
+             * um do outro ficava cortado. Pedido do Andre em 20/11/2026; os
+             * títulos já gravados perderam o prefixo na migração
+             * `funis_de_vendas`.
+             *
+             * `instagramId` no fim porque no Direct o telefone não existe —
+             * sem ele o título sairia `null`.
+             */
+            title: contact.name || contact.phone || contact.instagramId || `${vocab().Pessoa} sem nome`,
             stageId: firstStage.id,
             originId: contact.originId,
             /**

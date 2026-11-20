@@ -3,6 +3,7 @@ import type { Prisma } from '@venn/db'
 import prisma from '@venn/db/cliente'
 import { FUSO_DO_NEGOCIO, diaNoFuso, fimDoDia, inicioDoDia, inicioDoDiaUtc, somarDias } from '../fuso'
 import { fusoDaUnidade } from '../fuso-da-unidade'
+import { funilPadrao, noFunil } from '@venn/core/lib/pipeline/funis'
 
 /**
  * Everything the dashboard shows, in one round trip.
@@ -110,6 +111,14 @@ export async function getDashboardSummary(
     const conversationOwner = owner ? { assignedTo: owner } : {}
     const activityOwner = owner ? { userId: owner } : {}
 
+    /**
+     * O funil que o painel desenha é o **padrão** — o do atendimento. Os
+     * indicadores de dinheiro (receita, conversão) continuam contando a
+     * unidade inteira; só "onde o funil está parado" precisa escolher um
+     * funil, porque fase é de um funil só.
+     */
+    const funil = await funilPadrao(workspaceId)
+
     /** Intervalo de datas, ou nada quando o recorte é "todo o período". */
     const inWindow = window ? { gte: window.from, lt: window.to } : undefined
     const inPrevious = window
@@ -206,7 +215,7 @@ export async function getDashboardSummary(
             },
         }),
         prisma.pipelineStage.findMany({
-            where: { workspaceId },
+            where: { workspaceId, pipelineId: funil?.id ?? '' },
             orderBy: { order: 'asc' },
             select: { id: true, name: true, color: true },
         }),
@@ -215,7 +224,7 @@ export async function getDashboardSummary(
         // quem o filtro escolheu.
         prisma.deal.groupBy({
             by: ['stageId'],
-            where: { workspaceId, ...dealOwner, status: 'open' },
+            where: { workspaceId, ...dealOwner, status: 'open', ...noFunil(funil?.id ?? '') },
             _count: { _all: true },
             _sum: { value: true },
         }),

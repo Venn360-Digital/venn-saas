@@ -6,7 +6,7 @@ import { usuarioDaSessao } from '@venn/core/lib/auth/sessao'
 import prisma from '@venn/db/cliente'
 import { DEFAULT_MODEL } from '@venn/core/lib/llm/models'
 import { errorMessage } from '@venn/db/erros'
-import { AGENT_WIDGET_DEFAULTS, DEFAULT_PIPELINE_STAGES } from '@venn/core/lib/palette'
+import { AGENT_WIDGET_DEFAULTS } from '@venn/core/lib/palette'
 import { DEFAULT_AGENT_PREFERENCES } from '@venn/core/types/agent-preferences'
 import { DEFAULT_AUTOMATIONS } from '@venn/core/lib/automations'
 import { ESTRATEGIA_INICIAL, FUSO_INICIAL, MOTIVOS_PADRAO } from '@venn/core/lib/onboarding/padroes'
@@ -19,6 +19,7 @@ import { sendEmail } from '@venn/core/lib/email/send'
 import { TEMPLATES } from '@venn/core/lib/email/templates'
 import { sendBillingEmail } from '@venn/core/lib/email/billing'
 import { vocab } from '@venn/core/lib/vocabulario'
+import { NOME_DO_FUNIL_PADRAO, semearFunil } from '@venn/core/lib/pipeline/funis'
 
 /**
  * O primeiro agente da clínica, com as preferências **gravadas**.
@@ -90,9 +91,9 @@ async function aplicarPadroesDaUnidade(
     ])
 
     if (!temEtapa) {
-        await tx.pipelineStage.createMany({
-            data: DEFAULT_PIPELINE_STAGES.map((etapa) => ({ ...etapa, workspaceId })),
-        })
+        // O funil nasce junto com as fases, e é o padrão do atendimento — o
+        // primeiro da unidade sempre é. Ver `lib/pipeline/funis.ts`.
+        await semearFunil(tx, { workspaceId, name: NOME_DO_FUNIL_PADRAO, isDefault: true })
     }
 
     if (!temMotivo) {

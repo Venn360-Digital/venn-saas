@@ -106,8 +106,14 @@ export async function DELETE(
                 )
             }
 
+            /**
+             * A fase de destino é **do mesmo funil**. Excluir uma fase é
+             * arrumar a jornada deste funil, não transferir negócios para outro:
+             * mandar o negócio de um funil para a fase de outro, de carona na
+             * exclusão, seria uma mudança de funil que ninguém pediu.
+             */
             const target = await prisma.pipelineStage.findFirst({
-                where: { id: moveTo, workspaceId: workspaceUser.workspaceId },
+                where: { id: moveTo, workspaceId: workspaceUser.workspaceId, pipelineId: stage.pipelineId },
                 select: { id: true },
             })
             if (!target || target.id === id) {

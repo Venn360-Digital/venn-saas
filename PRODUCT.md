@@ -857,7 +857,61 @@ versão, e não volta.
 
 ---
 
-## 15. O que ainda não existe
+## 15. Funis de venda
+
+Decidido com o Andre em 2026-11-20. Até então o funil era implícito — "a lista
+ordenada de fases da unidade" — e por isso só podia haver um.
+
+**Uma unidade pode ter vários funis, e exatamente um é o padrão.** Cada funil
+tem as suas fases, a sua ordem e os seus prazos de follow-up. Em Vendas →
+Negócios a pessoa escolhe qual trabalha (o escolhido vive na URL, `?funil=`), e
+o padrão é o que abre sem escolha — para quem só tem um, nada muda.
+
+**O padrão é o funil do atendimento.** É o único que o módulo de atendimento
+conhece: o negócio que nasce da primeira mensagem (e o do Novo atendimento)
+entra na primeira fase dele; o cartão da caixa de entrada e o filtro por etapa
+leem a fase dele; o agente de IA só lista e só move fases dele; as regras do
+agente agem sobre o negócio aberto dele; o painel da conversa mostra a jornada
+dele; o painel de indicadores desenha as fases dele. Os outros funis são de
+trabalho manual em Negócios. A pessoa que tem negócio aberto **só** noutro
+funil aparece no atendimento como "sem negócio aberto", e criar um ali o cria
+no padrão.
+
+**Trocar o padrão é ato explícito** (a estrela em Gerenciar funis), com a
+consequência escrita ao lado: a próxima mensagem já cria negócio no novo
+padrão, e os negócios que estavam no antigo ficam onde estão. O padrão não se
+exclui — marca-se outro antes.
+
+**Um negócio pertence a um funil pela fase em que está.** Não há coluna
+duplicada no negócio para divergir. Mover um negócio para a fase de outro funil
+é como ele troca de funil.
+
+**A regra 1:1 virou 1:1 por funil.** Um contato tem no máximo um negócio
+aberto **em cada funil** — a mesma pessoa pode ter uma avaliação andando num e
+um plano em negociação noutro. Dentro de um funil continua valendo um só, que é
+o que faz o cartão da caixa de entrada e o agente saberem de qual negócio estão
+falando. A criação e a mudança de fase ou de contato recusam o segundo (409).
+
+**Excluir funil com negócios pede destino**, como excluir fase: eles vão para a
+primeira fase do funil escolhido, com a passagem registrada na jornada. As
+fases do funil excluído saem com ele, e as passagens por elas também.
+
+**Funil novo nasce com as fases padrão**, para ser usável no mesmo clique; o
+primeiro funil da unidade é o padrão, os seguintes não.
+
+**O funil de marketing é outra coisa.** Marketing → Funis são sequências
+automáticas (gatilho e passos); o gatilho "entrou na etapa" e o passo "mover
+etapa" podem apontar para a fase de qualquer funil de venda, e o combo escreve
+o nome do funil ao lado da fase quando há mais de um. O passo só move o negócio
+aberto **do mesmo funil** da fase de destino.
+
+**O título do negócio é o nome da pessoa.** Era "Novo <pessoa> - Fulano"; o
+prefixo saiu em 2026-11-20 e os títulos já gravados perderam o prefixo na
+migração.
+
+---
+
+## 16. O que ainda não existe
 
 Registrado para não ser esquecido:
 

@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@venn/db/cliente'
 import { getWorkspaceMember } from '@venn/core/lib/auth/workspace'
 import { periodWhere } from '@venn/core/lib/deal-filters'
+import { funilOuPadrao, noFunil } from '@venn/core/lib/pipeline/funis'
 
 /**
  * Em aberto, ganho e perdido — contagem e valor, no período filtrado.
@@ -35,11 +36,19 @@ export async function GET(request: NextRequest) {
     const openPeriod = periodWhere('open', dateFrom, dateTo)
     const closedPeriod = periodWhere('closed', dateFrom, dateTo)
 
+    // Do funil escolhido, quando a tela escolhe um: os três números são do
+    // mesmo funil que o trilho mostra. Sem o parâmetro, a unidade inteira.
+    const funilId = searchParams.get('funil')
+    const funil = funilId ? await funilOuPadrao(auth.member.workspaceId, funilId) : null
+    if (funilId && !funil) return NextResponse.json({ error: 'Funil não encontrado' }, { status: 404 })
+    const doFunil = funil ? noFunil(funil.id) : {}
+
     const [open, won, lost] = await Promise.all([
         prisma.deal.aggregate({
             where: {
                 workspaceId: auth.member.workspaceId,
                 status: 'open',
+                ...doFunil,
                 ...openPeriod,
             },
             _count: true,
@@ -49,6 +58,7 @@ export async function GET(request: NextRequest) {
             where: {
                 workspaceId: auth.member.workspaceId,
                 status: 'won',
+                ...doFunil,
                 ...closedPeriod,
             },
             _count: true,
@@ -58,6 +68,7 @@ export async function GET(request: NextRequest) {
             where: {
                 workspaceId: auth.member.workspaceId,
                 status: 'lost',
+                ...doFunil,
                 ...closedPeriod,
             },
             _count: true,

@@ -9,6 +9,7 @@ import { isDealLane, laneWhere } from '@venn/core/lib/deal-lanes'
 import { fusoDaUnidade } from '@venn/core/lib/fuso-da-unidade'
 import { periodWhere } from '@venn/core/lib/deal-filters'
 import { currentMembership, dealScope, getWorkspaceMember } from '@venn/core/lib/auth/workspace'
+import { funilOuPadrao, negocioAbertoNoFunil, noFunil } from '@venn/core/lib/pipeline/funis'
 import { vocab } from '../../../lib/vocabulario'
 
 const dealSchema = z.object({
@@ -112,6 +113,19 @@ export async function GET(request: NextRequest) {
          */
         const todas: Prisma.DealWhereInput[] = [dealScope(workspaceUser)]
 
+        /**
+         * De qual funil. A tela de Negócios manda o escolhido e vê só ele —
+         * sem isto a visão em lista mostraria os negócios de todos os funis
+         * sob as fases de um. Sem o parâmetro, todos: é o que a exportação e
+         * os chamadores antigos esperam.
+         */
+        const funilId = searchParams.get('funil')
+        if (funilId) {
+            const funil = await funilOuPadrao(workspaceUser.workspaceId, funilId)
+            if (!funil) return NextResponse.json({ error: 'Funil não encontrado' }, { status: 404 })
+            todas.push(noFunil(funil.id))
+        }
+
         // A mesma faixa de prioridades do quadro, para que trocar de visão não
         // troque o conjunto de negócios.
         const lane = searchParams.get('lane')
@@ -205,18 +219,33 @@ export async function POST(request: NextRequest) {
         const body = await request.json()
         const validatedData = dealSchema.parse(body)
 
-        // Enforce 1:1 rule: a contact can only have one open deal
-        if (validatedData.contactId) {
-            const existingOpenDeal = await prisma.deal.findFirst({
-                where: {
-                    contactId: validatedData.contactId,
-                    workspaceId: workspaceUser.workspaceId,
-                    status: 'open',
-                }
-            })
+        /**
+         * A fase decide o funil, e a fase tem de ser desta unidade: o id vem
+         * do navegador, e um `stageId` de outra clínica criaria um negócio
+         * apontando para a jornada dela.
+         */
+        const fase = await prisma.pipelineStage.findFirst({
+            where: { id: validatedData.stageId, workspaceId: workspaceUser.workspaceId },
+            select: { id: true, pipelineId: true },
+        })
+        if (!fase) return NextResponse.json({ error: 'Fase não encontrada' }, { status: 404 })
+
+        /**
+         * A regra 1:1, **por funil**: um contato tem no máximo um negócio
+         * aberto em cada funil. Era um por contato quando só havia um funil;
+         * com dois, a mesma pessoa pode ter uma avaliação andando num e um
+         * plano em negociação noutro, e barrar isso faria o segundo funil ser
+         * inútil para quem já está no primeiro. Ver `negocioAbertoNoFunil`.
+         */
+        if (validatedData.contactId && fase.pipelineId) {
+            const existingOpenDeal = await negocioAbertoNoFunil(
+                workspaceUser.workspaceId,
+                validatedData.contactId,
+                fase.pipelineId
+            )
             if (existingOpenDeal) {
                 return NextResponse.json(
-                    { error: `Este ${vocab().pessoa} já possui um negócio ativo. Finalize-o antes de criar outro.` },
+                    { error: `Este ${vocab().pessoa} já possui um negócio ativo neste funil. Finalize-o antes de criar outro.` },
                     { status: 409 }
                 )
             }

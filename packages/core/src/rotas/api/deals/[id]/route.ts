@@ -5,6 +5,7 @@ import { negocioEntrouNaEtapa, negocioFoiFechado } from '@venn/core/lib/funil/di
 import { conferirRelacoes } from '@venn/core/lib/auth/relacoes'
 import { usuarioDaSessao } from '@venn/core/lib/auth/sessao'
 import { Prisma } from '@venn/db'
+import { negocioAbertoNoFunil } from '@venn/core/lib/pipeline/funis'
 import { vocab } from '../../../../lib/vocabulario'
 
 const dealInclude = {
@@ -45,7 +46,10 @@ export async function PATCH(
             // Esconder da lista não é autorização: o id na URL abre a ficha
             // inteira, então o recorte vale aqui também.
                 ...dealScope(workspaceUser),
-            }
+            },
+            // O funil atual sai da fase: é contra ele que a regra 1:1 por
+            // funil é conferida quando a fase ou o contato mudam.
+            include: { stage: { select: { pipelineId: true } } },
         })
         if (!existingDeal) return NextResponse.json({ error: 'Deal not found' }, { status: 404 })
 
@@ -77,19 +81,39 @@ export async function PATCH(
             return NextResponse.json({ error: recusada.mensagem }, { status: 404 })
         }
 
-        // If changing contact, enforce 1:1 rule
-        if (contactId && contactId !== existingDeal.contactId) {
-            const existingOpenDeal = await prisma.deal.findFirst({
-                where: {
-                    contactId,
-                    workspaceId: workspaceUser.workspaceId,
-                    status: 'open',
-                    id: { not: id },
-                }
-            })
+        /**
+         * O funil de destino: o da fase nova, se a fase mudou; senão o atual.
+         *
+         * Mover para a fase de **outro** funil é permitido — é como um negócio
+         * troca de funil — e passa pela mesma regra 1:1 por funil que a
+         * criação: se o contato já tem negócio aberto lá, a mudança é recusada
+         * em vez de produzir dois cartões da mesma pessoa no mesmo trilho.
+         */
+        const funilAtual = existingDeal.stage.pipelineId
+        const funilDestino =
+            stageId !== undefined && stageId !== existingDeal.stageId
+                ? (
+                      await prisma.pipelineStage.findFirst({
+                          where: { id: stageId as string, workspaceId: workspaceUser.workspaceId },
+                          select: { pipelineId: true },
+                      })
+                  )?.pipelineId ?? null
+                : funilAtual
+
+        const contatoFinal = (contactId as string | undefined) ?? existingDeal.contactId
+        const trocouContato = contactId !== undefined && contactId !== existingDeal.contactId
+        const trocouFunil = funilDestino !== funilAtual
+        const statusFinal = (status as string | undefined) ?? existingDeal.status
+        if ((trocouContato || trocouFunil) && contatoFinal && funilDestino && statusFinal === 'open') {
+            const existingOpenDeal = await negocioAbertoNoFunil(
+                workspaceUser.workspaceId,
+                contatoFinal,
+                funilDestino,
+                { exceto: id }
+            )
             if (existingOpenDeal) {
                 return NextResponse.json(
-                    { error: `Este ${vocab().pessoa} já possui um negócio ativo.` },
+                    { error: `Este ${vocab().pessoa} já possui um negócio ativo neste funil.` },
                     { status: 409 }
                 )
             }

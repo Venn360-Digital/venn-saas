@@ -8,6 +8,7 @@ import type { LLMTool } from '../../types/llm'
 import { createLogger } from '../registro'
 import { vocab, type Vocabulario } from '../../lib/vocabulario'
 import { comArtigo } from '../../lib/concordancia'
+import { funilPadrao, noFunil } from '@venn/core/lib/pipeline/funis'
 
 const log = createLogger('AGENT_TOOLS')
 
@@ -221,8 +222,15 @@ const moverNegocio: AgentTool = {
         const motivo = typeof args.motivo === 'string' ? args.motivo.trim() : ''
         if (!nome) return 'Erro: a fase de destino não foi informada.'
 
+        /**
+         * Do funil padrão, o do atendimento — o mesmo cujas fases o prompt
+         * listou (`cadastroDoWorkspace`). O agente não move negócio de outro
+         * funil: aquele é trabalho manual de Vendas, e o modelo nem sabe que
+         * ele existe.
+         */
+        const funil = await funilPadrao(ctx.workspaceId)
         const fases = await prisma.pipelineStage.findMany({
-            where: { workspaceId: ctx.workspaceId },
+            where: { workspaceId: ctx.workspaceId, pipelineId: funil?.id ?? '' },
             orderBy: { order: 'asc' },
             select: { id: true, name: true },
         })
@@ -240,7 +248,12 @@ const moverNegocio: AgentTool = {
         }
 
         const negocio = await prisma.deal.findFirst({
-            where: { workspaceId: ctx.workspaceId, contactId: ctx.contactId, status: 'open' },
+            where: {
+                workspaceId: ctx.workspaceId,
+                contactId: ctx.contactId,
+                status: 'open',
+                ...noFunil(funil?.id ?? ''),
+            },
             orderBy: { createdAt: 'desc' },
             select: { id: true, title: true, stageId: true, stage: { select: { name: true } } },
         })

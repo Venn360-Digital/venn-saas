@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { PERMISSION_DENIED, currentMembership, hasEditorRole } from '@venn/core/lib/auth/workspace'
 import prisma from '@venn/db/cliente'
-import { DEFAULT_PIPELINE_STAGES } from '@venn/core/lib/palette'
+import { NOME_DO_FUNIL_PADRAO, semearFunil } from '@venn/core/lib/pipeline/funis'
 
 // POST - Seed default pipeline stages
 export async function POST() {
@@ -31,21 +31,19 @@ export async function POST() {
             return NextResponse.json({ error: 'Pipeline already exists' }, { status: 400 })
         }
 
-        // Create default stages
-        const defaultStages = [
-            ...DEFAULT_PIPELINE_STAGES,
-        ]
-
-        const stages = await prisma.pipelineStage.createMany({
-            data: defaultStages.map(stage => ({
-                ...stage,
-                workspaceId: workspaceUser.workspaceId
-            }))
+        /**
+         * O funil nasce junto com as fases, e é o padrão: é o primeiro da
+         * unidade. Antes as fases nasciam soltas, porque o funil era implícito.
+         */
+        const funil = await semearFunil(prisma, {
+            workspaceId: workspaceUser.workspaceId,
+            name: NOME_DO_FUNIL_PADRAO,
+            isDefault: true,
         })
 
         // Return created stages
         const createdStages = await prisma.pipelineStage.findMany({
-            where: { workspaceId: workspaceUser.workspaceId },
+            where: { workspaceId: workspaceUser.workspaceId, pipelineId: funil.id },
             orderBy: { order: 'asc' }
         })
 

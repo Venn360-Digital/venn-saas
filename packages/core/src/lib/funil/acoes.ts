@@ -10,6 +10,7 @@ import {
 import { enviarPorSes } from '../email/ses'
 import { urlDeDescadastro } from '../marketing/descadastro'
 import { conteudoDoPasso, remetenteDoFunil, type Passagem } from './estado'
+import { noFunil } from '@venn/core/lib/pipeline/funis'
 
 /** Mesma derivação de `servicos/broadcast.ts`: o host da marca quando não há env. */
 /**
@@ -101,12 +102,23 @@ export async function moverEtapa(passagem: Passagem, config: unknown): Promise<R
 
     const etapa = await prisma.pipelineStage.findFirst({
         where: { id: stageId, workspaceId: passagem.workspaceId },
-        select: { id: true },
+        select: { id: true, pipelineId: true },
     })
     if (!etapa) return { ok: false, definitivo: true, motivo: 'a etapa não existe nesta unidade' }
 
+    /**
+     * Só o negócio aberto **do mesmo funil** da etapa de destino. Sem este
+     * recorte, mover para "Proposta" do funil A arrastaria também o negócio da
+     * pessoa no funil B para uma fase que não é dele — uma troca de funil que
+     * ninguém desenhou no passo.
+     */
     const movidos = await prisma.deal.updateMany({
-        where: { workspaceId: passagem.workspaceId, contactId: passagem.contactId, status: 'open' },
+        where: {
+            workspaceId: passagem.workspaceId,
+            contactId: passagem.contactId,
+            status: 'open',
+            ...(etapa.pipelineId ? noFunil(etapa.pipelineId) : {}),
+        },
         data: { stageId },
     })
 

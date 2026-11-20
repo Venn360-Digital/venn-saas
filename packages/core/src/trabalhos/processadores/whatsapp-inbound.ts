@@ -30,6 +30,7 @@ import { readPreferences } from '../servicos/prompt'
 import { applyAgentRules } from '../servicos/rules'
 import { emitAgentEvent } from '../servicos/webhook-events'
 import { avisarMensagemNova , publicarAgora } from '../../lib/outbox/avisar'
+import { funilPadrao, noFunil } from '@venn/core/lib/pipeline/funis'
 
 const log = createLogger('INBOUND')
 
@@ -439,8 +440,11 @@ export async function processWhatsAppInbound(payload: WhatsAppInboundJob): Promi
         return
     }
 
+    // O negócio que as regras do agente movem: o aberto no funil padrão, que é
+    // o do atendimento. Negócio da pessoa noutro funil é de Vendas.
+    const funil = await funilPadrao(workspace.id)
     const openDeal = await prisma.deal.findFirst({
-        where: { workspaceId: workspace.id, contactId: contact.id, status: 'open' },
+        where: { workspaceId: workspace.id, contactId: contact.id, status: 'open', ...noFunil(funil?.id ?? '') },
         orderBy: { createdAt: 'desc' },
         select: { id: true },
     })

@@ -32,6 +32,7 @@ import { WHATSAPP_CHANNELS, phoneFromConfig } from '@venn/core/lib/conversation-
 import { conversationScope, currentMembership, type WorkspaceRole } from '@venn/core/lib/auth/workspace'
 import { inicioDoDiaDe } from '@venn/core/lib/fuso'
 import { fusoDaUnidade } from '@venn/core/lib/fuso-da-unidade'
+import { funilPadrao } from '@venn/core/lib/pipeline/funis'
 
 // GET: List conversations for the user's workspace
 export async function GET(request: NextRequest) {
@@ -179,9 +180,15 @@ export async function GET(request: NextRequest) {
          * etapa porque atravessa o contato), e `where.OR` já é da busca. Pôr
          * qualquer um deles ali apagaria a busca — ou seria apagado por ela.
          */
+        /**
+         * O funil do atendimento. O cartão, o filtro e o seletor de etapas
+         * desta rota leem o mesmo funil — o padrão —, e é por isso que ele é
+         * resolvido uma vez aqui. Ver `negocioNoFunil`.
+         */
+        const funilDoAtendimento = await funilPadrao(workspaceUser.workspaceId)
         const recortes = [
             recorteDeEtiqueta(etiqueta),
-            recorteDeEtapa(workspaceUser.workspaceId, etapa),
+            recorteDeEtapa(workspaceUser.workspaceId, etapa, funilDoAtendimento?.id ?? null),
         ].filter((r): r is NonNullable<typeof r> => r !== null)
 
         if (recortes.length) {
@@ -302,7 +309,7 @@ export async function GET(request: NextRequest) {
             ? etapaPorContato(
                   await prisma.deal.findMany({
                       where: {
-                          ...negocioNoFunil(workspaceUser.workspaceId),
+                          ...negocioNoFunil(workspaceUser.workspaceId, funilDoAtendimento?.id ?? null),
                           contactId: { in: [...new Set(conversations.map((c) => c.contact.id))] },
                       },
                       orderBy: { createdAt: 'desc' },
@@ -534,8 +541,11 @@ export async function GET(request: NextRequest) {
                 orderBy: { name: 'asc' },
                 select: { id: true, name: true, color: true },
             }),
+            // As etapas do funil padrão — as mesmas que o cartão pinta e o
+            // filtro recorta. Oferecer etapa de outro funil aqui filtraria
+            // por algo que nenhum cartão mostra.
             prisma.pipelineStage.findMany({
-                where: { workspaceId: ws },
+                where: { workspaceId: ws, pipelineId: funilDoAtendimento?.id ?? '' },
                 orderBy: { order: 'asc' },
                 select: { id: true, name: true, color: true },
             }),

@@ -7,6 +7,7 @@ import { phoneFromConfig } from '@venn/core/lib/conversation-line'
 import { usuarioDaSessao } from '@venn/core/lib/auth/sessao'
 import { Prisma } from '@venn/db'
 import { avisarConversaAlterada , publicarAgora } from '@venn/core/lib/outbox/avisar'
+import { funilPadrao, noFunil } from '@venn/core/lib/pipeline/funis'
 
 // GET: Get conversation details with messages
 export async function GET(
@@ -188,8 +189,18 @@ export async function GET(
          * fechamento, justamente quando alguém quer ver o que acabou de
          * registrar — e tira a chance de reabrir pelo mesmo lugar.
          */
+        /**
+         * Do funil padrão, o do atendimento. Negócio da pessoa noutro funil é
+         * trabalho de Vendas e não aparece aqui — o painel oferece "criar
+         * negócio", que o cria no padrão, como a primeira mensagem faria.
+         */
+        const funilDoAtendimento = await funilPadrao(workspaceUser.workspaceId)
         const openDeal = await prisma.deal.findFirst({
-            where: { workspaceId: workspaceUser.workspaceId, contactId: conversation.contact.id },
+            where: {
+                workspaceId: workspaceUser.workspaceId,
+                contactId: conversation.contact.id,
+                ...noFunil(funilDoAtendimento?.id ?? ''),
+            },
             orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
             select: {
                 id: true,
@@ -222,7 +233,9 @@ export async function GET(
          */
         const stages = openDeal
             ? await prisma.pipelineStage.findMany({
-                  where: { workspaceId: workspaceUser.workspaceId },
+                  // As fases do funil em que o negócio está — não da unidade
+                  // inteira, que desde 20/11/2026 pode ter mais de um funil.
+                  where: { workspaceId: workspaceUser.workspaceId, pipelineId: funilDoAtendimento?.id ?? '' },
                   orderBy: { order: 'asc' },
                   select: { id: true, name: true, color: true, order: true },
               })
