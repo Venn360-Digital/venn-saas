@@ -50,11 +50,14 @@ import {
     AJUDA_DO_MARCADOR,
     aplicarVariaveis,
     ehMarcador,
+    MARCADOR_DE_ITENS,
     MARCADORES,
     marcadoresCitados,
 } from '@venn/core/lib/propostas/variaveis'
 import { renderDocumento, tabelaDeItens } from '@venn/core/lib/propostas/render'
 import { resumirNegociacao, type FatosDaProposta } from '@venn/core/lib/propostas/resumo'
+import { modelosSemente } from '@venn/core/lib/propostas/semente'
+import { vocab } from '@venn/core/lib/vocabulario'
 
 let falhas = 0
 const ok = (nome: string, cond: boolean, extra = '') => {
@@ -565,6 +568,72 @@ const base: FatosDaProposta = {
     ok('o resumo é determinístico', resumirNegociacao(base, AGORA) === resumirNegociacao(base, AGORA))
     ok('nunca sobra espaço duplo', !resumirNegociacao(base, AGORA).includes('  '))
     ok('termina com ponto', resumirNegociacao(base, AGORA).trimEnd().endsWith('.'))
+}
+
+// ============================================================ modelos semente
+
+/**
+ * O texto dos três modelos padrão.
+ *
+ * Entrou aqui depois de os dois defeitos abaixo aparecerem só ao **rodar** a
+ * função para semear os bancos de homologação — nenhum portão os via, e os dois
+ * saem no documento que o cliente lê:
+ *
+ *   - `este ${'proposta'}` escrevia **"este proposta"**. A palavra é nossa, não
+ *     do vocabulário, então não havia gênero declarado para `comArtigo`
+ *     consultar — e a frase se montava por concatenação.
+ *   - `por ${comArtigo(v, 'organizacao')}` escrevia **"por a clínica"**. A
+ *     contração existe em `concordancia.ts` (`'por'` → "pela"), e não foi usada.
+ *
+ * A lição é a do arquivo inteiro: concordância montada por concatenação não
+ * falha em teste nenhum, aparece na tela do cliente. Por isso as asserções
+ * abaixo varrem **preposição seguida de artigo solto**, e não apenas os dois
+ * casos consertados.
+ */
+{
+    const v = vocab()
+    const modelos = modelosSemente(v, 'ws-de-teste')
+
+    ok('são três modelos, um por tipo', modelos.length === TIPOS_DE_DOCUMENTO.length)
+    ok(
+        'um por tipo, sem repetir',
+        new Set(modelos.map((m) => m.kind)).size === TIPOS_DE_DOCUMENTO.length
+    )
+    ok(
+        'o nome é distinto — entra no @@unique([workspaceId, name])',
+        new Set(modelos.map((m) => m.name)).size === modelos.length
+    )
+
+    const corpo = (tipo: string) => modelos.find((m) => m.kind === tipo)?.body ?? ''
+
+    ok('a proposta concorda em gênero', corpo('proposta').includes('esta proposta'))
+    ok('e NÃO escreve "este proposta"', !corpo('proposta').includes('este proposta'))
+    ok('o orçamento concorda em gênero', corpo('orcamento').includes('este orçamento'))
+
+    ok('o contrato contrai a preposição', corpo('contrato').includes('pela organização'))
+    ok('e NÃO escreve "por a"', !corpo('contrato').includes('por a '))
+
+    /**
+     * A varredura geral: preposição que contrai, seguida de artigo solto.
+     *
+     * `com`, `sem` e `para` não contraem em português e por isso não entram —
+     * é a mesma lista que `concordancia.ts` mede em vez de supor.
+     */
+    for (const m of modelos) {
+        for (const vazamento of [' por a ', ' por o ', ' de a ', ' de o ', ' em a ', ' em o ']) {
+            // Sem `extra`: o helper imprime o detalhe mesmo quando passa, e
+            // dezoito corpos de documento na saída esconderiam a única falha.
+            ok(`${m.kind}: sem "${vazamento.trim()}" — contração esquecida`, !m.body.includes(vazamento))
+        }
+        ok(`${m.kind}: expande os itens`, m.body.includes(`{{${MARCADOR_DE_ITENS}}}`))
+
+        // O que o modelo NÃO promete. Texto escrito por nós sairia no nome da
+        // organização prometendo o que não sabemos — a regra está no cabeçalho
+        // de `semente.ts`, e sem asserção ela se perde na primeira edição.
+        for (const promessa of ['garantia', 'prazo de', 'parcel', 'desconto de']) {
+            ok(`${m.kind}: não promete "${promessa}"`, !m.body.toLowerCase().includes(promessa))
+        }
+    }
 }
 
 // ============================================================ fecho

@@ -37,7 +37,16 @@ import { ROTULO_DO_TIPO, TIPOS_DE_DOCUMENTO, type TipoDeDocumento } from './esta
 /** O corpo do modelo de proposta e de orçamento — mudam o título e o fecho. */
 function corpoComercial(v: Vocabulario, tipo: 'proposta' | 'orcamento'): string {
     const aOrganizacao = comArtigo(v, 'organizacao')
-    const oServico = tipo === 'proposta' ? 'proposta' : 'orçamento'
+
+    /**
+     * O demonstrativo vem junto com a palavra, não concatenado na frase.
+     *
+     * "proposta" é feminino e "orçamento" é masculino — um `este ${palavra}`
+     * escreve "este proposta" no documento que o cliente lê. Não é caso de
+     * `comArtigo`: estas duas palavras são nossas, não do vocabulário do nicho,
+     * então não há gênero declarado para consultar.
+     */
+    const esteDocumento = tipo === 'proposta' ? 'esta proposta' : 'este orçamento'
 
     return `# {{titulo}}
 
@@ -49,7 +58,7 @@ Emitido em {{data}}{{validade| }}
 
 {{observacao}}
 
-Qualquer dúvida sobre este ${oServico}, fale com {{responsavel}} — ${aOrganizacao} fica à disposição.`
+Qualquer dúvida sobre ${esteDocumento}, fale com {{responsavel}} — ${aOrganizacao} fica à disposição.`
 }
 
 /**
@@ -59,7 +68,15 @@ Qualquer dúvida sobre este ${oServico}, fale com {{responsavel}} — ${aOrganiz
  * Cláusula jurídica não se gera — quem assina tem de ter escrito.
  */
 function corpoDeContrato(v: Vocabulario): string {
-    const aOrganizacao = comArtigo(v, 'organizacao')
+    /**
+     * `'por'` contrai: "pela clínica", não "por a clínica".
+     *
+     * É para isto que a tabela de `concordancia.ts` é escrita por extenso —
+     * "por" + "a" = "pela" não se parece com nenhum dos dois, e concatenar a
+     * preposição com o resultado sem contração põe erro de português no
+     * contrato.
+     */
+    const pelaOrganizacao = comArtigo(v, 'organizacao', 'por')
 
     return `# {{titulo}}
 
@@ -83,7 +100,7 @@ O presente instrumento tem por objeto a prestação dos itens discriminados abai
 
 Ao aceitar este documento, o contratante declara ter lido e concordado com as condições acima.
 
-Responsável por ${aOrganizacao}: {{responsavel}}`
+Responsável ${pelaOrganizacao}: {{responsavel}}`
 }
 
 export function corpoDoModelo(v: Vocabulario, tipo: TipoDeDocumento): string {
