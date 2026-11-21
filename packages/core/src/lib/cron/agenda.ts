@@ -164,6 +164,20 @@ export const ROTINAS: Rotina[] = [
     { task: 'propostas-expiradas', brt: '41 4 * * *' },
 
     /**
+     * A proposta enviada que ninguém respondeu — avisa o vendedor.
+     *
+     * **Mesma carona do gatilho acima**, e não é economia preguiçosa: as duas
+     * rotinas varrem as mesmas tabelas, e separá-las custaria um despertar a
+     * mais do compute do Neon para ler o que já estava aberto.
+     *
+     * Diária porque os marcos são em DIAS (3 e 7 desde o envio). O plano do
+     * módulo previa um Cloudflare Workflow dormindo por proposta; a troca está
+     * explicada em `propostas-sem-resposta.ts`, e a razão curta é que a
+     * instância teria de reconferir o estado ao acordar de todo modo.
+     */
+    { task: 'propostas-sem-resposta', brt: '41 4 * * *' },
+
+    /**
      * **Fica de hora em hora, 24 h — e isso é de propósito.**
      *
      * O boletim é entregue na hora que cada clínica escolheu, e o seletor em

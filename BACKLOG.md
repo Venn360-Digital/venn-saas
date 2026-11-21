@@ -100,8 +100,13 @@ staging** — o workerd não roda nesta máquina.
 
 **Decidido e não implementado:** PDF arquivado (Browser Rendering, partindo do
 mesmo HTML), assinatura com certificadora, alçada de desconto (os três estados
-existem no domínio, sem tela), preço por cliente e composição de item com piso
-de preço, e follow-up automático de proposta não respondida.
+existem no domínio, sem tela), e preço por cliente e composição de item com piso
+de preço.
+
+O follow-up de proposta sem resposta **entrou** como rotina diária, avisando o
+vendedor (nunca o cliente) e com o texto mudando conforme o cliente abriu ou não
+o link. Virou cron em vez do Workflow que o plano previa — a razão está no
+cabeçalho de `propostas-sem-resposta.ts`.
 
 ## 5. Relatórios
 

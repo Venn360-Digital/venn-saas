@@ -204,6 +204,7 @@ export type CronJobName =
     | 'minerar-lacunas'
     | 'ia-credencial'
     | 'propostas-expiradas'
+    | 'propostas-sem-resposta'
 
 export interface CronJob {
     task: CronJobName

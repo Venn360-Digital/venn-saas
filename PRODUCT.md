@@ -1223,13 +1223,43 @@ promovido a entidade (`ProductGroup`) — texto livre produzia "Implantes",
 - **Preço por cliente e composição de item (CPQ).** O achado mais valioso do
   estudo — `Products@Parts` com mínimo e máximo de preço e quantidade — ficou
   para uma rodada futura.
-- **Follow-up automático de proposta não respondida.** O `MotorDoFunil` serve, e
-  o gancho de dado existe (`ProposalShareView`). Não entrou nesta rodada.
+- **Envio automático ao cliente.** O follow-up abaixo avisa **o vendedor**;
+  nada sai para o cliente sozinho. Disparo frio está bloqueado por construção, e
+  cobrança automática em nome da clínica seria texto escrito por nós prometendo
+  o que não sabemos.
 - **Relatórios.** PR seguinte. Os ganchos nasceram aqui: aberturas com carimbo,
   `sharedAt`/`acceptedAt` (time-to-accept), `status`+`version` (taxa de
   aprovação e revisões até o aceite) e `ProposalItem.productServiceId` — que
   torna possível o primeiro relatório por produto, impossível até aqui porque
   `Deal` não tem itens.
+
+### A proposta sem resposta cobra o vendedor, não o cliente
+
+Rotina diária (`propostas-sem-resposta`): proposta enviada há **3 ou 7 dias**,
+sem aceite, com link válido e negócio aberto, gera uma notificação para o dono
+do negócio.
+
+**O texto muda com as aberturas, e é aqui que o módulo paga o que custou.** Zero
+abertura não é "ele não gostou" — é "ele não abriu", e a ação seguinte é outra:
+confirmar se o link chegou, não renegociar preço. Nenhum CRM que manda PDF anexo
+sabe a diferença.
+
+Dois marcos, não cinco: o terceiro aviso sobre a mesma proposta deixa de ser
+lembrete e passa a ser ruído, e a pessoa aprende a ignorar a sineta — o que custa
+os avisos que importam.
+
+**Não duplica por construção.** `NotificationLog` tem
+`@@unique([workspaceId, kind, scope])`, e o `scope` carrega a proposta e o
+marco; a reivindicação vem antes do aviso, e é devolvida se o aviso falhar — o
+mesmo padrão dos e-mails de cobrança. Nenhuma coluna de "já cobrei".
+
+O plano previa um Cloudflare Workflow dormindo por proposta. Virou cron porque
+**a instância teria de reconferir o estado ao acordar de todo modo** (a proposta
+pode ter sido aceita, revogada ou substituída por uma v2), então ela não evitaria
+a consulta — só adiantaria o agendamento, ao custo de um binding novo nos três
+Workers ou de enfiar o domínio de proposta dentro do motor de funis de
+marketing. A rotina pega carona no gatilho que a expiração já usa: **21 entradas
+na agenda, 15 gatilhos — os mesmos de antes das duas.**
 
 ### A proposta está onde o negócio está
 
