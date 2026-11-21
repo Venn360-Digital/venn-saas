@@ -17,11 +17,13 @@ import {
     ROTULO_DO_ESTADO,
     ROTULO_DO_TIPO,
 } from '@venn/core/lib/propostas/estados'
+// De `pedidos.ts`, o módulo NEUTRO — não de `ia.ts`, que é `server-only` e
+// carrega o Prisma. O `next build` reprova com `Can't resolve 'pg'`.
 import {
     PEDIDOS_DE_TEXTO,
     ROTULO_DO_PEDIDO,
     type PedidoDeTexto,
-} from '@venn/core/lib/propostas/ia'
+} from '@venn/core/lib/propostas/pedidos'
 
 import { EnviarDialog } from './EnviarDialog'
 import { ItemPicker } from './ItemPicker'

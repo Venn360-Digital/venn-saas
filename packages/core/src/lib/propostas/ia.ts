@@ -76,16 +76,21 @@ import { ehTipoDeDocumento, ROTULO_DO_TIPO, type TipoDeDocumento } from './estad
  * produz um documento que ninguém leu.
  */
 
-/** O que o campo de texto aceita pedir. Fechado, e não instrução livre. */
-export const PEDIDOS_DE_TEXTO = ['introducao', 'escopo', 'encurtar', 'formalizar'] as const
-export type PedidoDeTexto = (typeof PEDIDOS_DE_TEXTO)[number]
+/**
+ * A lista de pedidos vem de um módulo NEUTRO, e é reexportada aqui.
+ *
+ * A tela precisa dela para montar os botões, e **não pode importar este
+ * arquivo**: ele é `server-only` e carrega o Prisma. O `next build` reprovou
+ * com `Can't resolve 'pg'` quando ela importava daqui. Ver `./pedidos.ts`.
+ */
+import {
+    PEDIDOS_DE_TEXTO,
+    ROTULO_DO_PEDIDO,
+    reescreveTextoExistente,
+    type PedidoDeTexto,
+} from './pedidos'
 
-export const ROTULO_DO_PEDIDO: Record<PedidoDeTexto, string> = {
-    introducao: 'Escrever a introdução',
-    escopo: 'Descrever o que será feito',
-    encurtar: 'Encurtar o que já está escrito',
-    formalizar: 'Deixar mais formal',
-}
+export { PEDIDOS_DE_TEXTO, ROTULO_DO_PEDIDO, reescreveTextoExistente, type PedidoDeTexto }
 
 /**
  * Por que o pedido é uma lista fechada, e não um campo livre.
@@ -145,7 +150,7 @@ export async function redigirTexto(entrada: EntradaDoTexto): Promise<ResultadoDo
         return { ok: false, motivo: 'a chave da OpenAI não está configurada neste ambiente' }
     }
 
-    const reescrita = entrada.pedido === 'encurtar' || entrada.pedido === 'formalizar'
+    const reescrita = reescreveTextoExistente(entrada.pedido)
     const atual = (entrada.textoAtual ?? '').trim()
     if (reescrita && atual.length < 20) {
         return {
