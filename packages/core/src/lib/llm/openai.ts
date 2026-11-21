@@ -5,6 +5,7 @@ import {
     LLMMessage,
     LLMProvider,
     LLMResponse,
+    LLMRespostaEstruturada,
     LLMTool,
     LLMUsage,
 } from '../../types/llm'
@@ -138,6 +139,72 @@ export class OpenAIProvider implements LLMProvider {
             usage,
             ...(toolCalls?.length ? { toolCalls } : {}),
             ...(escolha?.finish_reason ? { finishReason: escolha.finish_reason } : {}),
+        }
+    }
+
+    /**
+     * Resposta em JSON que casa o schema, garantida pela API.
+     *
+     * `strict: true` é o que faz a diferença: sem ele, `json_object` devolve
+     * JSON válido mas de forma livre — o campo pode vir com outro nome, ou não
+     * vir. Com ele, a API recusa a geração que não casa, e o que chega aqui ou
+     * está na forma pedida ou é uma recusa explícita.
+     *
+     * `additionalProperties: false` e `required` com **todos** os campos são
+     * exigência do modo estrito da OpenAI, não escolha nossa: schema que não os
+     * declara é recusado na própria chamada. Quem monta o schema em
+     * `lib/propostas/ia.ts` sabe disso.
+     */
+    async generateEstruturado(
+        messages: LLMMessage[],
+        schema: { nome: string; schema: Record<string, unknown> }
+    ): Promise<LLMRespostaEstruturada> {
+        const response = await this.client.chat.completions.create({
+            model: this.config.model,
+            messages: toApiMessages(messages),
+            temperature: this.config.temperature ?? 0.7,
+            max_completion_tokens: this.config.maxTokens,
+            ...(this.config.promptCacheKey
+                ? { prompt_cache_key: this.config.promptCacheKey }
+                : {}),
+            response_format: {
+                type: 'json_schema',
+                json_schema: { name: schema.nome, strict: true, schema: schema.schema },
+            },
+        })
+
+        const usage: LLMUsage = {
+            promptTokens: response.usage?.prompt_tokens ?? 0,
+            completionTokens: response.usage?.completion_tokens ?? 0,
+            totalTokens: response.usage?.total_tokens ?? 0,
+            cachedTokens: response.usage?.prompt_tokens_details?.cached_tokens ?? 0,
+        }
+
+        const message = response.choices[0]?.message
+
+        // A recusa é um campo próprio da API, não um texto no conteúdo: tratá-la
+        // como JSON malformado esconderia a razão real de o rascunho não sair.
+        if (message?.refusal) {
+            return { dados: null, usage, recusa: message.refusal }
+        }
+
+        /**
+         * O `try` existe para o caso que `strict` não cobre: resposta **cortada**
+         * pelo teto de tokens. Aí o JSON está incompleto, e `JSON.parse` lança.
+         * Devolver a recusa com a razão é melhor que propagar `SyntaxError`, que
+         * chegaria à tela como "erro interno".
+         */
+        try {
+            return { dados: JSON.parse(message?.content ?? 'null'), usage }
+        } catch {
+            return {
+                dados: null,
+                usage,
+                recusa:
+                    response.choices[0]?.finish_reason === 'length'
+                        ? 'a resposta do modelo foi cortada antes de terminar'
+                        : 'a resposta do modelo não veio na forma esperada',
+            }
         }
     }
 
