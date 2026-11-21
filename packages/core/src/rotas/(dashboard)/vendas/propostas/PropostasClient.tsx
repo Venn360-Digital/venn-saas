@@ -14,8 +14,9 @@ import { StatusBadge, type ToneEntry } from '@venn/core/components/shared/Status
 import { usePermissions } from '@venn/core/hooks/usePermissions'
 import { ROTULO_DO_ESTADO, ROTULO_DO_TIPO } from '@venn/core/lib/propostas/estados'
 
+import { NovaPropostaDialog } from '@venn/core/components/shared/NovaPropostaDialog'
+
 import { LIMITE_PADRAO, STATUS_PADRAO, TIPO_PADRAO, type DadosIniciais, type PropostaItem } from './dados'
-import { NovaPropostaDialog } from './NovaPropostaDialog'
 
 /**
  * A lista de documentos.

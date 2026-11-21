@@ -11,6 +11,13 @@ import { ROTULO_DO_TIPO, TIPOS_DE_DOCUMENTO, type TipoDeDocumento } from '@venn/
 /**
  * Criar um documento: escolher o negócio, o tipo e o título.
  *
+ * ## Por que mora em `components/shared/`
+ *
+ * Nasceu dentro da tela de Propostas e mudou para cá em 21/11/2026, quando a
+ * ficha do negócio passou a oferecer o mesmo gesto. Duas telas, um diálogo —
+ * e com `dealId` fixo ele nem pergunta qual negócio, porque quem abre dali já
+ * respondeu.
+ *
  * ## O negócio é obrigatório, e isso é desenho
  *
  * Proposta solta não entra em nenhum relatório de conversão — não há de onde

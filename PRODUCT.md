@@ -1230,3 +1230,22 @@ promovido a entidade (`ProductGroup`) — texto livre produzia "Implantes",
   aprovação e revisões até o aceite) e `ProposalItem.productServiceId` — que
   torna possível o primeiro relatório por produto, impossível até aqui porque
   `Deal` não tem itens.
+
+### A proposta está onde o negócio está
+
+A ficha do negócio ganhou um modo **Propostas** (`DealProposals`), entre
+"agendar" e "atividades": estado, valor, versão e **aberturas** de cada
+documento daquele negócio, com um botão que cria um novo já com o negócio
+escolhido.
+
+Sem isso, só se chegava a uma proposta pelo menu — e quem está olhando um
+negócio, decidindo o que fazer com ele, teria de sair, buscar pelo número e
+voltar. O documento nasce do negócio e volta para ele.
+
+O editor de itens **não** veio para o painel: montar proposta é trabalho de tela
+cheia, e caber linhas de quatro campos em 380px custaria a legibilidade da coisa
+mais sensível do módulo, que é o valor. O painel lê e leva.
+
+Negócio fechado não ganha documento novo — o que fechou está explicado pelo que
+já existe —, mas o modo continua acessível: a proposta aceita é a explicação do
+valor que fechou, e é ali que alguém vai procurá-la.
