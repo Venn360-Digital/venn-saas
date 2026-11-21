@@ -13,6 +13,8 @@ import {
 import { normalizeSearch } from '@venn/core/lib/search'
 import { escopoDaProposta } from '@venn/core/lib/propostas/acesso'
 import { proximoNumero } from '@venn/core/lib/propostas/numeracao'
+import { clienteAlcancavel, negocioParaProposta } from '@venn/core/lib/propostas/negocio'
+import { primeiraFaseDoPadrao } from '@venn/core/lib/pipeline/funis'
 import { TIPOS_DE_DOCUMENTO } from '@venn/core/lib/propostas/estados'
 
 /**
@@ -22,13 +24,57 @@ import { TIPOS_DE_DOCUMENTO } from '@venn/core/lib/propostas/estados'
  * proposta dele. Ver a nota em `lib/propostas/acesso.ts`.
  */
 
-const criarSchema = z.object({
-    dealId: z.string().min(1, 'O negócio é obrigatório'),
-    title: z.string().min(1, 'O título é obrigatório').max(200),
-    kind: z.enum(TIPOS_DE_DOCUMENTO).default('proposta'),
-    /** Nulo usa o modelo padrão do tipo; nenhum modelo cai no corpo padrão. */
-    templateId: z.string().nullable().optional(),
+/**
+ * Entrada recusada de dentro da transação.
+ *
+ * Classe própria para que o `catch` a devolva como **400 com motivo**, e não
+ * como "erro interno": uma recusa de entrada que chega à tela sem texto é a
+ * mesma coisa que nenhuma mensagem.
+ */
+class EntradaInvalida extends Error {}
+
+/**
+ * O cliente que nasce com o negócio.
+ *
+ * Nome mais **um** meio de alcance. A validação do "um dos dois" mora em
+ * `clienteAlcancavel`, e não aqui, porque ela é a mesma regra que a tela aplica
+ * antes de habilitar o botão — uma regra, dois lugares, um só código.
+ */
+const clienteNovoSchema = z.object({
+    nome: z.string().min(1, 'O nome é obrigatório').max(200),
+    telefone: z.string().max(30).nullable().optional(),
+    email: z.string().email('E-mail inválido').max(200).nullable().optional(),
 })
+
+const criarSchema = z
+    .object({
+        /** Um negócio que já existe… */
+        dealId: z.string().min(1).nullable().optional(),
+        /** …ou um que nasce agora, com o cliente dentro. */
+        negocioNovo: z
+            .object({
+                cliente: clienteNovoSchema,
+                titulo: z.string().max(200).nullable().optional(),
+                valor: z.number().nonnegative().nullable().optional(),
+            })
+            .nullable()
+            .optional(),
+        title: z.string().min(1, 'O título é obrigatório').max(200),
+        kind: z.enum(TIPOS_DE_DOCUMENTO).default('proposta'),
+        /** Nulo usa o modelo padrão do tipo; nenhum modelo cai no corpo padrão. */
+        templateId: z.string().nullable().optional(),
+    })
+    /**
+     * Um dos dois, nunca os dois nem nenhum.
+     *
+     * No zod e não num `if` adiante: aceitar os dois deixaria a rota escolher
+     * qual ignorar, e essa escolha apareceria como "criei a proposta no negócio
+     * errado" — sem erro nenhum para quem pediu.
+     */
+    .refine((d) => Boolean(d.dealId) !== Boolean(d.negocioNovo), {
+        message: 'Escolha um negócio existente ou cadastre um novo — não os dois.',
+        path: ['dealId'],
+    })
 
 export async function GET(request: NextRequest) {
     try {
@@ -155,12 +201,42 @@ export async function POST(request: NextRequest) {
          * proposta — e o dono do negócio veria um documento que não criou. É o
          * mesmo cuidado de `lib/auth/relacoes.ts`.
          */
-        const negocio = await prisma.deal.findFirst({
-            where: { id: dados.dealId, workspaceId: membro.workspaceId, ...dealScope(membro) },
-            select: { id: true, currency: true, contact: { select: { name: true } } },
-        })
-        if (!negocio) {
+        const negocio = dados.dealId
+            ? await prisma.deal.findFirst({
+                  where: { id: dados.dealId, workspaceId: membro.workspaceId, ...dealScope(membro) },
+                  select: { id: true, currency: true, contact: { select: { name: true } } },
+              })
+            : null
+        if (dados.dealId && !negocio) {
             return NextResponse.json({ error: 'Negócio não encontrado' }, { status: 404 })
+        }
+
+        /**
+         * Negócio novo: a etapa e o alcance do cliente, conferidos **antes** da
+         * transação.
+         *
+         * As duas são leitura e decisão pura, e resolvê-las aqui é o que permite
+         * responder 400 com motivo legível em vez de abortar a transação e
+         * devolver "erro interno" — que é o que a tela veria.
+         */
+        let fase: { id: string; pipelineId: string } | null = null
+        if (dados.negocioNovo) {
+            if (!clienteAlcancavel(dados.negocioNovo.cliente)) {
+                return NextResponse.json(
+                    { error: 'Informe telefone ou e-mail — sem um dos dois não há como enviar o documento.' },
+                    { status: 400 }
+                )
+            }
+
+            fase = await primeiraFaseDoPadrao(membro.workspaceId)
+            if (!fase) {
+                return NextResponse.json(
+                    {
+                        error: 'Esta unidade ainda não tem funil com etapas. Crie o funil em Vendas → Negócios antes de montar o primeiro documento.',
+                    },
+                    { status: 409 }
+                )
+            }
         }
 
         /** O modelo, quando informado, também é da unidade. */
@@ -185,12 +261,50 @@ export async function POST(request: NextRequest) {
         }
 
         const proposta = await prisma.$transaction(async (tx) => {
+            /**
+             * O negócio, na mesma transação da proposta.
+             *
+             * Ou nasce tudo — ficha, negócio, passagem de etapa, proposta e
+             * revisão 1 — ou não nasce nada. Em três chamadas separadas da tela,
+             * a segunda falhando deixaria uma ficha órfã que ninguém pediu.
+             */
+            let dealId = negocio?.id ?? ''
+            let moeda = negocio?.currency ?? 'BRL'
+            let criou: { contato: boolean; negocio: boolean } = { contato: false, negocio: false }
+
+            if (dados.negocioNovo && fase) {
+                const resolvido = await negocioParaProposta(tx, {
+                    workspaceId: membro.workspaceId,
+                    userId: membro.userId,
+                    fase,
+                    cliente: dados.negocioNovo.cliente,
+                    titulo: dados.negocioNovo.titulo,
+                    valor: dados.negocioNovo.valor,
+                })
+                // Inalcançável por construção: as duas recusas de
+                // `negocioParaProposta` já foram conferidas acima, antes da
+                // transação. A linha existe para que uma recusa nova não vire
+                // sucesso silencioso.
+                if (!resolvido.ok) throw new EntradaInvalida(resolvido.motivo)
+
+                dealId = resolvido.dealId
+                criou = resolvido.criou
+
+                // A moeda do negócio — do que nasceu agora ou do que já estava
+                // aberto para esta ficha.
+                const doNegocio = await tx.deal.findUnique({
+                    where: { id: dealId },
+                    select: { currency: true },
+                })
+                moeda = doNegocio?.currency ?? 'BRL'
+            }
+
             const numero = await proximoNumero(tx, membro.workspaceId, 'proposal')
 
             const criada = await tx.proposal.create({
                 data: {
                     workspaceId: membro.workspaceId,
-                    dealId: negocio.id,
+                    dealId,
                     templateId,
                     userId: membro.userId,
                     kind: dados.kind,
@@ -199,7 +313,7 @@ export async function POST(request: NextRequest) {
                     // A moeda do negócio, não a da conta: um negócio em dólar
                     // gera proposta em dólar, e trocar depois mudaria o
                     // significado dos valores já digitados.
-                    currency: negocio.currency,
+                    currency: moeda,
                 },
                 select: { id: true, number: true, kind: true, title: true, currency: true },
             })
@@ -214,11 +328,14 @@ export async function POST(request: NextRequest) {
                 data: { currentRevisionId: v1.id },
             })
 
-            return { ...criada, currentRevision: v1 }
+            return { ...criada, currentRevision: v1, dealId, criou }
         })
 
         return NextResponse.json(proposta, { status: 201 })
     } catch (error) {
+        if (error instanceof EntradaInvalida) {
+            return NextResponse.json({ error: error.message }, { status: 400 })
+        }
         if (error instanceof z.ZodError) {
             return NextResponse.json({ errors: error.issues }, { status: 400 })
         }
