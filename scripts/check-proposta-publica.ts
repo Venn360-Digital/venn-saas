@@ -421,6 +421,49 @@ console.log('\n── requisito 7: trilha no aceite ──')
     ok('o hash é SHA-256 em hexadecimal', /^[0-9a-f]{64}$/.test(a), a.slice(0, 16) + '…')
 }
 
+// ================================================== o portão do middleware
+
+console.log('\n── a rota é PÚBLICA no middleware ──')
+
+{
+    /**
+     * A lista de caminhos públicos é EXPLÍCITA, e esquecê-la não quebra nada
+     * localmente.
+     *
+     * Foi o que aconteceu neste módulo: `pnpm verificar` passava, os três
+     * builds da Cloudflare passavam, os dois verificadores do módulo passavam —
+     * e `/p/<token>` respondia `307 -> /login?redirectTo=%2Fp%2F...` no
+     * preview. Nenhuma das provas atravessa o middleware, então nenhuma podia
+     * ver. Quem acusou foi uma sonda de fora, com `curl`.
+     *
+     * É a **terceira** vez que o repositório tropeça nesta lista: o
+     * `robots.txt` em 2026-11-08 e o descadastro de campanha carregam a mesma
+     * cicatriz nos próprios comentários. A diferença é que agora há um teste.
+     *
+     * Para o cliente final, o sintoma é pior que um erro: ele recebe o link no
+     * WhatsApp, abre, vê uma tela de login de um sistema que não conhece, e
+     * conclui que a empresa mandou um link quebrado.
+     */
+    const middleware = ler('lib/auth/middleware.ts')
+
+    ok("o middleware declara '/p/' como público", middleware.includes("pathname.startsWith('/p/')"))
+    ok("o middleware declara '/api/p/' como público", middleware.includes("pathname.startsWith('/api/p/')"))
+
+    /**
+     * E a declaração está ANTES do corte.
+     *
+     * A lista é uma cadeia de `||` que termina em `pathname === '/api/health'`;
+     * uma linha depois do `if (!temSessao && !isPublicPath)` compilaria e não
+     * valeria para nada.
+     */
+    const corte = middleware.indexOf('if (!temSessao && !isPublicPath)')
+    const declaracao = middleware.indexOf("pathname.startsWith('/p/')")
+    ok(
+        'a declaração está dentro da lista, antes do corte',
+        declaracao > 0 && corte > 0 && declaracao < corte
+    )
+}
+
 // ================================================== indexação
 
 console.log('\n── fora dos buscadores ──')
