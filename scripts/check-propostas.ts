@@ -24,6 +24,10 @@
 // código do core e o core PEDE a marca. Ver `./lib/marca-de-teste.ts`.
 import './lib/marca-de-teste.ts'
 
+import { readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
 import {
     calcularItem,
     calcularTotais,
@@ -56,8 +60,16 @@ import {
 } from '@venn/core/lib/propostas/variaveis'
 import { renderDocumento, tabelaDeItens } from '@venn/core/lib/propostas/render'
 import { resumirNegociacao, type FatosDaProposta } from '@venn/core/lib/propostas/resumo'
+import { clienteAlcancavel, tituloDoNegocio } from '@venn/core/lib/propostas/negocio'
 import { modelosSemente } from '@venn/core/lib/propostas/semente'
 import { vocab } from '@venn/core/lib/vocabulario'
+
+/**
+ * A raiz do core, derivada deste arquivo e não do diretório de trabalho —
+ * `pnpm --filter` mudaria o segundo e quebraria a varredura em silêncio. A
+ * mesma linha de `check-proposta-publica.ts`.
+ */
+const CORE = join(dirname(fileURLToPath(import.meta.url)), '..', 'packages', 'core', 'src')
 
 let falhas = 0
 const ok = (nome: string, cond: boolean, extra = '') => {
@@ -634,6 +646,60 @@ const base: FatosDaProposta = {
             ok(`${m.kind}: não promete "${promessa}"`, !m.body.toLowerCase().includes(promessa))
         }
     }
+}
+
+// ============================================================ negócio na criação
+
+/**
+ * O negócio e a ficha que nascem com o documento.
+ *
+ * Os três defeitos que a homologação de 21/11/2026 apontou, e o que cada um
+ * virou:
+ *
+ *   1. **a busca não achava negócio nenhum** — `GET /api/deals` devolve o array
+ *      cru e o diálogo lia `corpo.data`, que é `undefined`. Nenhum portão via:
+ *      typecheck passa (o campo é opcional no tipo que eu mesmo escrevi) e não
+ *      há banco em teste de unidade. A asserção de varredura abaixo é o que
+ *      sobra — defeito de forma de envelope entre duas peças nossas;
+ *   2. **não havia como cadastrar negócio dali** — virou o modo `cadastrar`;
+ *   3. **o cliente deve nascer com o negócio** — virou `negocioParaProposta`,
+ *      numa transação só.
+ */
+{
+    ok('o título digitado vence', tituloDoNegocio('Helena Prado', 'Plano de tratamento') === 'Plano de tratamento')
+    ok('sem título, o nome serve', tituloDoNegocio('Helena Prado', null) === 'Helena Prado')
+    ok('título em branco não vence', tituloDoNegocio('Helena Prado', '   ') === 'Helena Prado')
+    ok('e vem aparado', tituloDoNegocio('  Helena  ', null) === 'Helena')
+    ok('o teto da coluna é respeitado', tituloDoNegocio('x'.repeat(300), null).length === 200)
+    ok('teto também no digitado', tituloDoNegocio('n', 'y'.repeat(300)).length === 200)
+
+    ok('telefone alcança', clienteAlcancavel({ nome: 'n', telefone: '31999990001' }))
+    ok('e-mail alcança', clienteAlcancavel({ nome: 'n', email: 'a@b.com' }))
+    ok('os dois alcançam', clienteAlcancavel({ nome: 'n', telefone: '3199', email: 'a@b.com' }))
+    ok('nome sozinho NÃO alcança', !clienteAlcancavel({ nome: 'n' }))
+    ok('nulos não alcançam', !clienteAlcancavel({ nome: 'n', telefone: null, email: null }))
+    ok('espaço não é contato', !clienteAlcancavel({ nome: 'n', telefone: '   ', email: '  ' }))
+
+    /**
+     * A varredura: o diálogo tem de tratar a resposta de `/api/deals` como
+     * array.
+     *
+     * Por varredura de fonte porque é defeito de **omissão** entre duas peças
+     * nossas — a rota não envelopa, a tela esperava envelope, e os dois lados
+     * compilam. É o mesmo tipo de prova que o módulo usa para a linha pública
+     * no middleware, e pela mesma razão: nenhum teste de unidade alcança.
+     */
+    const dialogo = readFileSync(join(CORE, 'components/shared/NovaPropostaDialog.tsx'), 'utf8')
+    ok('o diálogo busca negócios em /api/deals', dialogo.includes('/api/deals?'))
+    ok(
+        'e lê a resposta como ARRAY, não como { data }',
+        dialogo.includes('Array.isArray(corpo)')
+    )
+    ok('o modo de cadastro existe', dialogo.includes("'cadastrar'"))
+    ok(
+        'e manda negocioNovo, não contato solto',
+        dialogo.includes('negocioNovo') && !dialogo.includes("fetch('/api/contacts'")
+    )
 }
 
 // ============================================================ fecho

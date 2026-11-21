@@ -7,6 +7,8 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Input } from '@venn/ui/input'
 import { Label } from '@venn/ui/label'
 import { ROTULO_DO_TIPO, TIPOS_DE_DOCUMENTO, type TipoDeDocumento } from '@venn/core/lib/propostas/estados'
+import { PhoneInput } from './PhoneInput'
+import { useVocab } from '../../hooks/useVocab'
 
 /**
  * Criar um documento: escolher o negócio, o tipo e o título.
@@ -17,6 +19,16 @@ import { ROTULO_DO_TIPO, TIPOS_DE_DOCUMENTO, type TipoDeDocumento } from '@venn/
  * ficha do negócio passou a oferecer o mesmo gesto. Duas telas, um diálogo —
  * e com `dealId` fixo ele nem pergunta qual negócio, porque quem abre dali já
  * respondeu.
+ *
+ * ## Dois caminhos para o negócio, desde a homologação de 21/11/2026
+ *
+ * Buscar um que existe, ou **cadastrar um agora** — e a ficha nasce com ele. O
+ * dono do produto apontou as três coisas na mesma frase: a busca não achava
+ * nada, não havia como cadastrar, e *"o cliente deve nascer na criação do
+ * negócio"*. A terceira é o desenho: negócio sem ficha não serve aqui, porque o
+ * documento precisa do nome e o envio precisa do telefone ou do e-mail.
+ *
+ * O cadastro é **uma** requisição, não três. Ver `lib/propostas/negocio.ts`.
  *
  * ## O negócio é obrigatório, e isso é desenho
  *
@@ -42,9 +54,15 @@ export function NovaPropostaDialog({
     /** Quando aberto de dentro de um negócio, ele já vem escolhido. */
     dealId?: string
 }) {
+    const v = useVocab()
     const [negocios, setNegocios] = useState<NegocioParaEscolha[]>([])
     const [busca, setBusca] = useState('')
     const [dealId, setDealId] = useState(dealFixo ?? '')
+    /** `escolher` busca um negócio que existe; `cadastrar` cria um agora. */
+    const [modo, setModo] = useState<'escolher' | 'cadastrar'>('escolher')
+    const [nomeDoCliente, setNomeDoCliente] = useState('')
+    const [telefone, setTelefone] = useState('')
+    const [email, setEmail] = useState('')
     const [tipo, setTipo] = useState<TipoDeDocumento>('proposta')
     const [titulo, setTitulo] = useState('')
     const [salvando, setSalvando] = useState(false)
@@ -54,17 +72,30 @@ export function NovaPropostaDialog({
     // é caso de exceção, e oferecê-los na lista faria o vendedor escolher o
     // errado com um clique.
     useEffect(() => {
-        if (dealFixo) return
+        if (dealFixo || modo === 'cadastrar') return
         const t = setTimeout(async () => {
             const params = new URLSearchParams({ status: 'open', limit: '20' })
             if (busca) params.set('search', busca)
             const resposta = await fetch(`/api/deals?${params}`)
             if (!resposta.ok) return
-            const corpo = (await resposta.json()) as {
-                data?: Array<{ id: string; title: string; contact?: { name: string | null } | null }>
-            }
+            /**
+             * `GET /api/deals` devolve o **array cru**, não `{ data }`.
+             *
+             * Era o defeito que a homologação pegou: eu lia `corpo.data`, que é
+             * `undefined`, então a lista nascia vazia **sempre** — e parecia que
+             * a busca não falava com a tabela de negócios. A rota documenta a
+             * escolha em `api/deals/route.ts`: *"The response stays an array so
+             * existing callers keep working"*, com o total num cabeçalho.
+             *
+             * O `Array.isArray` fica: se um dia a rota passar a envelopar, isto
+             * para de achar em vez de quebrar — e o ramo de baixo cobre os dois.
+             */
+            const corpo = (await resposta.json()) as
+                | Array<{ id: string; title: string; contact?: { name: string | null } | null }>
+                | { data?: Array<{ id: string; title: string; contact?: { name: string | null } | null }> }
+            const lista = Array.isArray(corpo) ? corpo : corpo.data ?? []
             setNegocios(
-                (corpo.data ?? []).map((d) => ({
+                lista.map((d) => ({
                     id: d.id,
                     title: d.title,
                     contato: d.contact?.name ?? null,
@@ -72,10 +103,23 @@ export function NovaPropostaDialog({
             )
         }, busca ? 300 : 0)
         return () => clearTimeout(t)
-    }, [busca, dealFixo])
+    }, [busca, dealFixo, modo])
 
     async function criar() {
-        if (!dealId) {
+        const cadastrando = !dealFixo && modo === 'cadastrar'
+
+        if (cadastrando) {
+            if (nomeDoCliente.trim().length === 0) {
+                setErro('Escreva o nome.')
+                return
+            }
+            // A mesma regra de `clienteAlcancavel`, no servidor: nome sozinho
+            // monta o documento e não o entrega.
+            if (telefone.trim().length === 0 && email.trim().length === 0) {
+                setErro('Informe telefone ou e-mail — sem um dos dois não há como enviar o documento.')
+                return
+            }
+        } else if (!dealId) {
             setErro('Escolha o negócio.')
             return
         }
@@ -90,7 +134,25 @@ export function NovaPropostaDialog({
             const resposta = await fetch('/api/propostas', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ dealId, kind: tipo, title: titulo.trim() }),
+                body: JSON.stringify(
+                    cadastrando
+                        ? {
+                              negocioNovo: {
+                                  cliente: {
+                                      nome: nomeDoCliente.trim(),
+                                      telefone: telefone.trim() || null,
+                                      email: email.trim() || null,
+                                  },
+                                  // O título do negócio é o do documento quando
+                                  // ninguém separou os dois: é o começo, e os dois
+                                  // falam da mesma coisa.
+                                  titulo: titulo.trim() || null,
+                              },
+                              kind: tipo,
+                              title: titulo.trim(),
+                          }
+                        : { dealId, kind: tipo, title: titulo.trim() }
+                ),
             })
             const corpo = (await resposta.json().catch(() => ({}))) as { id?: string; error?: string }
             if (!resposta.ok || !corpo.id) {
@@ -130,9 +192,78 @@ export function NovaPropostaDialog({
 
                     {!dealFixo && (
                         <div>
-                            <Label htmlFor="busca-negocio" className="mb-1.5 block">
-                                Negócio
-                            </Label>
+                            <div className="mb-1.5 flex items-center justify-between gap-3">
+                                <Label htmlFor="busca-negocio">Negócio</Label>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setModo(modo === 'escolher' ? 'cadastrar' : 'escolher')
+                                        setErro(null)
+                                        // Trocar de modo limpa a escolha do outro:
+                                        // mandar os dois é recusado pelo servidor,
+                                        // e com razão.
+                                        setDealId('')
+                                    }}
+                                    className="text-xs font-medium text-primary underline-offset-2 hover:underline"
+                                >
+                                    {modo === 'escolher' ? 'Cadastrar novo' : 'Buscar existente'}
+                                </button>
+                            </div>
+
+                            {modo === 'cadastrar' ? (
+                                <div className="space-y-3 rounded-lg border border-border/60 p-3">
+                                    <div>
+                                        <Label htmlFor="nome-do-cliente" className="mb-1.5 block">
+                                            {v.Pessoa}
+                                        </Label>
+                                        <Input
+                                            id="nome-do-cliente"
+                                            value={nomeDoCliente}
+                                            onChange={(e) => {
+                                                setNomeDoCliente(e.target.value)
+                                                // O nome serve de título enquanto
+                                                // ninguém escreveu outro.
+                                                if (titulo.trim().length === 0 || titulo === nomeDoCliente) {
+                                                    setTitulo(e.target.value)
+                                                }
+                                            }}
+                                            placeholder="Nome de quem vai receber o documento"
+                                            maxLength={200}
+                                            autoFocus
+                                        />
+                                    </div>
+                                    <div className="grid gap-3 sm:grid-cols-2">
+                                        <div>
+                                            <Label htmlFor="telefone-do-cliente" className="mb-1.5 block">
+                                                Telefone
+                                            </Label>
+                                            <PhoneInput
+                                                id="telefone-do-cliente"
+                                                value={telefone}
+                                                onChange={setTelefone}
+                                            />
+                                        </div>
+                                        <div>
+                                            <Label htmlFor="email-do-cliente" className="mb-1.5 block">
+                                                E-mail
+                                            </Label>
+                                            <Input
+                                                id="email-do-cliente"
+                                                type="email"
+                                                value={email}
+                                                onChange={(e) => setEmail(e.target.value)}
+                                                placeholder="para@enviar.com"
+                                                maxLength={200}
+                                            />
+                                        </div>
+                                    </div>
+                                    <p className="text-xs text-muted-foreground">
+                                        Um dos dois basta — é por onde o documento vai. A ficha e o
+                                        negócio nascem junto com o documento, na primeira etapa do funil.
+                                    </p>
+                                </div>
+                            ) : (
+                            <>
                             <Input
                                 id="busca-negocio"
                                 value={busca}
@@ -168,6 +299,8 @@ export function NovaPropostaDialog({
                                     ))
                                 )}
                             </div>
+                            </>
+                            )}
                         </div>
                     )}
 
