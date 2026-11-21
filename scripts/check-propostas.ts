@@ -54,6 +54,7 @@ import {
     marcadoresCitados,
 } from '@venn/core/lib/propostas/variaveis'
 import { renderDocumento, tabelaDeItens } from '@venn/core/lib/propostas/render'
+import { resumirNegociacao, type FatosDaProposta } from '@venn/core/lib/propostas/resumo'
 
 let falhas = 0
 const ok = (nome: string, cond: boolean, extra = '') => {
@@ -410,6 +411,160 @@ const ITENS = [
         moeda: 'BRL',
     }
     ok('o render é determinístico', renderDocumento(entrada) === renderDocumento(entrada))
+}
+
+// ============================================================ o resumo
+
+console.log('\n── resumo da negociação (sem IA) ──')
+
+/**
+ * Por que isto é testado, e por que não usa modelo.
+ *
+ * O plano listava "resumir o histórico" como terceiro uso de IA. Virou função
+ * pura porque **todos os fatos já estão no banco, exatos** — e um modelo que os
+ * reescrevesse poderia errar um número de um jeito plausível ("aberta duas
+ * vezes" quando foram cinco). Num resumo que alguém lê para decidir a próxima
+ * ligação, isso é pior que não ter resumo.
+ *
+ * Sendo pura, dá para afirmar cada frase contra um caso conhecido — o que com
+ * modelo seria impossível.
+ */
+const AGORA = Date.UTC(2026, 10, 21, 12, 0, 0)
+const diasAtras = (n: number) => new Date(AGORA - n * 86_400_000)
+
+const base: FatosDaProposta = {
+    kind: 'proposta',
+    numero: 1042,
+    versoes: 1,
+    estado: 'enviada',
+    desconto: 0,
+    descontoDaPrimeira: 0,
+    enviadaEm: diasAtras(3),
+    aceitaEm: null,
+    aceitaPor: null,
+    aberturas: 0,
+    validoAte: null,
+}
+
+{
+    const r = resumirNegociacao(base, AGORA)
+    ok('traz o rótulo e o número', r.includes('Proposta 1042'), r)
+    ok('diz há quantos dias foi enviada', r.includes('há 3 dias'), r)
+    /**
+     * Zero abertura tem frase PRÓPRIA, e é a que leva à ação certa.
+     *
+     * "ainda não foi aberta" manda confirmar se o link chegou. "sem resposta"
+     * mandaria renegociar preço — a conclusão errada, e a que um CRM sem este
+     * dado é obrigado a tirar.
+     */
+    ok('zero abertura diz que não foi aberta', r.includes('ainda não foi aberta'), r)
+    ok('e NÃO sugere que o cliente recusou', !r.toLowerCase().includes('recus'))
+}
+
+{
+    const r = resumirNegociacao({ ...base, aberturas: 1 }, AGORA)
+    ok('uma abertura sai no singular', r.includes('aberta uma vez'), r)
+}
+
+{
+    const r = resumirNegociacao({ ...base, aberturas: 5 }, AGORA)
+    ok('cinco aberturas saem no plural com o número', r.includes('aberta 5 vezes'), r)
+}
+
+{
+    const r = resumirNegociacao({ ...base, enviadaEm: diasAtras(0) }, AGORA)
+    ok('enviada hoje diz "hoje", não "há 0 dias"', r.includes('hoje') && !r.includes('há 0'), r)
+}
+
+{
+    const r = resumirNegociacao({ ...base, enviadaEm: diasAtras(1) }, AGORA)
+    ok('enviada ontem diz "ontem"', r.includes('ontem'), r)
+}
+
+{
+    // A renegociação: o fato mais útil para quem pega o negócio de outro.
+    const r = resumirNegociacao(
+        { ...base, versoes: 3, desconto: 200, descontoDaPrimeira: 0 },
+        AGORA
+    )
+    ok('diz em qual versão está', r.includes('versão 3'), r)
+    /**
+     * Se este teste falhar, quem assume o negócio não sabe que já se concedeu
+     * desconto — e concede de novo, do zero. O cliente leva duas vezes.
+     */
+    ok('avisa que o desconto cresceu', r.includes('desconto maior'), r)
+}
+
+{
+    const r = resumirNegociacao(
+        { ...base, versoes: 2, desconto: 0, descontoDaPrimeira: 0 },
+        AGORA
+    )
+    ok('sem crescer, não inventa aviso de desconto', !r.includes('desconto maior'), r)
+}
+
+{
+    const r = resumirNegociacao(
+        { ...base, estado: 'aceita', aceitaEm: diasAtras(1), aceitaPor: 'Maria Silva' },
+        AGORA
+    )
+    ok('aceita diz quem e quando', r.includes('Aceita ontem') && r.includes('Maria Silva'), r)
+    // Aceita não fala de abertura: o desfecho já veio, e a contagem deixou de
+    // importar.
+    ok('aceita não fala de abertura', !r.includes('aberta'), r)
+}
+
+{
+    const r = resumirNegociacao({ ...base, estado: 'recusada' }, AGORA)
+    ok('recusada diz que o cliente recusou', r.includes('recusou'), r)
+}
+
+{
+    const r = resumirNegociacao({ ...base, estado: 'expirada' }, AGORA)
+    ok('expirada diz que o prazo venceu sem resposta', r.includes('venceu sem resposta'), r)
+}
+
+{
+    const r = resumirNegociacao({ ...base, enviadaEm: null, estado: 'rascunho' }, AGORA)
+    ok('rascunho diz que ainda não foi enviada', r.includes('Ainda não foi enviada'), r)
+}
+
+{
+    // O prazo apertado entra como alerta; o folgado não vira ruído.
+    const perto = resumirNegociacao({ ...base, validoAte: new Date(AGORA + 2 * 86_400_000) }, AGORA)
+    ok('prazo em 2 dias aparece', perto.includes('vence em 2'), perto)
+
+    const hoje = resumirNegociacao({ ...base, validoAte: new Date(AGORA + 3600_000) }, AGORA)
+    /**
+     * Um prazo que vence em UMA HORA diz "vence hoje", não "em 1 dia".
+     *
+     * Com `Math.ceil` dizia "em 1 dia(s)" — arredondado para cima e errado para
+     * quem lê: a pessoa deixaria para amanhã um documento que vence hoje. Foi
+     * este teste que pegou, e o conserto está em `resumo.ts`.
+     */
+    ok('prazo de hoje aparece', hoje.includes('vence hoje'), hoje)
+
+    const amanha = resumirNegociacao({ ...base, validoAte: new Date(AGORA + 30 * 3600_000) }, AGORA)
+    // A asserção olha só o trecho do PRAZO: `!includes('dias')` na frase inteira
+    // casava com o "há 3 dias" do envio, e reprovava um código correto.
+    ok(
+        'um dia sai no singular',
+        amanha.includes('vence em 1 dia') && !amanha.includes('vence em 1 dias'),
+        amanha
+    )
+
+    const longe = resumirNegociacao({ ...base, validoAte: new Date(AGORA + 30 * 86_400_000) }, AGORA)
+    ok('prazo de 30 dias NÃO vira ruído', !longe.includes('vence'), longe)
+
+    const vencido = resumirNegociacao({ ...base, validoAte: diasAtras(1) }, AGORA)
+    ok('prazo vencido aparece', vencido.includes('o prazo venceu'), vencido)
+}
+
+{
+    // Determinístico: é o que uma frase gerada por modelo não seria.
+    ok('o resumo é determinístico', resumirNegociacao(base, AGORA) === resumirNegociacao(base, AGORA))
+    ok('nunca sobra espaço duplo', !resumirNegociacao(base, AGORA).includes('  '))
+    ok('termina com ponto', resumirNegociacao(base, AGORA).trimEnd().endsWith('.'))
 }
 
 // ============================================================ fecho

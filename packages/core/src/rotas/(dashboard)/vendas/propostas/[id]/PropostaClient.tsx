@@ -17,6 +17,11 @@ import {
     ROTULO_DO_ESTADO,
     ROTULO_DO_TIPO,
 } from '@venn/core/lib/propostas/estados'
+import {
+    PEDIDOS_DE_TEXTO,
+    ROTULO_DO_PEDIDO,
+    type PedidoDeTexto,
+} from '@venn/core/lib/propostas/ia'
 
 import { EnviarDialog } from './EnviarDialog'
 import { ItemPicker } from './ItemPicker'
@@ -104,7 +109,19 @@ export interface PropostaDaTela {
     revisoes: RevisaoDaTela[]
 }
 
-export function PropostaClient({ proposta: inicial }: { proposta: PropostaDaTela }) {
+export function PropostaClient({
+    proposta: inicial,
+    resumo,
+}: {
+    proposta: PropostaDaTela
+    /**
+     * O estado da negociação em uma frase, montado no SERVIDOR.
+     *
+     * Vem pronto porque depende de "há quantos dias", e `Date.now()` durante o
+     * render de um componente de cliente é o que `react-hooks/purity` proíbe.
+     */
+    resumo: string | null
+}) {
     const router = useRouter()
     const { canEdit } = usePermissions()
 
@@ -118,6 +135,7 @@ export function PropostaClient({ proposta: inicial }: { proposta: PropostaDaTela
     const [enviando, setEnviando] = useState(false)
     const [abrindoItem, setAbrindoItem] = useState(false)
     const [linkCopiado, setLinkCopiado] = useState<string | null>(null)
+    const [redigindo, setRedigindo] = useState<PedidoDeTexto | null>(null)
 
     const vigente = useMemo(
         () => proposta.revisoes.find((r) => r.id === proposta.currentRevisionId) ?? proposta.revisoes[0] ?? null,
@@ -249,6 +267,37 @@ export function PropostaClient({ proposta: inicial }: { proposta: PropostaDaTela
         }
     }
 
+    /**
+     * Pede o texto à IA e o põe no campo — **sem gravar**.
+     *
+     * A pessoa lê, ajusta e grava com os itens. Gravar aqui economizaria um
+     * clique ao custo da revisão, que é justamente o ponto: o texto é o que o
+     * cliente vai ler.
+     */
+    async function pedirTexto(pedido: PedidoDeTexto) {
+        setRedigindo(pedido)
+        setAviso(null)
+        try {
+            const resposta = await fetch(`/api/propostas/${proposta.id}/texto-ia`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ pedido, textoAtual: observacao || null }),
+            })
+            const corpo = (await resposta.json().catch(() => ({}))) as {
+                texto?: string
+                error?: string
+            }
+            if (!resposta.ok || !corpo.texto) {
+                // 422 traz motivo legível ("acrescente os itens primeiro").
+                setAviso(corpo.error ?? 'Não foi possível escrever o texto.')
+                return
+            }
+            setObservacao(corpo.texto)
+        } finally {
+            setRedigindo(null)
+        }
+    }
+
     async function novaVersao() {
         setSalvando(true)
         setAviso(null)
@@ -290,6 +339,21 @@ export function PropostaClient({ proposta: inicial }: { proposta: PropostaDaTela
                     </div>
                 }
             />
+
+            {/*
+              * O estado da negociação em uma frase, antes de qualquer tabela.
+              *
+              * É para quem pega o negócio de outra pessoa: a linha do tempo
+              * está na coluna da direita, e isto é o que se lê em dois segundos
+              * antes de ligar. Sem IA — os fatos já estão no banco, exatos, e um
+              * modelo que os reescrevesse poderia errar um número de um jeito
+              * plausível. Ver `lib/propostas/resumo.ts`.
+              */}
+            {resumo && (
+                <p className="mb-5 rounded-xl border border-border/60 bg-muted/40 px-4 py-3 text-sm leading-relaxed text-foreground">
+                    {resumo}
+                </p>
+            )}
 
             <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
                 {/* ── os itens ─────────────────────────────────────────────── */}
@@ -453,9 +517,27 @@ export function PropostaClient({ proposta: inicial }: { proposta: PropostaDaTela
                     </div>
 
                     <div>
-                        <Label htmlFor="observacao" className="mb-1.5 block">
-                            Observação interna
-                        </Label>
+                        <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
+                            <Label htmlFor="observacao">Observação interna</Label>
+                            {editavel && (
+                                <div className="flex flex-wrap gap-1.5">
+                                    {PEDIDOS_DE_TEXTO.map((pedido) => (
+                                        <Button
+                                            key={pedido}
+                                            variant="ghost"
+                                            size="sm"
+                                            className="h-7 px-2 text-xs"
+                                            disabled={redigindo !== null}
+                                            onClick={() => void pedirTexto(pedido)}
+                                            title={ROTULO_DO_PEDIDO[pedido]}
+                                        >
+                                            <Sparkles className="size-3" aria-hidden />
+                                            {redigindo === pedido ? 'escrevendo…' : ROTULO_DO_PEDIDO[pedido]}
+                                        </Button>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
                         <Textarea
                             id="observacao"
                             rows={3}
@@ -473,6 +555,20 @@ export function PropostaClient({ proposta: inicial }: { proposta: PropostaDaTela
                         <p className="mt-1 text-xs text-muted-foreground">
                             Só a equipe vê. O texto do documento vem do modelo.
                         </p>
+                        {/*
+                          * O aviso aparece só em contrato, e é a fronteira que a
+                          * IA não cruza: ela descreve o objeto, não minuta
+                          * cláusula. Quem precisa de cláusula a escreve no
+                          * modelo, uma vez, e ela vale para todo contrato da
+                          * unidade. Ver `lib/propostas/ia.ts`.
+                          */}
+                        {proposta.kind === 'contrato' && editavel && (
+                            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                                Em contrato, a IA descreve o objeto a partir dos itens — ela não escreve
+                                cláusula de rescisão, multa, foro ou responsabilidade. Essas vêm do modelo
+                                que a sua organização aprovou.
+                            </p>
+                        )}
                     </div>
                 </section>
 

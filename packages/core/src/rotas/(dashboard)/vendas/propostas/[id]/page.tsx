@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import prisma from '@venn/db/cliente'
 import { membroOuLogin } from '@venn/core/lib/indice-servidor'
 import { escopoDaProposta } from '@venn/core/lib/propostas/acesso'
+import { resumirNegociacao } from '@venn/core/lib/propostas/resumo'
 
 import { PropostaClient } from './PropostaClient'
 
@@ -84,8 +85,42 @@ export default async function PropostaPage({ params }: { params: Promise<{ id: s
 
     if (!proposta) notFound()
 
+    /**
+     * O resumo é montado no SERVIDOR, não no cliente.
+     *
+     * Ele depende de "há quantos dias", e `Date.now()` durante o render de um
+     * componente de cliente é o que a regra `react-hooks/purity` proíbe — com
+     * razão: dois renders dariam dois textos. No servidor o instante é um só,
+     * e o que atravessa é a frase pronta.
+     */
+    const vigente = proposta.revisions.find((r) => r.id === proposta.currentRevisionId)
+    const primeira = proposta.revisions.find((r) => r.version === 1)
+    const linksDaVigente = vigente?.shares ?? []
+
+    const resumo = vigente
+        ? resumirNegociacao({
+              kind: proposta.kind,
+              numero: proposta.number,
+              versoes: proposta.revisions.length,
+              estado: vigente.status,
+              desconto: Number(vigente.discount),
+              descontoDaPrimeira: primeira ? Number(primeira.discount) : null,
+              // O PRIMEIRO envio, não o último: um reenvio não zera o relógio
+              // de "quantos dias o cliente levou".
+              enviadaEm: linksDaVigente.reduce<Date | null>(
+                  (menor, l) => (menor === null || l.sharedAt < menor ? l.sharedAt : menor),
+                  null
+              ),
+              aceitaEm: linksDaVigente.find((l) => l.acceptedAt)?.acceptedAt ?? null,
+              aceitaPor: linksDaVigente.find((l) => l.acceptedAt)?.acceptedByName ?? null,
+              aberturas: linksDaVigente.reduce((s, l) => s + l._count.views, 0),
+              validoAte: vigente.validUntil,
+          })
+        : null
+
     return (
         <PropostaClient
+            resumo={resumo}
             proposta={{
                 id: proposta.id,
                 kind: proposta.kind,

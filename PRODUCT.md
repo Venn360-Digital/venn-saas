@@ -1233,6 +1233,43 @@ promovido a entidade (`ProductGroup`) — texto livre produzia "Implantes",
   torna possível o primeiro relatório por produto, impossível até aqui porque
   `Deal` não tem itens.
 
+### A IA redige o texto, e o resumo não usa IA
+
+O plano previa **três** usos de IA. Dois entraram como previsto e um mudou de
+natureza ao ser escrito:
+
+**Redigir o texto (uso 2).** Quatro pedidos nomeados — escrever a introdução,
+descrever o que será feito, encurtar, deixar mais formal —, não instrução livre.
+Campo livre num documento que vai ao cliente é a porta por onde entra "escreva
+que damos garantia de cinco anos", e o modelo escreveria, porque foi pedido.
+`encurtar` e `formalizar` operam sobre o texto que a **pessoa** escreveu: ali o
+modelo não acrescenta fato nenhum.
+
+O contexto que vai ao modelo **não leva preço**. Dar o valor e pedir que ele não
+o escreva seria confiar numa instrução contra uma tentação que não precisava
+existir; sem o número, não há o que vazar. A quantidade vai, porque "duas
+sessões" é escopo.
+
+**Em contrato, a IA descreve o objeto — não minuta cláusula.** O pedido original
+falava em "contratos de forma inteligente, com auxílio da IA", e o template de
+contrato já diz no corpo que é uma moldura, não uma minuta. As duas coisas
+convivem nesta fronteira: ela redige o escopo; cláusula de rescisão, multa, foro
+ou responsabilidade vem do modelo que a organização aprovou, escrito uma vez.
+Está no prompt e está na tela — não é aviso para nos proteger, é a diferença
+entre economizar meia hora de redação e produzir um documento que ninguém leu.
+
+**O resumo da negociação não usa IA (uso 3).** Virou função pura, e a razão é
+que **todos os fatos já estão no banco, exatos**: quantas versões, se o desconto
+cresceu, há quantos dias foi enviada, quantas vezes o cliente abriu. Um modelo
+que os reescrevesse poderia errar um número de um jeito plausível — "aberta duas
+vezes" quando foram cinco — e num resumo que alguém lê para decidir a próxima
+ligação isso é pior que não ter resumo. Além de custar token por abertura de
+ficha.
+
+A frase aparece no topo da ficha, para quem pega o negócio de outra pessoa. O
+fato que ela mais protege: **o desconto que já cresceu** — sem ele, quem assume
+concede de novo do zero, e o cliente leva duas vezes.
+
 ### A proposta sem resposta cobra o vendedor, não o cliente
 
 Rotina diária (`propostas-sem-resposta`): proposta enviada há **3 ou 7 dias**,

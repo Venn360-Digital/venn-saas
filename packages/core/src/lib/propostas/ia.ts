@@ -9,7 +9,7 @@ import { DEFAULT_MODEL } from '../llm/models'
 import { trackUsage } from '../llm/usage-tracker'
 import { comArtigo } from '../concordancia'
 import type { Vocabulario } from '../vocabulario'
-import { ROTULO_DO_TIPO, type TipoDeDocumento } from './estados'
+import { ehTipoDeDocumento, ROTULO_DO_TIPO, type TipoDeDocumento } from './estados'
 
 /**
  * O rascunho da proposta, escrito pela IA a partir do que o negócio já sabe.
@@ -40,6 +40,219 @@ import { ROTULO_DO_TIPO, type TipoDeDocumento } from './estados'
  * `generateEstruturado` com `strict: true` faz a API recusar a geração que não
  * casa o schema. Ver a nota em `types/llm.ts`.
  */
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Uso 2: redigir o texto do documento
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * O que ela escreve, e a linha que ela não cruza.
+ *
+ * **Escreve:** a introdução, o escopo — "o que será feito" em prosa, a partir
+ * dos itens que já estão na proposta e do que a conversa disse. É o pedaço que
+ * o vendedor mais adia, porque é redação.
+ *
+ * **Não escreve:** preço, prazo, forma de pagamento, garantia, e **cláusula
+ * jurídica**. Os quatro primeiros porque são compromisso comercial que o modelo
+ * não tem como saber. O último merece parágrafo próprio.
+ *
+ * ## Contrato: a IA ajuda a redigir, não a minutar
+ *
+ * O pedido original falava em "contratos de forma inteligente, com auxílio da
+ * IA", e o template de contrato deste módulo já diz no próprio corpo que é uma
+ * moldura, não uma minuta. As duas coisas convivem, e a fronteira é esta:
+ *
+ *   - ela **descreve o objeto** do contrato a partir dos itens — isso é
+ *     redação, e é onde ela ajuda de verdade;
+ *   - ela **não inventa cláusula** de rescisão, multa, foro, confidencialidade
+ *     ou responsabilidade. Cláusula gerada por modelo entra num documento que
+ *     alguém assina, e quem assina é que responde por ela.
+ *
+ * Quem precisa de cláusula escreve no modelo, uma vez, e ela passa a valer para
+ * todo contrato daquela unidade. A IA então **adapta o escopo** dentro dela.
+ *
+ * Isso está no prompt e está na tela. Não é um aviso para nos proteger: é a
+ * diferença entre uma ferramenta que economiza meia hora de redação e uma que
+ * produz um documento que ninguém leu.
+ */
+
+/** O que o campo de texto aceita pedir. Fechado, e não instrução livre. */
+export const PEDIDOS_DE_TEXTO = ['introducao', 'escopo', 'encurtar', 'formalizar'] as const
+export type PedidoDeTexto = (typeof PEDIDOS_DE_TEXTO)[number]
+
+export const ROTULO_DO_PEDIDO: Record<PedidoDeTexto, string> = {
+    introducao: 'Escrever a introdução',
+    escopo: 'Descrever o que será feito',
+    encurtar: 'Encurtar o que já está escrito',
+    formalizar: 'Deixar mais formal',
+}
+
+/**
+ * Por que o pedido é uma lista fechada, e não um campo livre.
+ *
+ * Instrução livre num documento que vai ao cliente é a porta por onde entra
+ * "escreva que damos garantia de 5 anos" — e o modelo escreveria, porque foi
+ * pedido. Com quatro pedidos nomeados, cada um tem o seu próprio freio no
+ * prompt, e o que a ferramenta faz é previsível para quem a usa.
+ *
+ * `encurtar` e `formalizar` operam sobre o texto que a PESSOA escreveu: ali o
+ * modelo não acrescenta fato nenhum, só reescreve. São os dois usos de menor
+ * risco e, provavelmente, os mais frequentes.
+ */
+function instrucaoDoPedido(pedido: PedidoDeTexto, tipo: TipoDeDocumento): string {
+    const ehContrato = tipo === 'contrato'
+
+    const comum = [
+        'Escreva em português do Brasil, claro e direto.',
+        'NUNCA escreva preço, valor, desconto, prazo de entrega, forma de pagamento ou garantia.',
+        'Não cumprimente, não se despeça e não assine — o modelo do documento já cuida disso.',
+        'Responda APENAS com o texto final, sem explicação e sem aspas em volta.',
+        ehContrato
+            ? 'Este é um CONTRATO: descreva o objeto a partir dos itens. NÃO escreva cláusula de rescisão, multa, foro, confidencialidade, responsabilidade ou qualquer outra disposição jurídica — essas vêm do modelo que a organização já aprovou.'
+            : '',
+    ]
+        .filter(Boolean)
+        .join(' ')
+
+    const especifico: Record<PedidoDeTexto, string> = {
+        introducao:
+            'Escreva um parágrafo curto de abertura, dizendo o que este documento cobre. No máximo três frases.',
+        escopo:
+            'Descreva em prosa o que será feito, a partir dos itens listados. Uma frase por item, agrupando o que for da mesma natureza. Não repita a tabela: explique.',
+        encurtar:
+            'Reescreva o texto abaixo com menos palavras, mantendo TODOS os fatos e compromissos que ele já tem. Não acrescente nada que não esteja nele.',
+        formalizar:
+            'Reescreva o texto abaixo em registro mais formal, mantendo TODOS os fatos. Não acrescente nada que não esteja nele.',
+    }
+
+    return `${especifico[pedido]} ${comum}`
+}
+
+export interface EntradaDoTexto {
+    workspaceId: string
+    propostaId: string
+    pedido: PedidoDeTexto
+    /** O que já está escrito. Obrigatório para `encurtar` e `formalizar`. */
+    textoAtual?: string | null
+    vocabulario: Vocabulario
+}
+
+export type ResultadoDoTexto = { ok: true; texto: string } | { ok: false; motivo: string }
+
+export async function redigirTexto(entrada: EntradaDoTexto): Promise<ResultadoDoTexto> {
+    const apiKey = process.env.OPENAI_API_KEY
+    if (!apiKey) {
+        return { ok: false, motivo: 'a chave da OpenAI não está configurada neste ambiente' }
+    }
+
+    const reescrita = entrada.pedido === 'encurtar' || entrada.pedido === 'formalizar'
+    const atual = (entrada.textoAtual ?? '').trim()
+    if (reescrita && atual.length < 20) {
+        return {
+            ok: false,
+            motivo: 'escreva algo primeiro — este pedido reescreve o que já está no campo',
+        }
+    }
+
+    const proposta = await prisma.proposal.findFirst({
+        where: { id: entrada.propostaId, workspaceId: entrada.workspaceId, deletedAt: null },
+        select: {
+            kind: true,
+            title: true,
+            workspace: { select: { name: true } },
+            deal: { select: { title: true, contact: { select: { name: true } } } },
+            currentRevision: {
+                select: {
+                    items: {
+                        orderBy: { order: 'asc' },
+                        select: {
+                            description: true,
+                            quantity: true,
+                            productService: { select: { unit: true } },
+                        },
+                    },
+                },
+            },
+        },
+    })
+    if (!proposta) return { ok: false, motivo: 'proposta não encontrada' }
+
+    const tipo: TipoDeDocumento = ehTipoDeDocumento(proposta.kind) ? proposta.kind : 'proposta'
+    const itens = proposta.currentRevision?.items ?? []
+
+    if (itens.length === 0 && entrada.pedido === 'escopo') {
+        return {
+            ok: false,
+            motivo: 'acrescente os itens primeiro — o escopo é escrito a partir deles',
+        }
+    }
+
+    /**
+     * O contexto NÃO leva preço.
+     *
+     * Dar o valor ao modelo e pedir que não o escreva é confiar numa instrução
+     * contra uma tentação que não precisava existir. Sem o número, ele não tem
+     * o que vazar. A quantidade vai, porque "duas sessões" é escopo.
+     */
+    const contexto = [
+        `Documento: ${ROTULO_DO_TIPO[tipo]} — ${proposta.title}`,
+        `Quem emite: ${proposta.workspace.name}`,
+        proposta.deal.contact?.name ? `Para: ${proposta.deal.contact.name}` : '',
+        `Negócio: ${proposta.deal.title}`,
+        '',
+        itens.length > 0 ? 'Itens deste documento:' : 'Este documento ainda não tem itens.',
+        ...itens.map(
+            (i) =>
+                `- ${i.description}${Number(i.quantity) !== 1 ? ` (${Number(i.quantity)}${i.productService?.unit ? ' ' + i.productService.unit : 'x'})` : ''}`
+        ),
+        reescrita ? `\nTexto a reescrever:\n${atual}` : '',
+    ]
+        .filter(Boolean)
+        .join('\n')
+
+    const llm = LLMFactory.create('openai', {
+        apiKey,
+        model: DEFAULT_MODEL,
+        // Mais alta que a do rascunho de itens: aqui o que se quer é redação, e
+        // 0.3 produz texto rígido. O que não pode variar está no prompt, não na
+        // temperatura.
+        temperature: 0.6,
+        maxTokens: 900,
+        promptCacheKey: `proposta-texto:${entrada.pedido}:${tipo}`,
+    })
+
+    const resposta = await llm.generate([
+        { role: 'system', content: instrucaoDoPedido(entrada.pedido, tipo) },
+        { role: 'user', content: contexto },
+    ])
+
+    await trackUsage('openai', DEFAULT_MODEL, resposta.usage, {
+        workspaceId: entrada.workspaceId,
+        metadata: { uso: 'texto_de_proposta', pedido: entrada.pedido, propostaId: entrada.propostaId },
+    })
+
+    const texto = resposta.content.trim()
+    if (texto.length === 0) {
+        return { ok: false, motivo: 'o modelo não devolveu texto' }
+    }
+
+    /**
+     * `finishReason === 'length'` significa resposta CORTADA pelo teto.
+     *
+     * Sem este teste, o vendedor recebe um parágrafo que termina no meio de uma
+     * frase e o sistema registra sucesso — o mesmo defeito que o comentário de
+     * `LLMResponse.finishReason` descreve para o agente de conversa.
+     */
+    if (resposta.finishReason === 'length') {
+        return { ok: false, motivo: 'o texto foi cortado antes de terminar; tente um pedido mais curto' }
+    }
+
+    return { ok: true, texto }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Uso 1: o rascunho de itens
+// ═══════════════════════════════════════════════════════════════════════════
 
 /** O teto de itens que a IA pode sugerir. Proposta é documento, não catálogo. */
 const MAX_ITENS_SUGERIDOS = 12
