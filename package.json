@@ -42,6 +42,7 @@
         "check:funil": "tsx --conditions=react-server scripts/check-funil.ts",
         "check:propostas": "tsx --conditions=react-server scripts/check-propostas.ts",
         "check:proposta-publica": "tsx --conditions=react-server scripts/check-proposta-publica.ts",
+        "check:relatorios": "tsx --conditions=react-server scripts/check-relatorios.ts",
         "check:gatilhos": "tsx --conditions=react-server scripts/check-gatilhos.ts",
         "check:sns": "tsx --conditions=react-server scripts/check-sns.ts",
         "check:sns:assinatura": "tsx --conditions=react-server scripts/check-sns-assinatura.ts",

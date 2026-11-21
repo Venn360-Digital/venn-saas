@@ -1,5 +1,6 @@
 import {
   Bot,
+  ChartColumn,
   LayoutDashboard,
   Megaphone,
   Settings,
@@ -65,6 +66,24 @@ export function navSections(v: Vocabulario): NavSection[] {
       label: "Dashboard",
       icon: LayoutDashboard,
       href: "/dashboard",
+      allowedRoles: ["OWNER", "ADMIN", "GESTOR"],
+    },
+    /**
+     * Relatórios vive ao lado do Dashboard, não dentro de Vendas.
+     *
+     * O painel responde "como estamos agora?" e os relatórios respondem "o que
+     * aconteceu no período, e onde" — são a mesma pergunta em duas escalas, e
+     * quem procura uma procura a outra. Dentro de Vendas, o gestor que quer o
+     * número do mês passaria por Negócios e Propostas antes de achar.
+     *
+     * A mesma régua de papel do painel, e pela mesma razão: leitura agregada da
+     * operação inteira não é a ferramenta de quem atende. Esconder do menu
+     * **não** é autorização — a rota e as duas de API refazem o teste.
+     */
+    {
+      label: "Relatórios",
+      icon: ChartColumn,
+      href: "/relatorios",
       allowedRoles: ["OWNER", "ADMIN", "GESTOR"],
     },
     {
@@ -164,6 +183,7 @@ export function navSections(v: Vocabulario): NavSection[] {
 function segmentLabels(v: Vocabulario): Record<string, string> {
   return {
     dashboard: "Dashboard",
+    relatorios: "Relatórios",
 
     atendimento: "Atendimento",
     conversas: "Conversas",

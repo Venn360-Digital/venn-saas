@@ -1227,11 +1227,11 @@ promovido a entidade (`ProductGroup`) — texto livre produzia "Implantes",
   nada sai para o cliente sozinho. Disparo frio está bloqueado por construção, e
   cobrança automática em nome da clínica seria texto escrito por nós prometendo
   o que não sabemos.
-- **Relatórios.** PR seguinte. Os ganchos nasceram aqui: aberturas com carimbo,
-  `sharedAt`/`acceptedAt` (time-to-accept), `status`+`version` (taxa de
-  aprovação e revisões até o aceite) e `ProposalItem.productServiceId` — que
-  torna possível o primeiro relatório por produto, impossível até aqui porque
-  `Deal` não tem itens.
+- **Relatórios.** Entregue em 21/11/2026 — ver §20. Os ganchos nasceram aqui:
+  aberturas com carimbo, `sharedAt`/`acceptedAt` (time-to-accept),
+  `status`+`version` (taxa de aprovação e revisões até o aceite) e
+  `ProposalItem.productServiceId` — que torna possível o primeiro relatório por
+  produto, impossível até aqui porque `Deal` não tem itens.
 
 ### A IA redige o texto, e o resumo não usa IA
 
@@ -1316,3 +1316,83 @@ mais sensível do módulo, que é o valor. O painel lê e leva.
 Negócio fechado não ganha documento novo — o que fechou está explicado pelo que
 já existe —, mas o modo continua acessível: a proposta aceita é a explicação do
 valor que fechou, e é ali que alguém vai procurá-la.
+
+## 20. Relatórios
+
+Entregue em 21/11/2026, **sem migração**: o módulo vive inteiro sobre os ganchos
+que o de documentos (§19) deixou no banco.
+
+O estudo do Ploomes não tinha o que copiar aqui — a feature de relatórios é
+literalmente *"endpoints: nenhum"*, com evidência só de marketing. Então isto é
+projeto próprio.
+
+### Três relatórios, e por que estes três
+
+**Propostas** e **Produtos** não existiam, e não por falta de tela: até §19,
+`Deal` não tinha itens e o documento não tinha aberturas. **Funil** existia pela
+metade no painel (há conversão e dias por fase no gráfico); aqui ele responde o
+que o gráfico não responde — *onde* o funil vaza, e quanto dinheiro sai por cada
+etapa.
+
+O relatório de produtos é o primeiro relatório por produto que o produto pode
+ter. O valor do negócio era um campo livre digitado; não havia de onde saber o
+que, dentro dele, foi vendido.
+
+### Três decisões que as contas carregam
+
+**Denominador vazio devolve nada, não zero.** "Não há taxa de aceite" e "a taxa
+de aceite é 0%" são informações opostas: a primeira é uma clínica que ainda não
+mandou proposta, a segunda é uma que mandou e não fechou nenhuma. A tela mostra
+travessão, e o CSV deixa a célula vazia. É a resposta ao aviso do próprio
+estudo — *dashboard construído antes de o histórico acumular mostra zeros* — e a
+resposta certa não é mostrar zeros com elegância.
+
+**A taxa de aceite exclui o que ainda está em jogo.** O denominador é
+`aceitas + recusadas + expiradas`, nunca o total de enviadas. Proposta enviada
+ontem, dentro do prazo, não é derrota — contá-la como tal faria a taxa piorar
+sempre que o vendedor trabalhasse mais.
+
+**Nunca se soma entre moedas.** Todo total agregado é uma lista com uma linha por
+moeda. Somar real com dólar dá um número que não é dinheiro nenhum, e mostrá-lo
+com o símbolo de um dos dois seria pior que não mostrar. Com uma moeda só — o
+caso de quase toda unidade — a lista se lê como um número.
+
+Mais duas, menores e deliberadas: **tempo se lê pela mediana**, porque uma
+proposta aceita em noventa dias arrasta a média para longe de toda experiência
+real; e **a última etapa de cada negócio não entra no tempo de etapa**, porque
+ele ainda está lá e medir "até agora" misturaria tempo decorrido com tempo gasto.
+
+### A forma da tela
+
+Componente de **servidor**, com o recorte na URL — como o painel. Os números
+saem no HTML (sem piscar) e o relatório se compartilha colando o link, que é o
+que um gestor faz com um número que quer mostrar.
+
+Quem vê: dono, administrador e gestor, a mesma régua do painel. **O portão está
+nas três superfícies** — a tela, o JSON e o CSV —, e o recorte de dado
+(`dealScope`) é independente dele: se amanhã o atendente ganhar uma visão
+própria, ela já nasce recortada. Esconder do menu não é autorização, e exportar é
+o jeito mais fácil de contornar uma tela.
+
+A exportação chama **a mesma consulta** da tela. Duas consultas divergiriam, e a
+divergência apareceria como a planilha discordando do número que o gestor viu,
+sem que nenhuma das duas parecesse errada.
+
+### Sobre o CSV
+
+Passa por `escapeCsv`, que neutraliza fórmula: a descrição de um item de
+proposta é texto que alguém digitou, e o alvo desse ataque não é o nosso sistema
+— é o Excel de quem exporta. Leva BOM de UTF-8 (sem ele o Excel do Windows lê
+"Avaliação" como "AvaliaÃ§Ã£o") e número com vírgula decimal, senão a planilha
+em português trata o valor como texto e ele não entra em soma nenhuma.
+
+### O que **não** foi feito
+
+- **Relatório salvo** — pede um editor de consulta. O link na URL já cobre
+  "quero este recorte de novo amanhã".
+- **Agendamento por e-mail** — pede cron por unidade e destinatário
+  configurável.
+- **Gráfico** — os três são números e tabelas. O painel é onde moram os
+  gráficos, e duplicá-los aqui custaria manutenção sem responder nada novo.
+- **`COUNT(*)`** — as linhas do período são contadas em memória. Onde isso
+  deixar de valer, a saída é materializar, não contar.

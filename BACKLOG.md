@@ -110,21 +110,34 @@ cabeçalho de `propostas-sem-resposta.ts`.
 
 ## 5. Relatórios
 
-**Onde:** a definir — provavelmente `/relatorios`.
+**Onde:** Relatórios (ao lado do Dashboard), `/relatorios`.
 
-**Estado: a receber.** O estudo do Ploomes **não tem** módulo de relatórios para
-copiar: a feature F-038 é literalmente "endpoints: nenhum", com evidência só de
-marketing. O que ele tem é a matéria-prima, e o item 4 acima já deixou os
-ganchos no banco: aberturas de proposta com carimbo, time-to-accept, taxa de
-aprovação, revisões até o aceite e `ProposalItem.productServiceId` (o primeiro
-relatório por produto que o produto pode ter).
+**Estado: entregue em 21/11/2026.** Regra em [`PRODUCT.md` §20](PRODUCT.md).
+**Sem migração** — vive inteiro sobre os ganchos que o item 4 deixou no banco.
 
-Duas armadilhas documentadas antes de começar: listagem **sem `COUNT(*)` por
-padrão**, porque numa tabela multi-inquilino grande ele é caro; e **multimoeda
-não soma** — todo total agregado quebra por moeda.
+Três relatórios, nenhum salvo e nenhum agendado: **Propostas** (engajamento,
+taxa de aceite, dias e versões até o aceite), **Produtos** (o que vende — o
+primeiro relatório por produto que o produto pode ter) e **Funil** (tempo por
+etapa e onde ele vaza). Componente de servidor com o recorte na URL, como o
+painel, e exportação em CSV das três.
 
-E o aviso do próprio estudo: dashboard construído antes de o histórico acumular
-mostra zeros.
+O estudo do Ploomes **não tinha** módulo de relatórios para copiar — F-038 é
+literalmente "endpoints: nenhum", com evidência só de marketing. Então aqui foi
+projeto, não paridade.
+
+As três decisões que as contas carregam, provadas em `pnpm check:relatorios`
+(70 asserções): **denominador vazio devolve `null`, não zero** (é o
+"dashboard que mostra zeros" de que o estudo avisa, e a tela mostra travessão);
+**a taxa de aceite exclui o que ainda está em jogo** (senão ela cai quando o
+vendedor trabalha mais); e **nunca se soma entre moedas**.
+
+As duas armadilhas documentadas foram honradas: não há `COUNT(*)` — as linhas
+do período são contadas em memória —, e todo total é uma lista por moeda.
+
+**Decidido e não implementado:** relatório salvo (pede um editor de consulta),
+agendamento por e-mail (pede cron por unidade e destinatário configurável), e
+gráfico — os três relatórios são números e tabelas. O link na URL já cobre
+"quero este recorte de novo amanhã".
 
 ---
 
