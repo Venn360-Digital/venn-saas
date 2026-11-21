@@ -177,7 +177,7 @@ async function main() {
      * rotina mexe nos dois, e é por isso que cada um aponta para o outro.
      */
     const tarefas = [...new Set(naAgenda)]
-    ok('cron: as 18 tarefas estão na agenda', tarefas.length === 18, `${tarefas.length} tarefas em ${naAgenda.length} entradas`)
+    ok('cron: as 19 tarefas estão na agenda', tarefas.length === 19, `${tarefas.length} tarefas em ${naAgenda.length} entradas`)
     for (const task of naAgenda) {
         ok(`cron: "${task}" tem despacho`, noDespacho.has(task))
     }

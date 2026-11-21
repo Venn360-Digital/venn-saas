@@ -151,6 +151,19 @@ export const ROTINAS: Rotina[] = [
     { task: 'follow-up', brt: '0 7 * * *' },
 
     /**
+     * O prazo da proposta que venceu — uma vez por dia, de madrugada.
+     *
+     * **Carona no mesmo gatilho da poda de retenção** (`41 4 * * *`): é uma
+     * instrução de `UPDATE` por unidade, e um despertar próprio custaria
+     * CU-hora do Neon da mesma franquia que o atendimento usa. Diária basta
+     * porque a consequência de expirar seis horas depois é nenhuma — a rota
+     * pública já recusa o aceite fora do prazo no instante em que ele vence;
+     * o que esta rotina conserta é a **lista**, que mostraria "enviada" para
+     * sempre.
+     */
+    { task: 'propostas-expiradas', brt: '41 4 * * *' },
+
+    /**
      * **Fica de hora em hora, 24 h — e isso é de propósito.**
      *
      * O boletim é entregue na hora que cada clínica escolheu, e o seletor em

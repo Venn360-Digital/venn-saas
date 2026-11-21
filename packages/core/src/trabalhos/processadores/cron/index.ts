@@ -18,6 +18,7 @@ import { runBroadcastDispatch } from './broadcast-dispatch'
 import { runSesVerificarRemetente } from './ses-verificar-remetente'
 import { runMinerarLacunas } from './minerar-lacunas'
 import { runIaCredencial } from './ia-credencial'
+import { runPropostasExpiradas } from './propostas-expiradas'
 
 const log = createLogger('CRON')
 
@@ -40,6 +41,7 @@ const TASKS: Record<CronJobName, () => Promise<void>> = {
     'ses-verificar-remetente': runSesVerificarRemetente,
     'minerar-lacunas': runMinerarLacunas,
     'ia-credencial': runIaCredencial,
+    'propostas-expiradas': runPropostasExpiradas,
 }
 
 export async function processCron(payload: CronJob): Promise<void> {

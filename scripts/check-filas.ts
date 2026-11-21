@@ -51,11 +51,12 @@ async function main() {
     // acusou.
     //
     // **E tem um gêmeo:** `check-trabalhos.ts` afirma a contagem de TAREFAS
-    // distintas (18), enquanto esta afirma a de ENTRADAS (19) — a diferença é a
+    // distintas (19), enquanto esta afirma a de ENTRADAS (20) — a diferença é a
     // verificação de integração, que aparece duas vezes. Em 19/11/2026 eu
     // atualizei só este e o build dos três apps reprovou no outro. Mexeu numa
-    // rotina, mexe nos dois.
-    ok('as 19 entradas da agenda convertem sem erro', rotinasEmUTC().length === 19)
+    // rotina, mexe nos dois. (Em 21/11/2026 entrou `propostas-expiradas`, que
+    // pega carona no gatilho da poda de retenção: 20 entradas, 15 gatilhos.)
+    ok('as 20 entradas da agenda convertem sem erro', rotinasEmUTC().length === 20)
 
     /**
      * A primeira rotina **semanal** do sistema, e a primeira com restrição de

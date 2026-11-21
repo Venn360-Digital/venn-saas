@@ -78,4 +78,49 @@ unidades.
 
 ---
 
-Itens 4 a 10: a receber.
+## 4. Módulo de documentos: propostas, orçamentos e contratos
+
+**Onde:** Vendas → Propostas, ficha do negócio, catálogo, página pública `/p/`.
+
+**Estado: entregue em 21/11/2026.** Regra em [`PRODUCT.md` §19](PRODUCT.md),
+migração em `packages/db/prisma/migrations/20261121100000_modulo_de_documentos`.
+
+Desenho saído da engenharia reversa do Ploomes (`docs/ploomes/`, não commitada).
+Seis tabelas novas, duas de apoio, quatro colunas em `products_services`.
+Revisão em vez de edição; total calculado no servidor com `Decimal(18,4)` e
+`CHECK`; link público com validade obrigatória, revogação, rate limit nos dois
+eixos e trilha de aceite com hash do conteúdo; envio por e-mail e por WhatsApp
+na conversa aberta; aceite move o negócio no funil. A IA sugere itens do
+catálogo e **não** escreve preço nem desconto.
+
+Provado por `pnpm check:propostas` (77 asserções) e
+`pnpm check:proposta-publica` (os sete requisitos da rota pública, incluindo a
+projeção mínima por varredura do fonte). **Fila, e-mail e cron só se provam em
+staging** — o workerd não roda nesta máquina.
+
+**Decidido e não implementado:** PDF arquivado (Browser Rendering, partindo do
+mesmo HTML), assinatura com certificadora, alçada de desconto (os três estados
+existem no domínio, sem tela), preço por cliente e composição de item com piso
+de preço, e follow-up automático de proposta não respondida.
+
+## 5. Relatórios
+
+**Onde:** a definir — provavelmente `/relatorios`.
+
+**Estado: a receber.** O estudo do Ploomes **não tem** módulo de relatórios para
+copiar: a feature F-038 é literalmente "endpoints: nenhum", com evidência só de
+marketing. O que ele tem é a matéria-prima, e o item 4 acima já deixou os
+ganchos no banco: aberturas de proposta com carimbo, time-to-accept, taxa de
+aprovação, revisões até o aceite e `ProposalItem.productServiceId` (o primeiro
+relatório por produto que o produto pode ter).
+
+Duas armadilhas documentadas antes de começar: listagem **sem `COUNT(*)` por
+padrão**, porque numa tabela multi-inquilino grande ele é caro; e **multimoeda
+não soma** — todo total agregado quebra por moeda.
+
+E o aviso do próprio estudo: dashboard construído antes de o histórico acumular
+mostra zeros.
+
+---
+
+Itens 6 a 10: a receber.

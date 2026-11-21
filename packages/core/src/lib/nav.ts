@@ -120,6 +120,18 @@ export function navSections(v: Vocabulario): NavSection[] {
       icon: TrendingUp,
       items: [
         { label: "Negócios", href: "/vendas/negocios" },
+        /**
+         * Propostas vem logo depois de Negócios, e não ao lado de Serviços.
+         *
+         * O documento nasce de um negócio e volta para ele — é o meio do
+         * caminho da venda, não um cadastro de apoio. Pô-lo junto de
+         * Profissionais e Serviços o esconderia entre as tabelas.
+         *
+         * "Propostas" não é palavra de nicho: uma clínica, uma agência e um
+         * estúdio chamam proposta de proposta. Então o rótulo é literal e não
+         * passa pelo vocabulário — ao contrário de `v.Pessoas` abaixo.
+         */
+        { label: "Propostas", href: "/vendas/propostas" },
         // Os segmentos de URL são neutros (`clientes`, `profissionais`,
         // `servicos`) e iguais nos três produtos — decisão de 2026-11-11,
         // preparando o código compartilhado. O nicho mora só no rótulo.
@@ -166,6 +178,11 @@ function segmentLabels(v: Vocabulario): Record<string, string> {
 
     vendas: "Vendas",
     negocios: "Negócios",
+    propostas: "Propostas",
+    // O segmento curto do link público. Aparece na trilha só se alguém abrir a
+    // página pública estando logado, o que acontece quando o vendedor testa o
+    // próprio link.
+    p: "Documento",
     clientes: v.Pessoas,
     // Slugs anteriores da mesma tela: `contatos` até 2026-10-08, `pacientes`
     // até 2026-11-11 (quando o segmento ficou neutro entre os produtos). Os
