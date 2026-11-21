@@ -94,6 +94,12 @@ model User {
   conviteQueAceitou      Invite[]                   @relation("ConviteQueAceitou")
   colaboradoresQueChamou ConversationCollaborator[] @relation("ColaboradoresQueChamou")
 
+  /// Documentos: o que criou, as revisões que assinou e os links que mandou.
+  /// Relações nomeadas porque são três caminhos para a mesma pessoa.
+  propostasQueCriou        Proposal[]         @relation("PropostasQueCriou")
+  revisoesQueCriou         ProposalRevision[] @relation("RevisoesQueCriou")
+  propostasQueCompartilhou ProposalShare[]    @relation("PropostasQueCompartilhou")
+
   @@map("users")
 }
 
@@ -591,6 +597,10 @@ model Workspace {
   funnels            Funnel[]
   leadForms          LeadForm[]
   leadFormSubmissions LeadFormSubmission[]
+  proposals          Proposal[]
+  proposalTemplates  ProposalTemplate[]
+  productGroups      ProductGroup[]
+  sequences          WorkspaceSequence[]
 
   @@index([accountId])
   @@map("workspaces")
@@ -1193,6 +1203,7 @@ model Deal {
   activities    Activity[]
   stageEntries  DealStageEntry[]
   outcomeReason DealOutcomeReason? @relation(fields: [outcomeReasonId], references: [id], onDelete: SetNull)
+  proposals     Proposal[]
 
   @@index([workspaceId])
   @@index([stageId])
@@ -2454,6 +2465,28 @@ model ProductService {
   currency        String  @default("BRL")
   group           String? // Grupo/categoria do produto
 
+  /// O grupo, agora como registro.
+  ///
+  /// `group` acima continua no lugar e preenchido: `api/products` filtra por
+  /// ele e um link guardado com `?group=Implantes` ainda resolve. Esta FK é a
+  /// fonte nova — texto livre produzia "Implantes", "implante" e "Implantes "
+  /// como três grupos distintos na mesma clínica.
+  groupId         String?
+
+  /// Unidade de medida: "sessão", "mês", "unidade", "hora".
+  ///
+  /// Texto livre, e de propósito: uma tabela de referência para isto obrigaria
+  /// a clínica a cadastrar "sessão" antes de cadastrar o primeiro procedimento.
+  /// Entra no documento ao lado da quantidade.
+  unit            String?
+
+  /// Fora do catálogo sem ser apagado.
+  ///
+  /// Item apagado leva consigo a explicação de propostas antigas; item inativo
+  /// desaparece do seletor e continua respondendo pelo que já vendeu. É também
+  /// o que permite sazonalidade sem recadastro.
+  isActive        Boolean @default(true)
+
   /// Texto já normalizado para busca — minúsculo e sem acento.
   ///
   /// Coluna GERADA pelo Postgres (ver a migração
@@ -2465,13 +2498,18 @@ model ProductService {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  workspace  Workspace                   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  windows    AvailabilityWindowService[]
-  activities Activity[]
+  workspace     Workspace                   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  windows       AvailabilityWindowService[]
+  activities    Activity[]
+  productGroup  ProductGroup?               @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  proposalItems ProposalItem[]
 
   @@index([workspaceId])
   @@index([name])
   @@index([sku])
+  /// O seletor da proposta e o do catálogo pedem sempre o ativo da unidade.
+  @@index([workspaceId, isActive])
+  @@index([groupId])
   @@map("products_services")
 }
 
@@ -3589,4 +3627,298 @@ model PlatformAccessLog {
   @@index([accountId, startedAt])
   @@index([userId, startedAt])
   @@map("platform_access_log")
+}
+
+// ===========================================================================
+// Documentos: propostas, orçamentos e contratos
+// ===========================================================================
+//
+// Três nomes, um ciclo de vida. O que muda entre uma proposta, um orçamento e
+// um contrato é o rótulo e o template — não a tabela. `Proposal.kind` carrega
+// essa diferença, e foi decisão de 2026-11-20: três tabelas idênticas teriam
+// triplicado cada consulta de relatório sem ganhar uma regra sequer.
+//
+// A ideia que organiza tudo aqui é **revisão, não edição**: a proposta que o
+// cliente recebeu nunca muda. Se o desconto cai, nasce a v2. É o que dá
+// resposta à pergunta "qual versão ele aprovou?", insolúvel se o registro for
+// editado no lugar.
+//
+// Todo dinheiro deste módulo é `Decimal(18,4)`, e isso DIVERGE de propósito do
+// `Float?` que `Deal.value` e `ProductService.price` usam. Em valor isolado o
+// double passa; aqui se soma N itens, aplica desconto percentual e compara com
+// um total que o cliente vai aceitar — e `0.1 + 0.2 !== 0.3` aparece como um
+// centavo de diferença entre a tela e o documento assinado. O legado não migra;
+// a conversão mora numa fronteira só, comentada, em `lib/propostas/aceite.ts`.
+
+/// Grupo do catálogo. Era `ProductService.group`, uma coluna de texto livre —
+/// e texto livre vira "Implantes", "implante" e "Implantes " como três grupos.
+///
+/// A coluna antiga continua no lugar e preenchida: `api/products` filtra por
+/// ela, e tirá-la é PR à parte. Esta tabela é a fonte nova.
+model ProductGroup {
+  id          String @id @default(cuid())
+  workspaceId String
+  name        String
+  /// Ordem na tela. O catálogo se lê na ordem do atendimento, não do alfabeto.
+  order       Int    @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspace Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  products  ProductService[]
+
+  @@unique([workspaceId, name])
+  @@index([workspaceId, order])
+  @@map("product_groups")
+}
+
+/// Contador por unidade, para o que precisa de número que se dite ao telefone.
+///
+/// `autoincrement()` do Postgres é global à tabela: a proposta nº 1 de uma
+/// clínica sairia como nº 4817 porque outras 4816 nasceram antes, em outras
+/// unidades. Aqui cada par (unidade, nome) tem o seu contador, incrementado em
+/// `insert … on conflict do update … returning` — atômico, dentro da mesma
+/// transação que cria o registro. Ver `lib/propostas/numeracao.ts`.
+model WorkspaceSequence {
+  workspaceId String
+  /// O que se conta: "proposal" hoje; "order" quando houver pedido.
+  name        String
+  value       Int    @default(0)
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@id([workspaceId, name])
+  @@map("workspace_sequences")
+}
+
+/// O layout do documento. Escolhido na CRIAÇÃO, não no fim — assim ninguém
+/// monta trinta itens para descobrir que o modelo não os acomoda.
+model ProposalTemplate {
+  id          String  @id @default(cuid())
+  workspaceId String
+  name        String
+  /// `proposta | orcamento | contrato` — para qual tipo este modelo serve.
+  kind        String  @default("proposta")
+
+  /// O corpo, HTML com marcadores `{{...}}`.
+  ///
+  /// HTML e não JSON de blocos porque a entrega desta fase é a **página
+  /// pública** com CSS de impressão, e porque quando o PDF arquivado entrar
+  /// (Browser Rendering, fase 2) ele parte do mesmo HTML — trocar o formato
+  /// depois obrigaria a reescrever todo modelo que a clínica já tiver salvo.
+  ///
+  /// Não é HTML de fora: o conteúdo é renderizado por `lib/propostas/render.ts`
+  /// com escape, porque **não há sanitizador neste projeto** — a mesma razão
+  /// pela qual não existe editor WYSIWYG aqui.
+  body        String? @db.Text
+
+  /// Modelo padrão do tipo. Zero ou um por (unidade, tipo).
+  isDefault   Boolean @default(false)
+  isActive    Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspace Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  proposals Proposal[]
+
+  @@unique([workspaceId, name])
+  @@index([workspaceId, kind])
+  @@map("proposal_templates")
+}
+
+/// O documento. Sempre pertence a um negócio, e isso é restrição de propósito:
+/// proposta solta não entra em nenhum relatório de conversão — não há de onde
+/// medir o que ela virou.
+model Proposal {
+  id          String  @id @default(cuid())
+  workspaceId String
+  dealId      String
+  templateId  String?
+  /// Quem criou. Nulo quando a pessoa saiu da equipe.
+  userId      String?
+
+  /// `proposta | orcamento | contrato`. Ver o comentário do bloco acima.
+  kind  String @default("proposta")
+  title String
+
+  /// Sequencial por unidade: "a proposta 1042" é o que o cliente cita no
+  /// telefone, e `cmh3k2j0x0001` não se dita. Ver `WorkspaceSequence`.
+  number   Int
+  currency String @default("BRL")
+
+  /// A revisão vigente — a que vale agora.
+  currentRevisionId String? @unique
+
+  /// Texto já normalizado para busca — minúsculo e sem acento.
+  ///
+  /// Coluna GERADA pelo Postgres (ver a migração do módulo): existe aqui para
+  /// que o Prisma possa filtrar por ela, e **nunca deve ser escrita** — o banco
+  /// recusa.
+  searchText String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  /// Exclusão lógica. Documento que já foi ao cliente não se apaga: ele é a
+  /// explicação de um valor que entrou no funil.
+  deletedAt DateTime?
+
+  workspace       Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  deal            Deal               @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  template        ProposalTemplate?  @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  createdBy       User?              @relation("PropostasQueCriou", fields: [userId], references: [id], onDelete: SetNull)
+  revisions       ProposalRevision[] @relation("ProposalRevisions")
+  currentRevision ProposalRevision?  @relation("ProposalCurrentRevision", fields: [currentRevisionId], references: [id], onDelete: SetNull)
+
+  @@unique([workspaceId, number])
+  @@index([workspaceId])
+  @@index([dealId])
+  @@index([workspaceId, createdAt])
+  @@map("proposals")
+}
+
+/// A revisão: a entidade central do módulo.
+///
+/// Os três valores são calculados no SERVIDOR a partir dos itens, sempre. O
+/// total que o navegador manda é ignorado — aceitá-lo seria aceitar um desconto
+/// que ninguém aprovou. A segunda linha de defesa é o `CHECK (total = subtotal
+/// - discount)` na migração, para quando um caminho de código novo esquecer de
+/// recalcular.
+model ProposalRevision {
+  id         String @id @default(cuid())
+  proposalId String
+  version    Int
+
+  /// `rascunho | em_aprovacao | aprovada | reprovada | enviada | aceita | recusada | expirada`
+  ///
+  /// `em_aprovacao`, `aprovada` e `reprovada` nascem no domínio e **sem tela**:
+  /// alçada de desconto entra quando alguém pedir. O caminho de hoje é
+  /// `rascunho → enviada → aceita | recusada | expirada`. As transições válidas
+  /// estão em `lib/propostas/estados.ts`, não espalhadas pelas rotas.
+  status String @default("rascunho")
+
+  subtotal Decimal @default(0) @db.Decimal(18, 4)
+  discount Decimal @default(0) @db.Decimal(18, 4)
+  total    Decimal @default(0) @db.Decimal(18, 4)
+
+  /// Até quando a PROPOSTA vale — o prazo comercial que o cliente lê.
+  ///
+  /// Não confundir com `ProposalShare.expiresAt`, que é a validade do LINK.
+  /// São dois conceitos: a proposta pode valer 30 dias e o link ser trocado
+  /// três vezes nesse meio.
+  validUntil DateTime?
+  notes      String?   @db.Text
+  userId     String?
+
+  /// SHA-256 do conteúdo renderizado no instante do aceite.
+  ///
+  /// Gravado no aceite, nunca na criação: é o que permite responder "o que
+  /// exatamente ele aceitou?" meses depois, mesmo que o template tenha mudado.
+  /// É a diferença entre uma trilha de auditoria e um booleano.
+  contentHash String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  proposal   Proposal        @relation("ProposalRevisions", fields: [proposalId], references: [id], onDelete: Cascade)
+  currentFor Proposal?       @relation("ProposalCurrentRevision")
+  createdBy  User?           @relation("RevisoesQueCriou", fields: [userId], references: [id], onDelete: SetNull)
+  items      ProposalItem[]
+  shares     ProposalShare[]
+
+  @@unique([proposalId, version])
+  @@index([proposalId, version])
+  @@index([status])
+  @@map("proposal_revisions")
+}
+
+/// Item da revisão. `description` e `unitPrice` são CONGELADOS aqui.
+///
+/// O item do catálogo pode ser renomeado ou ter o preço mudado amanhã, e a
+/// proposta que o cliente tem na mão não pode mudar retroativamente. A FK para
+/// `ProductService` fica — é o que permite o relatório por produto —, mas o que
+/// o documento mostra sai destas colunas.
+model ProposalItem {
+  id               String  @id @default(cuid())
+  revisionId       String
+  productServiceId String?
+
+  description String
+  quantity    Decimal @default(1) @db.Decimal(18, 4)
+  unitPrice   Decimal @db.Decimal(18, 4)
+  /// Desconto do item, em por cento. 0 a 100 — o `CHECK` está na migração.
+  discountPct Decimal @default(0) @db.Decimal(7, 4)
+  total       Decimal @default(0) @db.Decimal(18, 4)
+  order       Int     @default(0)
+
+  revision       ProposalRevision @relation(fields: [revisionId], references: [id], onDelete: Cascade)
+  productService ProductService?  @relation(fields: [productServiceId], references: [id], onDelete: SetNull)
+
+  @@index([revisionId, order])
+  @@index([productServiceId])
+  @@map("proposal_items")
+}
+
+/// O link público da revisão — a única porta sem autenticação do produto.
+///
+/// Tabela, e não colunas na revisão, porque uma revisão é compartilhada mais de
+/// uma vez: o vendedor erra o destinatário, revoga e manda de novo. Com colunas
+/// não haveria como ter o link revogado e o válido ao mesmo tempo.
+///
+/// Três coisas aqui não são opcionais, e cada uma fecha um vazamento:
+/// `expiresAt` (link que vive para sempre é vazamento com data marcada),
+/// `revokedAt` (o destinatário errado acontece) e a trilha do aceite (sem IP,
+/// agente e carimbo, "o cliente clicou" não é prova de nada).
+model ProposalShare {
+  id         String @id @default(cuid())
+  revisionId String
+
+  /// O token da URL: 32 bytes de CSPRNG em base64url — ver `sortearToken()` em
+  /// `lib/convite/token.ts`. Nunca cuid, nunca id sequencial, nunca nanoid
+  /// curto: o que se adivinha aqui é a proposta de outro cliente.
+  ///
+  /// Guardado em claro, e é diferente do convite, que guarda só o resumo: lá o
+  /// token define a senha de alguém, aqui ele abre um documento de leitura. Em
+  /// troca, a tela precisa poder reexibir o link que acabou de gerar.
+  token String @unique
+
+  sharedAt DateTime @default(now())
+  userId   String?
+
+  /// Obrigatório, por decisão. Validado também no zod da rota de envio.
+  expiresAt DateTime
+  revokedAt DateTime?
+
+  /// A trilha do aceite. É isto que transforma um clique em prova.
+  acceptedAt        DateTime?
+  acceptedByName    String?
+  acceptedIp        String?
+  acceptedUserAgent String?
+
+  revision ProposalRevision    @relation(fields: [revisionId], references: [id], onDelete: Cascade)
+  sharedBy User?               @relation("PropostasQueCompartilhou", fields: [userId], references: [id], onDelete: SetNull)
+  views    ProposalShareView[]
+
+  @@index([revisionId])
+  @@index([token])
+  @@map("proposal_shares")
+}
+
+/// Cada abertura do link.
+///
+/// Serve ao vendedor antes de servir à auditoria: "ele abriu três vezes e não
+/// respondeu" é informação que muda a próxima ligação, e nenhum CRM comum a
+/// tem. É também a matéria-prima do relatório de engajamento.
+model ProposalShareView {
+  id        String   @id @default(cuid())
+  shareId   String
+  viewedAt  DateTime @default(now())
+  ip        String?
+  userAgent String?
+
+  share ProposalShare @relation(fields: [shareId], references: [id], onDelete: Cascade)
+
+  @@index([shareId, viewedAt])
+  @@map("proposal_share_views")
 }

@@ -1,5 +1,6 @@
 import {
   Bot,
+  ChartColumn,
   LayoutDashboard,
   Megaphone,
   Settings,
@@ -67,6 +68,24 @@ export function navSections(v: Vocabulario): NavSection[] {
       href: "/dashboard",
       allowedRoles: ["OWNER", "ADMIN", "GESTOR"],
     },
+    /**
+     * Relatórios vive ao lado do Dashboard, não dentro de Vendas.
+     *
+     * O painel responde "como estamos agora?" e os relatórios respondem "o que
+     * aconteceu no período, e onde" — são a mesma pergunta em duas escalas, e
+     * quem procura uma procura a outra. Dentro de Vendas, o gestor que quer o
+     * número do mês passaria por Negócios e Propostas antes de achar.
+     *
+     * A mesma régua de papel do painel, e pela mesma razão: leitura agregada da
+     * operação inteira não é a ferramenta de quem atende. Esconder do menu
+     * **não** é autorização — a rota e as duas de API refazem o teste.
+     */
+    {
+      label: "Relatórios",
+      icon: ChartColumn,
+      href: "/relatorios",
+      allowedRoles: ["OWNER", "ADMIN", "GESTOR"],
+    },
     {
       label: "Favoritos",
       icon: Star,
@@ -120,6 +139,18 @@ export function navSections(v: Vocabulario): NavSection[] {
       icon: TrendingUp,
       items: [
         { label: "Negócios", href: "/vendas/negocios" },
+        /**
+         * Propostas vem logo depois de Negócios, e não ao lado de Serviços.
+         *
+         * O documento nasce de um negócio e volta para ele — é o meio do
+         * caminho da venda, não um cadastro de apoio. Pô-lo junto de
+         * Profissionais e Serviços o esconderia entre as tabelas.
+         *
+         * "Propostas" não é palavra de nicho: uma clínica, uma agência e um
+         * estúdio chamam proposta de proposta. Então o rótulo é literal e não
+         * passa pelo vocabulário — ao contrário de `v.Pessoas` abaixo.
+         */
+        { label: "Propostas", href: "/vendas/propostas" },
         // Os segmentos de URL são neutros (`clientes`, `profissionais`,
         // `servicos`) e iguais nos três produtos — decisão de 2026-11-11,
         // preparando o código compartilhado. O nicho mora só no rótulo.
@@ -152,6 +183,7 @@ export function navSections(v: Vocabulario): NavSection[] {
 function segmentLabels(v: Vocabulario): Record<string, string> {
   return {
     dashboard: "Dashboard",
+    relatorios: "Relatórios",
 
     atendimento: "Atendimento",
     conversas: "Conversas",
@@ -166,6 +198,11 @@ function segmentLabels(v: Vocabulario): Record<string, string> {
 
     vendas: "Vendas",
     negocios: "Negócios",
+    propostas: "Propostas",
+    // O segmento curto do link público. Aparece na trilha só se alguém abrir a
+    // página pública estando logado, o que acontece quando o vendedor testa o
+    // próprio link.
+    p: "Documento",
     clientes: v.Pessoas,
     // Slugs anteriores da mesma tela: `contatos` até 2026-10-08, `pacientes`
     // até 2026-11-11 (quando o segmento ficou neutro entre os produtos). Os

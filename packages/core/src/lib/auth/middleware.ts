@@ -176,6 +176,29 @@ export async function aplicarPortao(request: NextRequest): Promise<NextResponse>
          */
         pathname.startsWith('/f/') ||
         pathname.startsWith('/api/formularios/') ||
+        /**
+         * O documento do cliente: a página `/p/<token>` e o aceite dela.
+         *
+         * Quem abre é o cliente final da organização — ele nunca entrou no
+         * sistema e nunca vai ter conta. Sem esta linha a rota cai na regra
+         * larga e responde `307 -> /login?redirectTo=%2Fp%2F...`, e a pessoa
+         * conclui que o link que acabou de receber no WhatsApp está quebrado.
+         *
+         * **Foi o que aconteceu**, e só apareceu em staging: `pnpm verificar`
+         * passa, os três builds passam, os dois verificadores do módulo passam
+         * — e o link não abre, porque nenhum deles atravessa o middleware. A
+         * sonda de fora (`curl` no preview, esperando "Documento indisponível"
+         * e recebendo o 307) é o que acusou. É o mesmo defeito do `robots.txt`
+         * em 2026-11-08 e o do descadastro acima, pela terceira vez: **rota
+         * pública nova tem de nascer com a sua linha aqui.**
+         *
+         * O que protege a rota não é sessão: é o token de 32 bytes de CSPRNG,
+         * com validade obrigatória, revogação, teto por IP e por token, e
+         * projeção mínima no payload. Ver `src/lib/propostas/compartilhar.ts` e
+         * `scripts/check-proposta-publica.ts`, que prova os sete requisitos.
+         */
+        pathname.startsWith('/p/') ||
+        pathname.startsWith('/api/p/') ||
         // Container probe.
         pathname === '/api/health'
 

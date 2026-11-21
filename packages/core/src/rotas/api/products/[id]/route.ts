@@ -33,7 +33,8 @@ export async function PATCH(
         }
 
         const body = await request.json()
-        const { name, description, sku, category, price, group, durationMinutes } = body
+        const { name, description, sku, category, price, group, durationMinutes, groupId, unit, isActive } =
+            body
 
         /**
          * Duração só existe em servico.
@@ -49,6 +50,24 @@ export async function PATCH(
                 : undefined
             : null
 
+        /**
+         * O grupo informado é da unidade, e o nome dele vai para `group`.
+         *
+         * As duas colunas convivem: `group` é o que a coluna GERADA
+         * `searchText` indexa, então gravar só a FK faria a busca por nome de
+         * grupo parar de encontrar. Ver a mesma nota em `api/products`.
+         */
+        let grupo: { id: string; name: string } | null = null
+        if (groupId) {
+            grupo = await prisma.productGroup.findFirst({
+                where: { id: groupId, workspaceId: workspaceUser.workspaceId },
+                select: { id: true, name: true },
+            })
+            if (!grupo) {
+                return NextResponse.json({ error: 'Grupo não encontrado' }, { status: 404 })
+            }
+        }
+
         const product = await prisma.productService.update({
             where: { id },
             data: {
@@ -59,6 +78,16 @@ export async function PATCH(
                 ...(price !== undefined && { price }),
                 ...(group !== undefined && { group }),
                 ...(duracao !== undefined && { durationMinutes: duracao }),
+                ...(unit !== undefined && { unit }),
+                ...(isActive !== undefined && { isActive }),
+                // `groupId: null` desliga o vínculo e limpa o texto junto: deixar
+                // o nome antigo em `group` faria a busca encontrar um grupo que
+                // o item já não tem.
+                ...(groupId !== undefined
+                    ? grupo
+                      ? { groupId: grupo.id, group: grupo.name }
+                      : { groupId: null, group: null }
+                    : {}),
             }
         })
 

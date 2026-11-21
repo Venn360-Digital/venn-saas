@@ -319,7 +319,28 @@ conferirAllowlist('dono em outra rede', DE_OUTRA_REDE, codigo)
  */
 function especificadoresDeValor(t) {
     const fora = []
-    for (const m of t.matchAll(/(?:^|\n)\s*(?:import|export)\s+([^'"\n;]*?)from\s*['"]([^'"]+)['"]/g)) {
+    /**
+     * A cláusula pode atravessar LINHAS, e por muito tempo não podia.
+     *
+     * O padrão era `[^'"\n;]*?`, com `\n` na classe negada — então um import
+     * de várias linhas, que é como se escreve qualquer import de três nomes,
+     * **não casava e o módulo nunca entrava no fechamento**:
+     *
+     *     import {
+     *         PEDIDOS_DE_TEXTO,
+     *         ROTULO_DO_PEDIDO,
+     *     } from '@venn/core/lib/propostas/ia'
+     *
+     * Medido em 21/11/2026: com aquele padrão, a regra 7 passava num arquivo
+     * que o `next build` reprovava — e a regra 6, a da marca, tinha o mesmo
+     * furo. É o terceiro defeito de padrão deste verificador descoberto ao
+     * provar uma regra **no sentido de falhar**, e os três eram do mesmo tipo:
+     * a expressão aprovava por não alcançar.
+     *
+     * As aspas e o `;` seguem fora da classe: eles é que impedem a cláusula de
+     * atravessar um import inteiro até o `from` do seguinte.
+     */
+    for (const m of t.matchAll(/(?:^|\n)\s*(?:import|export)\s+([^'";]*?)from\s*['"]([^'"]+)['"]/g)) {
         const clausula = m[1]
         if (/^\s*type\s/.test(clausula)) continue
         const chaves = clausula.match(/\{([^}]*)\}/)
@@ -376,6 +397,50 @@ for (const f of fechamento) {
     console.error('  No navegador ninguém registrou a marca: a leitura lança na tela, depois de')
     console.error('  o build passar e a publicação ter sido aceita. Receba o valor por parâmetro')
     console.error('  (o chamador tira de `useMarca()`/`useVocab()`) em vez de ler o registro aqui.')
+}
+
+// ── 7. nada no bundle do cliente é `server-only` ────────────────────────
+//
+// A regra 6 pega o registro da marca; esta pega a classe inteira de que ele é
+// um caso. O fechamento já está calculado acima — é o mesmo critério do
+// bundler —, então custa uma passada a mais e nada de infraestrutura.
+//
+// **Por que não basta deixar para o Next.** Ele pega, e o comentário de
+// `DE_OUTRA_REDE` acima dizia que a mensagem dele seria melhor que esta. Medido
+// em 21/11/2026: não é. Quando `PropostaClient.tsx` ('use client') importou
+// dois valores de `lib/propostas/ia.ts` (`server-only`, carrega Prisma), o
+// `next build` reprovou com
+//
+//     Module not found: Can't resolve 'pg'
+//
+// e um "import trace" de onze linhas terminando em `pg/lib/stream.js`. A causa
+// — um módulo de servidor alcançado pelo cliente — não aparece na mensagem; o
+// que aparece é o driver de Postgres, que ninguém pôs ali. E aparece depois de
+// **quatro minutos** de build no CI, três vezes em paralelo.
+//
+// Aqui aparece em dois segundos, dizendo qual arquivo e por quem foi alcançado.
+const DE_SERVIDOR_TOLERADO = [
+    /**
+     * `config/app.ts` é a sobre-aproximação que o comentário de
+     * `DE_OUTRA_REDE` já descrevia: o fechamento textual não enxerga a poda que
+     * o bundler faz. Mantido pela mesma razão, e no mesmo espírito — a isenção
+     * é por decisão, não por acidente do padrão.
+     */
+    'packages/core/src/config/app.ts',
+]
+conferirAllowlist('servidor tolerado no cliente', DE_SERVIDOR_TOLERADO, codigo)
+
+for (const f of fechamento) {
+    if (DE_SERVIDOR_TOLERADO.includes(f)) continue
+    // A diretiva vale no topo do arquivo, como `'use client'`.
+    if (!/^import ['"]server-only['"]/m.test((texto.get(f) ?? '').slice(0, 400))) continue
+    const comoChegou = sementes.includes(f) ? "é 'use client'" : `é alcançado por "${porQuem.get(f)}"`
+    erro(`"${f}" ${comoChegou} e é \`server-only\`.`)
+    console.error('  Um módulo de servidor no bundle do cliente arrasta com ele o que ele importa —')
+    console.error('  Prisma, driver de banco, credencial. O `next build` reprova, mas acusando o')
+    console.error('  pacote do fim da cadeia (`Can\'t resolve \'pg\'`) e só depois de minutos.')
+    console.error('  Mova o VALOR que a tela precisa para um módulo neutro, e importe-o dos dois')
+    console.error('  lados — ver `lib/propostas/pedidos.ts` e `lib/propostas/validade.ts`.')
 }
 
 if (falhas > 0) {

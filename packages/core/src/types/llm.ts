@@ -120,6 +120,20 @@ export interface LLMResponse {
     finishReason?: string
 }
 
+/**
+ * Uma resposta que o provedor garante vir na forma pedida.
+ *
+ * `dados` é `unknown` de propósito: a garantia do provedor é de **forma**
+ * (o JSON casa o schema), não de significado. Quem chamou valida com zod e
+ * recebe o tipo — ver `lib/propostas/ia.ts`.
+ */
+export interface LLMRespostaEstruturada {
+    dados: unknown
+    usage: LLMUsage
+    /** Presente quando o modelo se recusou a responder. */
+    recusa?: string
+}
+
 export interface LLMProvider {
     /**
      * Generates a single response from the LLM with usage tracking
@@ -131,4 +145,30 @@ export interface LLMProvider {
      * Note: Usage data is returned at the end of streaming
      */
     generateStream(messages: LLMMessage[]): AsyncGenerator<string, LLMUsage, unknown>
+
+    /**
+     * Uma resposta em JSON que **casa o schema**, garantido pelo provedor.
+     *
+     * ## Por que isto entrou, em 2026-11-21
+     *
+     * Até aqui todo "output estruturado" do projeto saía por tool calling: o
+     * modelo chamava uma ferramenta e os argumentos voltavam como string —
+     * "JSON, e nem sempre válido", como o comentário de `LLMToolCall` admite.
+     * Para o agente de conversa isso serve: ferramenta malformada vira uma
+     * tentativa perdida e o modelo tenta outra vez.
+     *
+     * Para gerar o rascunho de uma proposta não serve. Um JSON quebrado ali cai
+     * como lista de itens vazia, sem erro nenhum, e o vendedor vê uma tela em
+     * branco sem saber se o catálogo está vazio ou se a chamada falhou.
+     *
+     * `strict: true` no `json_schema` faz a API recusar a própria geração que
+     * não casa o schema, em vez de devolver texto que não parseia.
+     *
+     * Opcional na interface para não obrigar um provedor futuro a implementá-lo
+     * antes de ser usado. Quem chama testa a presença.
+     */
+    generateEstruturado?(
+        messages: LLMMessage[],
+        schema: { nome: string; schema: Record<string, unknown> }
+    ): Promise<LLMRespostaEstruturada>
 }

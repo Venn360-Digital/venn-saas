@@ -102,6 +102,7 @@ import { useWhatsAppStatus } from '@venn/core/hooks/useWhatsAppStatus'
 import { DEFAULT_ENTITY_COLOR, PICKER_RAMP } from '@venn/core/lib/palette'
 import { StageRail } from '@venn/core/components/shared/StageRail'
 import { OutcomeDialog } from '@venn/core/components/shared/OutcomeDialog'
+import { NovaPropostaDialog } from '@venn/core/components/shared/NovaPropostaDialog'
 import { DealPanel } from '@venn/core/components/shared/DealPanel'
 import { CLOSED_RAIL_ID, PipelineRail } from '@venn/core/components/shared/PipelineRail'
 import { StageManagerDialog } from '@venn/core/components/shared/StageManagerDialog'
@@ -679,6 +680,8 @@ function NegociosPageInner() {
     // Delete dialog
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
     const [dealToDelete, setDealToDelete] = useState<Deal | null>(null)
+    /** O negócio para o qual se vai criar um documento. Nulo = diálogo fechado. */
+    const [propostaParaNegocio, setPropostaParaNegocio] = useState<string | null>(null)
 
     // Loss reason dialog
     const [outcomeOpen, setOutcomeOpen] = useState(false)
@@ -956,6 +959,14 @@ function NegociosPageInner() {
             onStageChange: (stageId: string) => setFocusStageId(stageId),
             onClose: () => setSelectedDealId(null),
             onOutcome: (side: 'won' | 'lost') => { setDealToLose(selectedDeal); setOutcomeSide(side); setOutcomeOpen(true) },
+            /**
+             * O diálogo de nova proposta é da TELA, não do painel.
+             *
+             * O painel tem 380px e vive sobreposto; abrir um diálogo de dentro
+             * dele empilharia duas camadas. Então ele avisa e quem monta é aqui,
+             * no mesmo lugar dos outros diálogos desta tela.
+             */
+            onNovaProposta: () => setPropostaParaNegocio(selectedDeal.id),
             onDelete: (deal: Deal) => { setDealToDelete(deal); setDeleteDialogOpen(true) },
         }
         : null
@@ -1860,6 +1871,21 @@ function NegociosPageInner() {
 
             {/* O desfecho pela bandeira da ficha: ganho e perdido sempre
                 passam pelo motivo. */}
+            {/*
+              * Criar documento a partir do negócio.
+              *
+              * O negócio já vem escolhido — é o caminho natural, e era o que
+              * faltava: sem isto só se chegava a uma proposta pelo menu, e quem
+              * está olhando o negócio teria de sair e voltar.
+              */}
+            {propostaParaNegocio && (
+                <NovaPropostaDialog
+                    dealId={propostaParaNegocio}
+                    onClose={() => setPropostaParaNegocio(null)}
+                    onCriada={(id) => router.push(`/vendas/propostas/${id}`)}
+                />
+            )}
+
             <OutcomeDialog
                 key={`${dealToLose?.id ?? ''}:${outcomeSide}`}
                 open={outcomeOpen}
