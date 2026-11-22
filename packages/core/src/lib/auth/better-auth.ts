@@ -4,6 +4,7 @@ import { prismaAdapter } from 'better-auth/adapters/prisma'
 import prisma from '@venn/db/cliente'
 import { renderEmail } from '../email/layout'
 import { sendEmail } from '../email/send'
+import { origemDoApp } from '../base-publica'
 import { APP } from '../../config/app'
 import { BRAND } from '../../marca'
 
@@ -88,8 +89,11 @@ export function getAuth(): ReturnType<typeof construir> {
  * pega essa forma.
  */
 export function origemDeReserva(): string {
-    const host = APP().env === 'stg' ? `homolog-${BRAND().appHost}` : BRAND().appHost
-    return `https://${host}`
+    // A regra mudou para `lib/base-publica.ts` em 21/11/2026, quando o link
+    // público da proposta precisou dela e copiá-la daria dois lugares para
+    // divergirem. O raciocínio acima é o dela; esta função é o nome que o
+    // Better Auth e o `check:auth` conhecem.
+    return origemDoApp()
 }
 
 /**

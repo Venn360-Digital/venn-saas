@@ -11,6 +11,7 @@ import { sortearToken } from '../convite/token'
  * a marca em `urlDaProposta`, e `lint-workspace.mjs` reprova o build quando um
  * módulo de cliente alcança o registro da marca. Ver `./validade.ts`.
  */
+import { origemDoApp } from '../base-publica'
 import { validadeEmDias, VALIDADE_MAXIMA_EM_DIAS, VALIDADE_PADRAO_EM_DIAS } from './validade'
 
 export { validadeEmDias, VALIDADE_MAXIMA_EM_DIAS, VALIDADE_PADRAO_EM_DIAS }
@@ -52,8 +53,17 @@ export interface LinkCriado {
 
 /** O endereço público de um token. Curto porque vai no WhatsApp. */
 export function urlDaProposta(token: string): string {
-    const base = process.env.NEXT_PUBLIC_APP_URL ?? `https://${BRAND().appHost}`
-    return `${base.replace(/\/+$/, '')}/p/${token}`
+    /**
+     * `origemDoApp()`, e **não** `NEXT_PUBLIC_APP_URL`.
+     *
+     * A primeira versão desta linha lia a variável com
+     * `https://${BRAND().appHost}` de reserva, e a homologação de 21/11/2026
+     * mostrou o que isso vale: a variável não está gravada nos Workers de
+     * homologação, então o link do e-mail apontava para **produção** — que
+     * responde `307` para `/login`, porque lá a rota pública não existe. A razão
+     * de fundo está em `lib/base-publica.ts`.
+     */
+    return `${origemDoApp()}/p/${token}`
 }
 
 /**

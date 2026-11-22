@@ -7,6 +7,7 @@ import {
     renderCampanha,
     type CamposDaMesclagem,
 } from '../email/blocos'
+import { origemDoApp } from '../base-publica'
 import { enviarPorSes } from '../email/ses'
 import { urlDeDescadastro } from '../marketing/descadastro'
 import { conteudoDoPasso, remetenteDoFunil, type Passagem } from './estado'
@@ -24,7 +25,9 @@ import { noFunil } from '@venn/core/lib/pipeline/funis'
  * de uso tira a leitura do caminho crítico do arranque.
  */
 function appUrl(): string {
-    return process.env.NEXT_PUBLIC_APP_URL ?? `https://${BRAND().appHost}`
+    // Mesma correção de 21/11/2026: a variável não está gravada em homologação,
+    // e o fallback mandava para produção. Ver `lib/base-publica.ts`.
+    return origemDoApp()
 }
 
 /**
