@@ -2,10 +2,17 @@
 
 import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Check, Copy, Eye, Plus, Send, Sparkles, Trash2, X } from 'lucide-react'
+import { Check, Copy, Eye, Plus, Send, ShieldCheck, Sparkles, ThumbsDown, ThumbsUp, Trash2, X } from 'lucide-react'
 
 import { Button } from '@venn/ui/button'
 import { Input } from '@venn/ui/input'
+import {
+    Dialog,
+    DialogContent,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@venn/ui/dialog'
 import { Label } from '@venn/ui/label'
 import { Textarea } from '@venn/ui/textarea'
 import { PageHeader } from '@venn/core/components/shared/PageHeader'
@@ -125,7 +132,7 @@ export function PropostaClient({
     resumo: string | null
 }) {
     const router = useRouter()
-    const { canEdit } = usePermissions()
+    const { canEdit, canSeeEveryone } = usePermissions()
 
     const [proposta, setProposta] = useState(inicial)
     const [itens, setItens] = useState<ItemDaTela[]>(
@@ -135,6 +142,9 @@ export function PropostaClient({
     const [pedindoIa, setPedindoIa] = useState(false)
     const [aviso, setAviso] = useState<string | null>(null)
     const [enviando, setEnviando] = useState(false)
+    /** O diálogo da reprovação: o motivo é obrigatório, e o servidor cobra. */
+    const [reprovando, setReprovando] = useState(false)
+    const [motivoDaReprovacao, setMotivoDaReprovacao] = useState('')
     const [abrindoItem, setAbrindoItem] = useState(false)
     const [linkCopiado, setLinkCopiado] = useState<string | null>(null)
     const [redigindo, setRedigindo] = useState<PedidoDeTexto | null>(null)
@@ -316,6 +326,39 @@ export function PropostaClient({
         }
     }
 
+    /**
+     * Um gesto de alçada: pedir, aprovar ou reprovar.
+     *
+     * A tela não escolhe o estado de destino — manda o gesto, e o servidor
+     * mapeia. É o que impede "aprovar" e "mandar para aceita" de serem a mesma
+     * chamada com um texto diferente. Ver `lib/propostas/aprovacao.ts`.
+     */
+    async function gesto(qual: 'pedir' | 'aprovar' | 'reprovar', motivo?: string) {
+        if (!vigente) return
+        setSalvando(true)
+        setAviso(null)
+        try {
+            const resposta = await fetch(
+                `/api/propostas/${proposta.id}/revisoes/${vigente.version}/aprovacao`,
+                {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ gesto: qual, motivo: motivo ?? null }),
+                }
+            )
+            const corpo = (await resposta.json().catch(() => ({}))) as { error?: string }
+            if (!resposta.ok) {
+                setAviso(corpo.error ?? 'Não foi possível concluir.')
+                return
+            }
+            setReprovando(false)
+            setMotivoDaReprovacao('')
+            router.refresh()
+        } finally {
+            setSalvando(false)
+        }
+    }
+
     const rotulo = ROTULO_DO_TIPO[proposta.kind as keyof typeof ROTULO_DO_TIPO] ?? proposta.kind
 
     return (
@@ -332,7 +375,43 @@ export function PropostaClient({
                                 Nova versão
                             </Button>
                         )}
+                        {/*
+                          * A alçada: pedir aprovação, aprovar, reprovar.
+                          *
+                          * Os três estados existiam no domínio desde o início e
+                          * sem tela — o caminho normal é `rascunho → enviada`, e
+                          * a alçada era "só quando alguém pedir". Pediram na
+                          * homologação. Quem decide não é quem pediu, e o
+                          * servidor recusa; aqui os botões só não aparecem para
+                          * quem o servidor recusaria de todo modo.
+                          */}
+                        {canEdit && vigente && vigente.status === 'rascunho' && itens.length > 0 && (
+                            <Button variant="outline" onClick={() => void gesto('pedir')} disabled={salvando}>
+                                <ShieldCheck className="size-4" aria-hidden />
+                                Enviar para aprovação
+                            </Button>
+                        )}
+                        {canSeeEveryone && vigente && vigente.status === 'em_aprovacao' && (
+                            <>
+                                <Button variant="outline" onClick={() => setReprovando(true)} disabled={salvando}>
+                                    <ThumbsDown className="size-4" aria-hidden />
+                                    Reprovar
+                                </Button>
+                                <Button onClick={() => void gesto('aprovar')} disabled={salvando}>
+                                    <ThumbsUp className="size-4" aria-hidden />
+                                    Aprovar
+                                </Button>
+                            </>
+                        )}
                         {canEdit && vigente && aceitaEdicaoDeItens(vigente.status) && (
+                            <Button onClick={() => setEnviando(true)} disabled={itens.length === 0}>
+                                <Send className="size-4" aria-hidden />
+                                Enviar
+                            </Button>
+                        )}
+                        {/* Aprovada já pode ir ao cliente: o envio é o próximo
+                            gesto, e `podeTransicionar` aceita aprovada → enviada. */}
+                        {canEdit && vigente && vigente.status === 'aprovada' && (
                             <Button onClick={() => setEnviando(true)} disabled={itens.length === 0}>
                                 <Send className="size-4" aria-hidden />
                                 Enviar
@@ -698,6 +777,47 @@ export function PropostaClient({
                         setAbrindoItem(false)
                     }}
                 />
+            )}
+
+            {reprovando && vigente && (
+                <Dialog open onOpenChange={(aberto) => !aberto && setReprovando(false)}>
+                    <DialogContent className="sm:max-w-md">
+                        <DialogHeader>
+                            <DialogTitle>Reprovar {rotulo.toLowerCase()} {proposta.number}</DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-2">
+                            <Label htmlFor="motivo-da-reprovacao">O que precisa mudar</Label>
+                            <Textarea
+                                id="motivo-da-reprovacao"
+                                value={motivoDaReprovacao}
+                                onChange={(e) => setMotivoDaReprovacao(e.target.value)}
+                                placeholder="Ex.: desconto acima da política para este item"
+                                maxLength={500}
+                                rows={3}
+                                autoFocus
+                            />
+                            <p className="text-xs text-muted-foreground">
+                                Vai na notificação para quem montou o documento — não entra no
+                                texto que o cliente lê.
+                            </p>
+                        </div>
+                        <DialogFooter>
+                            <Button
+                                variant="outline"
+                                onClick={() => setReprovando(false)}
+                                disabled={salvando}
+                            >
+                                Cancelar
+                            </Button>
+                            <Button
+                                onClick={() => void gesto('reprovar', motivoDaReprovacao)}
+                                disabled={salvando || motivoDaReprovacao.trim().length === 0}
+                            >
+                                {salvando ? 'Reprovando…' : 'Reprovar'}
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
             )}
 
             {enviando && vigente && (

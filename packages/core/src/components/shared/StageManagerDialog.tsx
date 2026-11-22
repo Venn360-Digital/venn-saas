@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { ChevronDown, ChevronUp, Loader2, Plus, Trash2 } from 'lucide-react'
+import { ChevronDown, ChevronUp, Loader2, Plus, Trash2, Trophy } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@venn/ui/button'
@@ -32,6 +32,8 @@ export interface ManagedStage {
     totalDeals?: number
     /** Dias sem retorno marcado até o sistema cobrar. `null` = não cobra. */
     followUpDays?: number | null
+    /** Esta é a etapa de ganho do funil — para onde o aceite move o negócio. */
+    isWon?: boolean
     /** Quem aperta enviar nesta fase: `off`, `draft` ou `send`. */
     autoSend?: string | null
 }
@@ -288,6 +290,33 @@ export function StageManagerDialog({
                                     }}
                                     className="num h-8 w-[72px] shrink-0 px-2 text-center text-xs"
                                 />
+
+                                {/* A etapa de GANHO: para onde o aceite de uma
+                                    proposta move o negócio.
+
+                                    Existe porque posição não é significado. O
+                                    aceite caía na última etapa por ordem, e as
+                                    etapas padrão terminam em retrabalho — então
+                                    aceitar um documento mandava o negócio para
+                                    lá. Nenhuma marcada mantém a queda para a
+                                    última, que é o que funil antigo já fazia. */}
+                                <Button
+                                    type="button"
+                                    variant={stage.isWon ? 'default' : 'outline'}
+                                    size="sm"
+                                    className="h-8 shrink-0 px-2"
+                                    aria-pressed={Boolean(stage.isWon)}
+                                    aria-label={`Marcar ${stage.name} como a etapa de ganho`}
+                                    title={
+                                        stage.isWon
+                                            ? 'O aceite de uma proposta move o negócio para cá'
+                                            : 'Marcar como a etapa de ganho deste funil'
+                                    }
+                                    onClick={() => void patch(stage, { isWon: !stage.isWon })}
+                                >
+                                    <Trophy className="size-3.5" aria-hidden />
+                                    <span className="sr-only">Etapa de ganho</span>
+                                </Button>
 
                                 {/* Quem aperta enviar nesta fase. Três estados, e
                                     o do meio é o que evita soltar o sistema sem a

@@ -146,23 +146,32 @@ export async function aceitarDocumento(entrada: EntradaDoAceite): Promise<Result
 
         if (negocio.status === 'open') {
             /**
-             * A etapa de fechamento é a ÚLTIMA do funil em que o negócio está.
+             * A etapa de ganho: a **declarada**, e só então a última.
              *
-             * Não há coluna que marque "esta é a etapa de ganho" — o funil é uma
-             * lista ordenada, e a convenção do produto é que a última é o
-             * fechamento (ver `lib/pipeline/funis.ts` e a tela de Negócios).
-             * Derivar daqui evita acrescentar uma coluna que a tela de etapas
-             * teria de aprender a editar.
+             * Era só a última por `order`, e a homologação de 21/11/2026 mostrou
+             * o preço disso: `DEFAULT_PIPELINE_STAGES` termina numa etapa de
+             * retrabalho, então aceitar uma proposta mandava o negócio para lá —
+             * e o relatório de funil contava o ganho como retrabalho. Posição
+             * não é significado.
+             *
+             * `isWon` é a declaração da organização, feita na tela de etapas, com
+             * índice único parcial garantindo uma por funil. A queda para a
+             * última fica: é o comportamento de quem nunca marcou, e mudá-lo
+             * mexeria em funil que já roda.
              *
              * Se não houver etapa (funil sem fase, que o seed não produz), o
              * negócio fica onde está: mover para lugar nenhum seria pior.
              */
             const fechamento = negocio.stage.pipelineId
-                ? await tx.pipelineStage.findFirst({
+                ? ((await tx.pipelineStage.findFirst({
+                      where: { pipelineId: negocio.stage.pipelineId, isWon: true },
+                      select: { id: true },
+                  })) ??
+                  (await tx.pipelineStage.findFirst({
                       where: { pipelineId: negocio.stage.pipelineId },
                       orderBy: { order: 'desc' },
                       select: { id: true },
-                  })
+                  })))
                 : null
 
             await tx.deal.update({
