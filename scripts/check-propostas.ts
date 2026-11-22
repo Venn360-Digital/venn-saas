@@ -60,6 +60,7 @@ import {
 } from '@venn/core/lib/propostas/variaveis'
 import { renderDocumento, tabelaDeItens } from '@venn/core/lib/propostas/render'
 import { resumirNegociacao, type FatosDaProposta } from '@venn/core/lib/propostas/resumo'
+import { hostDoApp } from '@venn/core/lib/base-publica'
 import { clienteAlcancavel, tituloDoNegocio } from '@venn/core/lib/propostas/negocio'
 import { modelosSemente } from '@venn/core/lib/propostas/semente'
 import { vocab } from '@venn/core/lib/vocabulario'
@@ -699,6 +700,55 @@ const base: FatosDaProposta = {
     ok(
         'e manda negocioNovo, não contato solto',
         dialogo.includes('negocioNovo') && !dialogo.includes("fetch('/api/contacts'")
+    )
+}
+
+// ============================================================ a base do link público
+
+/**
+ * O endereço que o link da proposta carrega.
+ *
+ * O defeito que a homologação de 21/11/2026 pegou, e que nenhum portão via: a
+ * base saía de `NEXT_PUBLIC_APP_URL ?? https://${BRAND().appHost}`, a variável
+ * **não está gravada** nos Workers de homologação, e o fallback é o host de
+ * **produção**. O cliente recebia por e-mail um endereço de produção para uma
+ * proposta que só existe em homologação — e produção responde `307` para
+ * `/login`, porque lá a rota pública nem existe. Medido: `307` em produção,
+ * `200` em homologação, com o mesmo token.
+ *
+ * A regra agora é uma só, em `lib/base-publica.ts`, e `origemDeReserva()` do
+ * Better Auth delega para ela — o incidente de 2026-10-23 documentado lá é o
+ * mesmo aprendizado: identidade do app mora em código, o que varia por ambiente
+ * sai de `APP().env`, que é enum validado.
+ */
+{
+    ok('homologação ganha o prefixo', hostDoApp('stg', 'exemplo.teste') === 'homolog-exemplo.teste')
+    ok('produção não ganha prefixo', hostDoApp('production', 'exemplo.teste') === 'exemplo.teste')
+    ok('ambiente vazio não ganha prefixo', hostDoApp('', 'exemplo.teste') === 'exemplo.teste')
+    ok(
+        'nenhum ambiente duplica o prefixo',
+        hostDoApp('stg', hostDoApp('stg', 'e.teste')) === 'homolog-homolog-e.teste'
+    )
+
+    /**
+     * A varredura: o módulo do link não pode ler a variável de ambiente.
+     *
+     * Por fonte porque é a FORMA que importa, e ela só se prova rodando no
+     * ambiente certo — que não existe nesta máquina. Se alguém reintroduzir
+     * `NEXT_PUBLIC_APP_URL` aqui, o link volta a apontar para produção a partir
+     * de homologação, e o sintoma aparece três telas adiante, no cliente.
+     */
+    const compartilhar = readFileSync(join(CORE, 'lib/propostas/compartilhar.ts'), 'utf8')
+    ok('o link usa origemDoApp()', compartilhar.includes('origemDoApp()'))
+    ok(
+        'e NÃO lê NEXT_PUBLIC_APP_URL',
+        !compartilhar.replace(/\/\*[\s\S]*?\*\//g, '').includes('NEXT_PUBLIC_APP_URL')
+    )
+
+    const base = readFileSync(join(CORE, 'lib/base-publica.ts'), 'utf8')
+    ok(
+        'a regra de ambiente sai de APP().env',
+        base.includes('APP().env') && base.includes('BRAND().appHost')
     )
 }
 
