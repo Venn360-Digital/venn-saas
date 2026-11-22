@@ -1270,6 +1270,22 @@ model Pipeline {
 }
 
 model PipelineStage {
+  /// Esta é a etapa de **ganho** deste funil.
+  ///
+  /// Existe porque posição não é significado. O aceite de uma proposta movia o
+  /// negócio para a ÚLTIMA etapa por `order`, e as etapas padrão do produto
+  /// terminam numa de retrabalho — então aceitar um documento mandava o negócio
+  /// para lá, e o relatório de funil contava o ganho como retrabalho. Medido nos
+  /// três bancos de homologação em 21/11/2026.
+  ///
+  /// Nasce `false` em todo mundo, de propósito: sem ninguém marcar, o aceite
+  /// continua caindo na última etapa — o comportamento de hoje, para não mudar
+  /// funil que já roda. Quem declara é a organização, na tela de etapas.
+  ///
+  /// No máximo uma por funil, garantido por índice único parcial na migração:
+  /// duas etapas de ganho fariam o aceite escolher uma em silêncio.
+  isWon Boolean @default(false)
+
   /// Quem aperta enviar nesta fase: `off`, `draft` ou `send`.
   ///
   /// `off` cobra só com tarefa. `draft` escreve a mensagem e deixa para alguém

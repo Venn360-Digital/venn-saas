@@ -197,6 +197,8 @@ interface Stage {
     _count?: { deals: number }
     /** Dias sem retorno marcado até o follow-up cobrar. `null` = não cobra. */
     followUpDays?: number | null
+    /** A etapa de ganho: para onde o aceite de uma proposta move o negócio. */
+    isWon?: boolean
 }
 
 interface DealActivity {

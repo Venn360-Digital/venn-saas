@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { Eye, FileText, Plus } from 'lucide-react'
 
 import { Button } from '@venn/ui/button'
@@ -346,10 +347,20 @@ export function PropostasClient({ inicial }: { inicial: DadosIniciais }) {
                 }
                 primary={
                     canEdit ? (
-                        <Button onClick={() => setAbrindoNova(true)}>
-                            <Plus className="size-4" aria-hidden />
-                            Nova proposta
-                        </Button>
+                        <div className="flex items-center gap-2">
+                            {/* Modelos é sub-rota daqui, não item de menu: quem
+                                mexe no texto do documento chega pela lista. */}
+                            <Button variant="outline" asChild>
+                                <Link href="/vendas/propostas/modelos">
+                                    <FileText className="size-4" aria-hidden />
+                                    Modelos
+                                </Link>
+                            </Button>
+                            <Button onClick={() => setAbrindoNova(true)}>
+                                <Plus className="size-4" aria-hidden />
+                                Nova proposta
+                            </Button>
+                        </div>
                     ) : undefined
                 }
             >

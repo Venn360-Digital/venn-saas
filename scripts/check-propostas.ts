@@ -61,6 +61,15 @@ import {
 import { renderDocumento, tabelaDeItens } from '@venn/core/lib/propostas/render'
 import { resumirNegociacao, type FatosDaProposta } from '@venn/core/lib/propostas/resumo'
 import { hostDoApp } from '@venn/core/lib/base-publica'
+import {
+    avaliarGesto,
+    ehAutoAprovacao,
+    ehGesto,
+    ESTADO_DO_GESTO,
+    GESTOS,
+    gestoEhDeAlcada,
+    ROTULO_DO_GESTO,
+} from '@venn/core/lib/propostas/aprovacao'
 import { clienteAlcancavel, tituloDoNegocio } from '@venn/core/lib/propostas/negocio'
 import { modelosSemente } from '@venn/core/lib/propostas/semente'
 import { vocab } from '@venn/core/lib/vocabulario'
@@ -750,6 +759,125 @@ const base: FatosDaProposta = {
         'a regra de ambiente sai de APP().env',
         base.includes('APP().env') && base.includes('BRAND().appHost')
     )
+}
+
+// ============================================================ a alçada
+
+/**
+ * Pedir, aprovar, reprovar — e quem pode cada um.
+ *
+ * Os três estados existiam desde 21/11/2026 e **sem tela**: o plano dizia "só
+ * quando alguém pedir", e a homologação pediu. O que faltava não era a máquina
+ * de estado — as transições já estavam provadas acima — era a permissão de cada
+ * lado dela, e é o que estas asserções cobrem.
+ *
+ * As duas que importam:
+ *
+ *   - **pedir não é alçada, decidir é.** Se os dois fossem o mesmo papel, a
+ *     aprovação não aprovaria nada;
+ *   - **quem pediu não decide.** Sem isso, o gestor que monta a própria proposta
+ *     com desconto fora da política pede e aprova no mesmo clique, e o registro
+ *     diz que houve aprovação.
+ */
+{
+    ok('três gestos', GESTOS.length === 3)
+    ok('todo gesto tem destino', GESTOS.every((g) => ESTADOS.includes(ESTADO_DO_GESTO[g])))
+    ok('todo gesto tem rótulo', GESTOS.every((g) => (ROTULO_DO_GESTO[g] ?? '').length > 0))
+    ok('ehGesto recusa o que não é', !ehGesto('aceitar') && !ehGesto('enviar') && ehGesto('aprovar'))
+
+    ok('pedir NÃO é alçada', !gestoEhDeAlcada('pedir'))
+    ok('aprovar é alçada', gestoEhDeAlcada('aprovar'))
+    ok('reprovar é alçada', gestoEhDeAlcada('reprovar'))
+
+    const PEDIU = 'u-vendedor'
+    const OUTRO = 'u-gestor'
+
+    ok('auto-aprovação é detectada', ehAutoAprovacao('aprovar', PEDIU, PEDIU))
+    ok('auto-reprovação também', ehAutoAprovacao('reprovar', PEDIU, PEDIU))
+    ok('outra pessoa decidindo é legítimo', !ehAutoAprovacao('aprovar', PEDIU, OUTRO))
+    ok('pedir o próprio documento é legítimo', !ehAutoAprovacao('pedir', PEDIU, PEDIU))
+    ok('sem quem pediu, não há de quem suspeitar', !ehAutoAprovacao('aprovar', null, OUTRO))
+
+    // ── o veredito inteiro ──────────────────────────────────────
+    const pedir = avaliarGesto({
+        gesto: 'pedir',
+        estadoAtual: 'rascunho',
+        temAlcada: false,
+        quemPediu: null,
+        quemDecide: PEDIU,
+    })
+    ok('atendente pede do rascunho', pedir.ok && pedir.para === 'em_aprovacao')
+
+    const semAlcada = avaliarGesto({
+        gesto: 'aprovar',
+        estadoAtual: 'em_aprovacao',
+        temAlcada: false,
+        quemPediu: PEDIU,
+        quemDecide: OUTRO,
+    })
+    ok('sem alçada não aprova', !semAlcada.ok && semAlcada.status === 403)
+
+    const propria = avaliarGesto({
+        gesto: 'aprovar',
+        estadoAtual: 'em_aprovacao',
+        temAlcada: true,
+        quemPediu: PEDIU,
+        quemDecide: PEDIU,
+    })
+    ok('nem com alçada aprova a própria', !propria.ok && propria.status === 403)
+
+    const certa = avaliarGesto({
+        gesto: 'aprovar',
+        estadoAtual: 'em_aprovacao',
+        temAlcada: true,
+        quemPediu: PEDIU,
+        quemDecide: OUTRO,
+    })
+    ok('gestão aprova o de outro', certa.ok && certa.para === 'aprovada')
+
+    /**
+     * Estado errado responde **409**, não 403.
+     *
+     * "Você não pode" e "daqui não dá" são respostas diferentes. Trocá-las faria
+     * o gestor achar que lhe falta permissão quando o que falta é o documento
+     * estar em aprovação — e ele iria pedir acesso a alguém.
+     */
+    const foraDeEstado = avaliarGesto({
+        gesto: 'aprovar',
+        estadoAtual: 'enviada',
+        temAlcada: true,
+        quemPediu: PEDIU,
+        quemDecide: OUTRO,
+    })
+    ok('aprovar o que já foi enviado dá 409', !foraDeEstado.ok && foraDeEstado.status === 409)
+
+    // A ordem importa: papel antes de estado, para que "não pode" nunca apareça
+    // como "não dá".
+    const semAlcadaEForaDeEstado = avaliarGesto({
+        gesto: 'aprovar',
+        estadoAtual: 'enviada',
+        temAlcada: false,
+        quemPediu: PEDIU,
+        quemDecide: OUTRO,
+    })
+    ok(
+        'papel é conferido antes do estado',
+        !semAlcadaEForaDeEstado.ok && semAlcadaEForaDeEstado.status === 403
+    )
+
+    // ── a etapa de ganho, por varredura ─────────────────────────
+    /**
+     * O aceite tem de **preferir** a etapa marcada.
+     *
+     * Por fonte porque a escolha é uma consulta dentro da transação do aceite —
+     * só se prova contra banco. O que a varredura garante é que a preferência
+     * não desapareça num refactor, deixando o aceite de volta na última etapa:
+     * o defeito que a homologação achou, em que o ganho caía na etapa de
+     * retrabalho.
+     */
+    const aceite = readFileSync(join(CORE, 'lib/propostas/aceite.ts'), 'utf8')
+    ok('o aceite procura a etapa de ganho', aceite.includes('isWon: true'))
+    ok('e mantém a queda para a última', aceite.includes("orderBy: { order: 'desc' }"))
 }
 
 // ============================================================ fecho
