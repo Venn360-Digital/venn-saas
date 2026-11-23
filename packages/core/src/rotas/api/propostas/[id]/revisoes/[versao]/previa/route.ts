@@ -4,6 +4,7 @@ import prisma from '@venn/db/cliente'
 import { currentMembership } from '@venn/core/lib/auth/workspace'
 import { propostaVisivel, revisaoVisivel } from '@venn/core/lib/propostas/acesso'
 import { contextoDeMapa, contextoDeVariaveis } from '@venn/core/lib/propostas/contexto'
+import { urlDaCapaDe } from '@venn/core/lib/propostas/capa'
 import { renderDocumento } from '@venn/core/lib/propostas/render'
 import { converterCorpoEmSecoes, secoesPadrao, secoesSchema } from '@venn/core/lib/propostas/secoes'
 
@@ -149,6 +150,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
             })),
             totais: { subtotal: r.subtotal, discount: r.discount, total: r.total },
             moeda: p.currency,
+            urlDaCapa: await urlDaCapaDe(secoes),
         })
 
         return NextResponse.json({ html, congelada: congeladas.success && congeladas.data.length > 0 })

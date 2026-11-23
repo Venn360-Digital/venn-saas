@@ -1,6 +1,7 @@
 import prisma from '@venn/db/cliente'
 import { membroOuLogin } from '@venn/core/lib/indice-servidor'
 import { hasEditorRole } from '@venn/core/lib/auth/workspace'
+import { converterCorpoEmSecoes, secoesSchema } from '@venn/core/lib/propostas/secoes'
 import { redirect } from 'next/navigation'
 
 import { ModelosClient } from './ModelosClient'
@@ -43,6 +44,9 @@ export default async function ModelosDeDocumentoPage() {
             name: true,
             kind: true,
             body: true,
+            sections: true,
+            source: true,
+            theme: true,
             isDefault: true,
             isActive: true,
             _count: { select: { proposals: true } },
@@ -54,6 +58,9 @@ export default async function ModelosDeDocumentoPage() {
         name: m.name,
         kind: m.kind,
         body: m.body,
+        secoes: (() => { const p = secoesSchema.safeParse(m.sections); return p.success ? p.data : converterCorpoEmSecoes(m.body) })(),
+        origem: (m.source as { origem?: string } | null)?.origem ?? null,
+        cor: (m.theme as { cor?: string | null } | null)?.cor ?? null,
         isDefault: m.isDefault,
         isActive: m.isActive,
         emUso: m._count.proposals,

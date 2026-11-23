@@ -11,8 +11,10 @@ import {
     dentroDoLimitePublico,
     pareceToken,
     renderizarPublico,
+    secoesDoCompartilhamento,
     userAgentDaRequisicao,
 } from '@venn/core/lib/propostas/publico'
+import { urlDaCapaDe } from '@venn/core/lib/propostas/capa'
 
 import { DocumentoPublicoCliente } from './DocumentoPublicoCliente'
 
@@ -105,7 +107,7 @@ export default async function DocumentoPage({ params }: { params: Promise<{ toke
     const share = await documentoPublico(token)
     if (!share) return <Indisponivel />
 
-    const doc = renderizarPublico(share)
+    const doc = renderizarPublico(share, await urlDaCapaDe(secoesDoCompartilhamento(share)))
 
     // Registrada depois de o documento ser encontrado, e sem `await` bloqueante
     // no caminho de erro: `registrarAbertura` nunca lança — perder a contagem é

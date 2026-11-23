@@ -13,6 +13,8 @@ const editarSchema = z.object({
     body: z.string().max(50_000).nullable().optional(),
     /** As seções da v2. Com elas, `body` é ignorado pelo render. */
     sections: secoesSchema.nullable().optional(),
+    /** A cor principal do modelo, em hex. Nulo volta à da organização. */
+    theme: z.object({ cor: z.string().regex(/^#[0-9a-fA-F]{6}$/).nullable().optional() }).nullable().optional(),
     isDefault: z.boolean().optional(),
     isActive: z.boolean().optional(),
 })
@@ -71,6 +73,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
                     ...(dados.name !== undefined ? { name: dados.name } : {}),
                     ...(dados.body !== undefined ? { body: dados.body } : {}),
                     ...(dados.sections !== undefined ? { sections: dados.sections ?? undefined } : {}),
+                    ...(dados.theme !== undefined ? { theme: dados.theme ?? undefined } : {}),
                     ...(dados.isDefault !== undefined ? { isDefault: dados.isDefault } : {}),
                     ...(dados.isActive !== undefined ? { isActive: dados.isActive } : {}),
                 },

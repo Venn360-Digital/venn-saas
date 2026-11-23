@@ -8,8 +8,10 @@ import {
     dentroDoLimitePublico,
     pareceToken,
     renderizarPublico,
+    secoesDoCompartilhamento,
     userAgentDaRequisicao,
 } from '@venn/core/lib/propostas/publico'
+import { urlDaCapaDe } from '@venn/core/lib/propostas/capa'
 import { aceitarDocumento } from '@venn/core/lib/propostas/aceite'
 
 /**
@@ -110,7 +112,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
          * É o que permite responder, meses depois e com o template já alterado,
          * "o que exatamente ele aceitou".
          */
-        const doc = renderizarPublico(share)
+        const doc = renderizarPublico(share, await urlDaCapaDe(secoesDoCompartilhamento(share)))
         const contentHash = await hashDoConteudo(doc.html)
 
         const resultado = await aceitarDocumento({
