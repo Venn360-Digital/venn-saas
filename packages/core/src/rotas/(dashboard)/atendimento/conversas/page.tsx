@@ -232,6 +232,7 @@ function origemDaConversa(conv: {
     // Sem linha gravada, o canal da conversa é o que sobra para dizer.
     if (conv.channel === 'instagram') return 'Instagram'
     if (conv.channel === 'web') return 'Site'
+    if (conv.channel === 'email') return 'E-mail'
     return null
 }
 
@@ -3757,6 +3758,20 @@ export default function ConversasPage() {
                                             const isHuman = msg.sentBy && msg.sentBy !== 'agent' && msg.sentBy !== 'user' && msg.sentBy !== 'auto'
                                             const isInternal = msg.isInternal || msg.direction === 'internal'
 
+                                            // Evento do sistema (abriu, aceitou): linha do
+                                            // tempo, não nota de atendente.
+                                            if (isInternal && msg.sentBy === 'sistema') {
+                                                return (
+                                                    <div key={msg.id} className="flex justify-center">
+                                                        <div className="flex items-center gap-2 rounded-full border border-border bg-muted/60 px-3 py-1 text-xs text-muted-foreground">
+                                                            <FileText className="h-3 w-3" aria-hidden />
+                                                            <span>{msg.content}</span>
+                                                            <span className="opacity-60">{format(new Date(msg.createdAt), 'HH:mm', { locale: ptBR })}</span>
+                                                        </div>
+                                                    </div>
+                                                )
+                                            }
+
                                             if (isInternal) {
                                                 return (
                                                     <div key={msg.id} className="flex justify-center group">
@@ -3973,8 +3988,18 @@ export default function ConversasPage() {
                                         <div ref={messagesEndRef} />
                                     </div>
 
+                                    {/* O fio do documento (canal e-mail) não tem caixa de
+                                        resposta: responder por e-mail ainda não existe, e
+                                        gravar uma mensagem que nunca sai é o defeito que
+                                        este módulo já teve com o Direct. Diz por quê. */}
+                                    {conv.channel === 'email' && (
+                                        <div className="border-t bg-card px-4 py-3 text-xs text-muted-foreground">
+                                            Este fio registra os documentos enviados por e-mail e o que o cliente fez com eles. Para falar com {comArtigo(v, 'pessoa')}, use o WhatsApp ou o e-mail — responder por aqui chega numa próxima etapa.
+                                        </div>
+                                    )}
+
                                     {/* Message Input */}
-                                    {conv.status !== 'closed' && (
+                                    {conv.status !== 'closed' && conv.channel !== 'email' && (
                                         <div className="border-t bg-card p-3 relative">
                                             {/* Slash menu — commands and the
                                                 clinic's saved answers behind one

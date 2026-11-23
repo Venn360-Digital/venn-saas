@@ -2,7 +2,9 @@ import 'server-only'
 
 import prisma from '@venn/db/cliente'
 
+import { registrarEventoDoDocumento } from './conversa'
 import { ROTULO_DO_TIPO, ehTipoDeDocumento } from './estados'
+import { valorParaOFunil } from './funil'
 
 /**
  * O que acontece quando o cliente aceita — a cadeia inteira, numa transação.
@@ -136,13 +138,10 @@ export async function aceitarDocumento(entrada: EntradaDoAceite): Promise<Result
         // ── o funil ─────────────────────────────────────────────────────────
 
         /**
-         * A conversão de dinheiro acontece AQUI, e em nenhum outro lugar.
-         *
-         * `Decimal(18,4)` → `Float`. Seguro porque `calcularTotais` já
-         * arredondou a duas casas; o que se perde é precisão que o número não
-         * carrega. Ver o cabeçalho.
+         * A conversão de dinheiro passa por `valorParaOFunil`, a fronteira
+         * única (`lib/propostas/funil.ts`) — o envio usa a mesma.
          */
-        const valorParaOFunil = Number(revisao.total)
+        const valor = valorParaOFunil(revisao.total)
 
         if (negocio.status === 'open') {
             /**
@@ -177,7 +176,7 @@ export async function aceitarDocumento(entrada: EntradaDoAceite): Promise<Result
             await tx.deal.update({
                 where: { id: negocio.id },
                 data: {
-                    value: valorParaOFunil,
+                    value: valor,
                     ...(fechamento && fechamento.id !== negocio.stageId
                         ? { stageId: fechamento.id }
                         : {}),
@@ -206,7 +205,7 @@ export async function aceitarDocumento(entrada: EntradaDoAceite): Promise<Result
         } else {
             // Negócio já fechado: o valor é atualizado, a etapa não. Mover um
             // negócio ganho de volta para o trilho desfaria o fechamento.
-            await tx.deal.update({ where: { id: negocio.id }, data: { value: valorParaOFunil } })
+            await tx.deal.update({ where: { id: negocio.id }, data: { value: valor } })
         }
 
         // ── o aviso ─────────────────────────────────────────────────────────
@@ -231,6 +230,9 @@ export async function aceitarDocumento(entrada: EntradaDoAceite): Promise<Result
                 link: `/vendas/propostas/${proposta.id}`,
             },
         })
+
+        // O aceite consta em Conversas, no fio do documento.
+        await registrarEventoDoDocumento(tx, { shareId: entrada.shareId, evento: 'aceitou', nome: entrada.nome })
 
         return { ok: true as const, acceptedAt: agora, acceptedByName: entrada.nome }
     })

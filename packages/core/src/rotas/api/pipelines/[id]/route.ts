@@ -25,7 +25,7 @@ export async function PATCH(
         if (!stage) return NextResponse.json({ error: 'Etapa não encontrada' }, { status: 404 })
 
         const body = await request.json()
-        const { name, color, order, followUpDays, autoSend, isWon } = body
+        const { name, color, order, followUpDays, autoSend, isWon, isProposalSent } = body
 
         if (name !== undefined && (typeof name !== 'string' || name.trim().length === 0)) {
             return NextResponse.json({ error: 'Nome é obrigatório' }, { status: 400 })
@@ -75,6 +75,21 @@ export async function PATCH(
         // Desmarcar é livre: funil sem etapa de ganho cai na última, que é o
         // comportamento de quem nunca marcou.
         if (isWon === false) updateData.isWon = false
+
+        // A etapa de PROPOSTA ENVIADA: mesma regra da de ganho — marcar uma
+        // desmarca a anterior, na mesma transação.
+        if (isProposalSent === true && stage.pipelineId) {
+            const updated = await prisma.$transaction(async (tx) => {
+                await tx.pipelineStage.updateMany({
+                    where: { pipelineId: stage.pipelineId, isProposalSent: true, id: { not: id } },
+                    data: { isProposalSent: false },
+                })
+                return tx.pipelineStage.update({ where: { id }, data: { ...updateData, isProposalSent: true } })
+            })
+            return NextResponse.json(updated)
+        }
+        // Desmarcar é livre: sem etapa marcada, o envio não move o negócio.
+        if (isProposalSent === false) updateData.isProposalSent = false
 
         const updated = await prisma.pipelineStage.update({
             where: { id },

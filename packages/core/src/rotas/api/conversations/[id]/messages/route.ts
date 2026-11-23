@@ -159,6 +159,18 @@ export async function POST(
             include: { contact: true },
         })
 
+        /**
+         * O fio do documento (canal `email`) não aceita resposta — ainda.
+         * Gravar aqui produziria a mensagem com cara de enviada que nunca sai.
+         * Nota interna pode: é registro, não envio.
+         */
+        if (conversation && conversation.channel === 'email' && !isInternal) {
+            return NextResponse.json(
+                { error: 'Este fio registra documentos enviados por e-mail; responder por ele chega numa próxima etapa.' },
+                { status: 409 }
+            )
+        }
+
         if (!conversation) {
             return NextResponse.json({ error: 'Conversa não encontrada' }, { status: 404 })
         }

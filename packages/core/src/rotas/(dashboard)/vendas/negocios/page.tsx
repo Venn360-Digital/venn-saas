@@ -198,6 +198,8 @@ interface Stage {
     followUpDays?: number | null
     /** A etapa de ganho: para onde o aceite de uma proposta move o negócio. */
     isWon?: boolean
+    /** A etapa de proposta enviada: para onde o envio move o negócio. */
+    isProposalSent?: boolean
 }
 
 interface DealActivity {

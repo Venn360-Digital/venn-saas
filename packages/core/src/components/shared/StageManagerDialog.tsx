@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { ChevronDown, ChevronUp, Loader2, Plus, Trash2, Trophy } from 'lucide-react'
+import { ChevronDown, ChevronUp, Loader2, Plus, Send, Trash2, Trophy } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@venn/ui/button'
@@ -34,6 +34,8 @@ export interface ManagedStage {
     followUpDays?: number | null
     /** Esta é a etapa de ganho do funil — para onde o aceite move o negócio. */
     isWon?: boolean
+    /** A etapa de proposta enviada — para onde o envio de um documento move o negócio. */
+    isProposalSent?: boolean
     /** Quem aperta enviar nesta fase: `off`, `draft` ou `send`. */
     autoSend?: string | null
 }
@@ -316,6 +318,27 @@ export function StageManagerDialog({
                                 >
                                     <Trophy className="size-3.5" aria-hidden />
                                     <span className="sr-only">Etapa de ganho</span>
+                                </Button>
+
+                                {/* A etapa de PROPOSTA ENVIADA: para onde o envio
+                                    de um documento move o negócio — só para a
+                                    frente. Sem marcar, o envio não move nada. */}
+                                <Button
+                                    type="button"
+                                    variant={stage.isProposalSent ? 'default' : 'outline'}
+                                    size="sm"
+                                    className="h-8 shrink-0 px-2"
+                                    aria-pressed={Boolean(stage.isProposalSent)}
+                                    aria-label={`Marcar ${stage.name} como a etapa de proposta enviada`}
+                                    title={
+                                        stage.isProposalSent
+                                            ? 'O envio de um documento move o negócio para cá'
+                                            : 'Marcar como a etapa de proposta enviada deste funil'
+                                    }
+                                    onClick={() => void patch(stage, { isProposalSent: !stage.isProposalSent })}
+                                >
+                                    <Send className="size-3.5" aria-hidden />
+                                    <span className="sr-only">Etapa de proposta enviada</span>
                                 </Button>
 
                                 {/* Quem aperta enviar nesta fase. Três estados, e

@@ -102,7 +102,8 @@ import { vocab } from '@venn/core/lib/vocabulario'
  * `pnpm --filter` mudaria o segundo e quebraria a varredura em silêncio. A
  * mesma linha de `check-proposta-publica.ts`.
  */
-const CORE = join(dirname(fileURLToPath(import.meta.url)), '..', 'packages', 'core', 'src')
+const RAIZ = join(dirname(fileURLToPath(import.meta.url)), '..')
+const CORE = join(RAIZ, 'packages', 'core', 'src')
 
 let falhas = 0
 const ok = (nome: string, cond: boolean, extra = '') => {
@@ -1078,6 +1079,63 @@ const base: FatosDaProposta = {
     ok('literal curto é ignorado', !JSON.stringify(comTokens).includes('{{cliente.nome}}b'))
     ok('chave fora da lista sugerível é ignorada', !JSON.stringify(comTokens).includes('cliente.sapato') && JSON.stringify(comTokens).includes('Clínica Sorriso'))
     ok('sem sugestões aceitas, nada muda', JSON.stringify(aplicarSugestoes(importadas, [])) === JSON.stringify(importadas))
+}
+
+// ============================================================ F3: o documento em Conversas, e o negócio que aprende no envio
+
+/**
+ * A regra está em `lib/propostas/eventos.ts` (pura) e nas ligações: o envio
+ * registra no fio, a abertura e o aceite viram evento idempotente, e a caixa
+ * de resposta do canal e-mail não existe — nem na tela, nem na rota.
+ */
+{
+    console.log('\n── F3: o documento em Conversas ──')
+    const eventos = readFileSync(join(CORE, 'lib/propostas/eventos.ts'), 'utf8')
+    ok('eventos.ts é módulo neutro (a tela pode importar)', !eventos.includes("'server-only'"))
+    ok('o canal do documento é e-mail', eventos.includes("CANAL_DO_DOCUMENTO = 'email'"))
+    ok('a chave do evento carrega link e evento', /documento:\$\{shareId\}:\$\{evento\}/.test(eventos))
+    ok('"abriu" fala do cliente sem nome; "aceitou" leva o nome', /abriu/.test(eventos) && /nome\?\.trim\(\) \|\| 'O cliente'/.test(eventos))
+
+    const conversa = readFileSync(join(CORE, 'lib/propostas/conversa.ts'), 'utf8')
+    ok('conversa.ts é server-only', conversa.includes("'server-only'"))
+    ok('um fio por contato no canal e-mail (findFirst antes de create)', conversa.indexOf('channel: CANAL_DO_DOCUMENTO }') < conversa.indexOf('db.conversation.create('))
+    ok('o fio nasce com a equipe e com dono', conversa.includes("atendidaPor: 'humano'") && conversa.includes('assignedTo: entrada.donoId'))
+    ok('evento é idempotente pela chave em externalId', conversa.includes('where: { externalId: chave }') && conversa.includes('externalId: chave,'))
+    ok('evento é mensagem interna do sistema', conversa.includes("direction: 'internal'") && conversa.includes('sentBy: REMETENTE_SISTEMA'))
+    ok('registrar em Conversas nunca lança para fora', (conversa.match(/catch \(error\)/g) ?? []).length >= 2)
+
+    const funil = readFileSync(join(CORE, 'lib/propostas/funil.ts'), 'utf8')
+    ok('a conversão Decimal→Float tem uma fronteira só', funil.includes('export function valorParaOFunil'))
+    ok('o envio só move para a FRENTE', funil.includes('destino.order > negocio.stage.order'))
+    ok('o envio registra a passagem de etapa', funil.includes('dealStageEntry.create'))
+    ok('negócio fechado não se move no envio', funil.includes("negocio.status === 'open'"))
+
+    const aceite = readFileSync(join(CORE, 'lib/propostas/aceite.ts'), 'utf8')
+    ok('o aceite passa pela mesma fronteira de dinheiro', aceite.includes('valorParaOFunil(revisao.total)') && !/Number\(revisao\.total\)/.test(aceite))
+    ok('o aceite consta em Conversas', aceite.includes("evento: 'aceitou'"))
+
+    const enviar = readFileSync(join(CORE, 'rotas/api/propostas/[id]/revisoes/[versao]/enviar/route.ts'), 'utf8')
+    ok('o envio faz o negócio aprender (valor + etapa)', enviar.includes('negocioAprendeComEnvio(tx'))
+    ok('só e-mail que SAIU vira registro no fio', /if \(r\.ok && contexto\.proposal\.deal\.contact\?\.id\)/.test(enviar))
+
+    const publica = readFileSync(join(CORE, 'rotas/p/[token]/page.tsx'), 'utf8')
+    ok('a abertura consta em Conversas', publica.includes("evento: 'abriu'"))
+
+    const tela = readFileSync(join(CORE, 'rotas/(dashboard)/atendimento/conversas/page.tsx'), 'utf8')
+    ok('a tela esconde a caixa de resposta no canal e-mail', tela.includes("conv.status !== 'closed' && conv.channel !== 'email' &&"))
+    ok('a tela diz por quê', tela.includes("conv.channel === 'email' && (") && tela.includes('responder por aqui chega numa próxima etapa'))
+    ok('a tela nomeia a origem', tela.includes("if (conv.channel === 'email') return 'E-mail'"))
+    ok('evento do sistema tem desenho próprio', tela.includes("msg.sentBy === 'sistema'"))
+
+    const mensagens = readFileSync(join(CORE, 'rotas/api/conversations/[id]/messages/route.ts'), 'utf8')
+    ok('a rota recusa resposta no canal e-mail (409), nota interna passa', mensagens.includes("conversation.channel === 'email' && !isInternal") && /status: 409/.test(mensagens))
+
+    const etapas = readFileSync(join(CORE, 'rotas/api/pipelines/[id]/route.ts'), 'utf8')
+    ok('marcar a etapa de proposta enviada desmarca a anterior', etapas.includes('isProposalSent: true, id: { not: id }'))
+    const dialogo = readFileSync(join(CORE, 'components/shared/StageManagerDialog.tsx'), 'utf8')
+    ok('a tela de etapas tem o botão', dialogo.includes('isProposalSent: !stage.isProposalSent'))
+    const migracao = readFileSync(join(RAIZ, 'packages/db/prisma/migrations/20261122140000_etapa_de_proposta_enviada/migration.sql'), 'utf8')
+    ok('uma etapa de proposta enviada por funil (índice parcial)', /where "isProposalSent" = true/.test(migracao))
 }
 
 // ============================================================ fecho

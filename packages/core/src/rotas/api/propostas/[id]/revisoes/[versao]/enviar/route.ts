@@ -19,6 +19,8 @@ import {
 import { ehTipoDeDocumento, podeTransicionar } from '@venn/core/lib/propostas/estados'
 import { congelarVariaveis, contextoDeVariaveis } from '@venn/core/lib/propostas/contexto'
 import { converterCorpoEmSecoes, secoesPadrao, secoesSchema } from '@venn/core/lib/propostas/secoes'
+import { negocioAprendeComEnvio } from '@venn/core/lib/propostas/funil'
+import { registrarEnvioNaConversa } from '@venn/core/lib/propostas/conversa'
 
 /**
  * Gera o link público e, opcionalmente, o manda ao cliente.
@@ -127,6 +129,7 @@ export async function POST(
                         createdBy: { select: { name: true, email: true, phone: true } },
                         deal: {
                             select: {
+                                id: true,
                                 title: true,
                                 value: true,
                                 createdAt: true,
@@ -238,6 +241,22 @@ export async function POST(
             })
         }
 
+        /**
+         * O negócio aprende com o envio: o valor é o total desta versão, e a
+         * etapa anda para "proposta enviada" quando a organização marcou uma
+         * — só para a frente (ver `lib/propostas/funil.ts`). Em toda ida,
+         * inclusive reenvio: o valor do negócio é o da última versão na mão do
+         * cliente.
+         */
+        await prisma.$transaction((tx) =>
+            negocioAprendeComEnvio(tx, {
+                dealId: contexto.proposal.deal.id,
+                total: contexto.total,
+                kind: contexto.proposal.kind,
+                numero: contexto.proposal.number,
+            })
+        )
+
         // ── os canais ───────────────────────────────────────────────────────
 
         const envios: { canal: 'email' | 'whatsapp'; ok: boolean; motivo?: string }[] = []
@@ -258,6 +277,19 @@ export async function POST(
                     responsavel: contexto.proposal.createdBy?.name ?? null,
                 })
                 envios.push({ canal: 'email', ok: r.ok, motivo: r.error })
+                // O envio consta em Conversas, no fio do documento. Só o que saiu:
+                // um e-mail que falhou não vira registro de envio.
+                if (r.ok && contexto.proposal.deal.contact?.id) {
+                    await registrarEnvioNaConversa({
+                        workspaceId: membro.workspaceId,
+                        contactId: contexto.proposal.deal.contact.id,
+                        userId: membro.userId,
+                        kind: contexto.proposal.kind,
+                        numero: contexto.proposal.number,
+                        para,
+                        url: link.url,
+                    })
+                }
             }
         }
 
