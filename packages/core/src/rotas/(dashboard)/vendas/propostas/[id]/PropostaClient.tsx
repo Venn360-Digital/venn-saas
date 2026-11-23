@@ -29,6 +29,9 @@ import { PageHeader } from '@venn/core/components/shared/PageHeader'
 import { StatusBadge, type ToneEntry } from '@venn/core/components/shared/StatusBadge'
 import { EditorDeTexto, type Paleta } from '@venn/core/components/propostas/EditorDeTexto'
 import { SecaoEditor } from '@venn/core/components/propostas/SecaoEditor'
+import { SecaoArrastavel } from '@venn/core/components/propostas/SecaoArrastavel'
+import { DndContext, PointerSensor, KeyboardSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
+import { SortableContext, arrayMove, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { usePermissions } from '@venn/core/hooks/usePermissions'
 import { useVocab } from '@venn/core/hooks/useVocab'
 import { cssDoDocumento } from '@venn/core/lib/propostas/estilo'
@@ -454,6 +457,13 @@ export function PropostaClient({
     function mudarSecao(nova: Secao) {
         setSecoes((atuais) => atuais.map((s) => (s.id === nova.id ? nova : s)))
     }
+    const sensores = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }))
+    function aoSoltar(e: DragEndEvent) {
+        const de = e.active.id
+        const para = e.over?.id
+        if (!editavel || !para || de === para) return
+        setSecoes((a) => arrayMove(a, a.findIndex((x) => x.id === de), a.findIndex((x) => x.id === para)))
+    }
     function mover(id: string, delta: -1 | 1) {
         setSecoes((atuais) => {
             const i = atuais.findIndex((s) => s.id === id)
@@ -681,11 +691,16 @@ export function PropostaClient({
                             )}
                         </div>
                     ) : (
+                        <DndContext sensors={sensores} collisionDetection={closestCenter} onDragEnd={aoSoltar}>
+                        <SortableContext items={secoes.map((x) => x.id)} strategy={verticalListSortingStrategy}>
                         <ol className="space-y-4">
                             {secoes.map((s, indice) => (
-                                <li
+                                <SecaoArrastavel
                                     key={s.id}
-                                    id={`secao-${s.id}`}
+                                    idDoElemento={`secao-${s.id}`}
+                                    id={s.id}
+                                    rotulo={ROTULO_DA_SECAO[s.tipo]}
+                                    desabilitado={!editavel}
                                     onFocusCapture={() => setSecaoAtiva(s.id)}
                                     className={cn(
                                         'scroll-mt-4 rounded-lg border bg-card p-4',
@@ -748,7 +763,7 @@ export function PropostaClient({
                                             ))}
                                         </div>
                                     )}
-                                </li>
+                                </SecaoArrastavel>
                             ))}
                             {editavel && (
                                 <li>
@@ -759,6 +774,8 @@ export function PropostaClient({
                                 </li>
                             )}
                         </ol>
+                        </SortableContext>
+                        </DndContext>
                     )}
                 </main>
 

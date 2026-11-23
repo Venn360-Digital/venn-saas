@@ -27,3 +27,10 @@ export interface ModeloItem {
     /** Quantos documentos já usam este modelo — é o que torna apagar perigoso. */
     emUso: number
 }
+
+/**
+ * Espelhos de `lib/propostas/capa.ts` para a tela — aquele módulo é `server-only`
+ * e não entra no bundle do cliente. `check:propostas` cobra que os dois batam.
+ */
+export const VARIACOES_DE_CAPA = 3
+export const CREDITOS_POR_CAPA_NA_TELA = 8

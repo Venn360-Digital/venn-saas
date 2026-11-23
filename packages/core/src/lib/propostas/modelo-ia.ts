@@ -17,6 +17,7 @@ import {
     type SecaoPlana,
     type SugestaoDeVariavel,
 } from './secoes'
+import { separarTabelas } from './planilha'
 import { GRUPOS, REGISTRO } from './variaveis'
 
 /**
@@ -105,7 +106,7 @@ export async function montarModelo(entrada: EntradaDoModelo): Promise<ResultadoD
     const sistema = [
         `Você monta o MODELO de um documento comercial (${rotulo}) — todas as páginas e seções, com texto de apresentação pronto.`,
         '',
-        'Estrutura típica de uma proposta completa, nesta ordem: capa, sumario, carta, destaques, escopo, fases, itens, investimento, garantia, condicoes, aceite, fechamento. Um orçamento usa só: texto curto, itens, condicoes, aceite. Um contrato: capa, texto (objeto), itens, condicoes (cláusulas em branco), aceite. Use o que a descrição pedir; na dúvida, a estrutura típica do tipo.',
+        'Estrutura típica de uma proposta completa, nesta ordem: capa, sumario, carta, destaques, escopo, fases, itens, investimento, garantia, condicoes, aceite, fechamento. Um orçamento usa só: texto curto, itens, condicoes, aceite. Um contrato: capa, e depois UMA seção "texto" por cláusula, com título "Cláusula N — Do(a) …" (partes, objeto, vigência, valor e pagamento, obrigações de cada parte, confidencialidade, proteção de dados, rescisão, foro), depois itens e aceite; dentro das cláusulas, prazo, multa, forma de pagamento e foro ficam escritos como "(a definir)". Use o que a descrição pedir; na dúvida, a estrutura típica do tipo.',
         '',
         ...regrasComuns(entrada.vocabulario),
     ].join('\n')
@@ -199,8 +200,13 @@ export async function lerDocumentoImportado(entrada: EntradaDaImportacao): Promi
     const apiKey = process.env.OPENAI_API_KEY
     if (!apiKey) return { ok: false, motivo: 'a chave da OpenAI não está configurada neste ambiente' }
 
-    const texto = entrada.texto.trim()
-    if (texto.length < 40) return { ok: false, motivo: 'O arquivo tem pouco texto legível. PDF só de imagem não é lido.' }
+    const bruto = entrada.texto.trim()
+    if (bruto.length < 40) return { ok: false, motivo: 'O arquivo tem pouco texto legível. PDF só de imagem não é lido.' }
+
+    // Tabelas de planilha viram seção em código, antes da IA (ver `planilha.ts`):
+    // o que resta do texto é o que o modelo lê.
+    const separado = separarTabelas(bruto)
+    const texto = separado.texto.trim() || bruto
 
     const sistema = [
         `Você recebe o texto de um documento comercial (${ROTULO_DO_TIPO[entrada.tipo].toLowerCase()}) que uma organização já usa, e o devolve dividido em seções, SEM reescrever: preserve as frases do original.`,
@@ -238,7 +244,7 @@ export async function lerDocumentoImportado(entrada: EntradaDaImportacao): Promi
     const validada = importacaoSchema.safeParse(resposta.dados)
     if (!validada.success) return { ok: false, motivo: 'a resposta do modelo não veio na forma esperada' }
 
-    const secoes = secoesDaResposta(validada.data.secoes as SecaoPlana[])
+    const secoes = [...secoesDaResposta(validada.data.secoes as SecaoPlana[]), ...separado.secoes]
     if (secoes.length === 0) return { ok: false, motivo: 'não foi possível reconhecer seções neste documento' }
 
     // Só o que de fato aparece no texto e tem tamanho de dado: o schema garante
@@ -247,7 +253,7 @@ export async function lerDocumentoImportado(entrada: EntradaDaImportacao): Promi
     const sugestoes: SugestaoDeVariavel[] = []
     for (const s of validada.data.valores) {
         const literal = s.literal.trim()
-        if (literal.length < 3 || !texto.includes(literal)) continue
+        if (literal.length < 3 || !bruto.includes(literal)) continue
         if (!(CHAVES_SUGERIVEIS as readonly string[]).includes(s.chave)) continue
         const marca = `${s.chave}:${literal}`
         if (vistas.has(marca)) continue

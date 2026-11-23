@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ArrowDown, ArrowLeft, ArrowUp, Check, Eye, FileUp, Image as ImageIcon, Pencil, Plus, RotateCcw, Sparkles, Trash2, TriangleAlert, X } from 'lucide-react'
+import { DndContext, PointerSensor, KeyboardSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
+import { SortableContext, arrayMove, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable'
 
 import { Button } from '@venn/ui/button'
 import { Input } from '@venn/ui/input'
@@ -11,6 +13,7 @@ import { Textarea } from '@venn/ui/textarea'
 import { cn } from '@venn/ui/utils'
 import { PageHeader } from '@venn/core/components/shared/PageHeader'
 import { SecaoEditor } from '@venn/core/components/propostas/SecaoEditor'
+import { SecaoArrastavel } from '@venn/core/components/propostas/SecaoArrastavel'
 import type { Paleta } from '@venn/core/components/propostas/EditorDeTexto'
 import { cssDoDocumento } from '@venn/core/lib/propostas/estilo'
 import { ROTULO_DO_TIPO, TIPOS_DE_DOCUMENTO, type TipoDeDocumento } from '@venn/core/lib/propostas/estados'
@@ -24,6 +27,8 @@ import {
     type TipoDeSecao,
 } from '@venn/core/lib/propostas/secoes'
 import { GRUPOS, REGISTRO, ROTULO_DO_GRUPO } from '@venn/core/lib/propostas/variaveis'
+import { CLAUSULAS, secaoDaClausula } from '@venn/core/lib/propostas/clausulas'
+import { CREDITOS_POR_CAPA_NA_TELA, VARIACOES_DE_CAPA } from './dados'
 import { BRAND_HEX } from '@venn/core/lib/palette'
 
 import type { ModeloItem } from './dados'
@@ -140,6 +145,9 @@ export function ModelosClient({ inicial }: { inicial: ModeloItem[] }) {
     const [modo, setModo] = useState<'editar' | 'visualizar'>('editar')
     const [previa, setPrevia] = useState<string | null>(null)
     const [urlDaCapa, setUrlDaCapa] = useState<string | null>(null)
+    /** As artes geradas, para escolher. Vazio quando não há escolha pendente. */
+    const [opcoesDeCapa, setOpcoesDeCapa] = useState<{ imageKey: string; url: string }[]>([])
+    const sensores = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }))
     const [gerandoCapa, setGerandoCapa] = useState(false)
     const [gravado, setGravado] = useState<'ok' | 'pendente' | null>(null)
     const [adicionando, setAdicionando] = useState(false)
@@ -175,6 +183,7 @@ export function ModelosClient({ inicial }: { inicial: ModeloItem[] }) {
         setModo('editar')
         setPrevia(null)
         setUrlDaCapa(null)
+        setOpcoesDeCapa([])
         setGravado(null)
         setAviso(null)
     }
@@ -283,18 +292,14 @@ export function ModelosClient({ inicial }: { inicial: ModeloItem[] }) {
             const r = await fetch(`/api/propostas/templates/${atual.id}/capa`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ assunto: nome, cor: COR_HEX.test(cor) ? cor : null }),
+                body: JSON.stringify({ assunto: nome, cor: COR_HEX.test(cor) ? cor : null, variacoes: VARIACOES_DE_CAPA }),
             })
-            const corpo = (await r.json().catch(() => ({}))) as { url?: string; secoes?: Secao[]; error?: string }
-            if (!r.ok || !corpo.secoes) {
+            const corpo = (await r.json().catch(() => ({}))) as { opcoes?: { imageKey: string; url: string }[]; error?: string }
+            if (!r.ok || !corpo.opcoes?.length) {
                 setAviso(corpo.error ?? 'Não foi possível gerar a arte.')
                 return
             }
-            // As seções já voltaram gravadas: não dispara a gravação automática por cima.
-            primeiraPintura.current = true
-            setSecoes(corpo.secoes)
-            setUrlDaCapa(corpo.url ?? null)
-            setPrevia(null)
+            setOpcoesDeCapa(corpo.opcoes)
         } finally {
             setGerandoCapa(false)
         }
@@ -315,6 +320,28 @@ export function ModelosClient({ inicial }: { inicial: ModeloItem[] }) {
     const acrescentar = (tipo: TipoDeSecao) => {
         setSecoes((a) => [...a, secaoVazia(tipo)])
         setAdicionando(false)
+    }
+    /** A escolha entre as artes: entra na seção capa (ou cria uma) e grava pela gravação automática. */
+    const escolherCapa = (opcao: { imageKey: string; url: string }) => {
+        setSecoes((a) => {
+            const i = a.findIndex((s) => s.tipo === 'capa')
+            if (i >= 0) return a.map((s) => (s.tipo === 'capa' ? { ...s, imageKey: opcao.imageKey } : s))
+            return [{ id: idDeSecao(), tipo: 'capa', imageKey: opcao.imageKey } as Secao, ...a]
+        })
+        setUrlDaCapa(opcao.url)
+        setOpcoesDeCapa([])
+        setPrevia(null)
+    }
+    const inserirClausula = (chave: string) => {
+        const secao = secaoDaClausula(chave)
+        if (secao) setSecoes((a) => [...a, secao])
+        setAdicionando(false)
+    }
+    const aoSoltar = (e: DragEndEvent) => {
+        const de = e.active.id
+        const para = e.over?.id
+        if (!para || de === para) return
+        setSecoes((a) => arrayMove(a, a.findIndex((s) => s.id === de), a.findIndex((s) => s.id === para)))
     }
     const alternarFixa = (id: string) => setSecoes((a) => a.map((s) => (s.id === id ? { ...s, fixa: !s.fixa } : s)))
 
@@ -465,9 +492,11 @@ export function ModelosClient({ inicial }: { inicial: ModeloItem[] }) {
                                 )}
                             </div>
                         ) : (
+                            <DndContext sensors={sensores} collisionDetection={closestCenter} onDragEnd={aoSoltar}>
+                            <SortableContext items={secoes.map((s) => s.id)} strategy={verticalListSortingStrategy}>
                             <ol className="space-y-4">
                                 {secoes.map((s, i) => (
-                                    <li key={s.id} id={`msecao-${s.id}`} className="scroll-mt-4 rounded-lg border border-border/60 bg-card p-4">
+                                    <SecaoArrastavel key={s.id} id={s.id} idDoElemento={`msecao-${s.id}`} rotulo={ROTULO_DA_SECAO[s.tipo]} className="scroll-mt-4 rounded-lg border border-border/60 bg-card p-4">
                                         <div className="mb-3 flex items-center gap-2">
                                             <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                                                 {ehPagina(s.tipo) ? 'Página' : 'Bloco'} · {ROTULO_DA_SECAO[s.tipo]}
@@ -506,7 +535,7 @@ export function ModelosClient({ inicial }: { inicial: ModeloItem[] }) {
                                                 ) : null}
                                                 <Button type="button" variant="outline" size="sm" onClick={() => void gerarCapa()} disabled={gerandoCapa}>
                                                     <ImageIcon className="size-4" aria-hidden />
-                                                    {gerandoCapa ? 'Gerando (10–20 s)…' : s.imageKey ? 'Gerar outra arte' : 'Gerar arte com IA'}
+                                                    {gerandoCapa ? 'Gerando (20–40 s)…' : s.imageKey ? 'Gerar outras artes' : `Gerar ${VARIACOES_DE_CAPA} artes com IA`}
                                                 </Button>
                                                 {s.imageKey && (
                                                     <Button
@@ -522,10 +551,28 @@ export function ModelosClient({ inicial }: { inicial: ModeloItem[] }) {
                                                         Remover arte
                                                     </Button>
                                                 )}
-                                                <span className="text-xs text-muted-foreground">Arte abstrata na cor do modelo, sem texto; usa créditos de IA. Título, cliente e data entram por cima.</span>
+                                                <span className="text-xs text-muted-foreground">{VARIACOES_DE_CAPA} artes abstratas na cor do modelo, sem texto, para escolher — {CREDITOS_POR_CAPA_NA_TELA * VARIACOES_DE_CAPA} créditos de IA. Título, cliente e data entram por cima.</span>
+                                                {opcoesDeCapa.length > 0 && (
+                                                    <ul className="flex w-full flex-wrap gap-3" aria-label="Escolha a arte da capa">
+                                                        {opcoesDeCapa.map((o, n) => (
+                                                            <li key={o.imageKey}>
+                                                                <button type="button" onClick={() => escolherCapa(o)} className="group block overflow-hidden rounded-md border border-border hover:border-primary focus-visible:ring-2 focus-visible:ring-ring" aria-label={`Usar a arte ${n + 1}`}>
+                                                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                                                    <img src={o.url} alt="" className="h-40 w-28 object-cover" />
+                                                                    <span className="block bg-card px-2 py-1 text-center text-xs text-foreground group-hover:bg-accent">Usar esta</span>
+                                                                </button>
+                                                            </li>
+                                                        ))}
+                                                        <li className="self-center">
+                                                            <Button type="button" variant="ghost" size="sm" onClick={() => setOpcoesDeCapa([])}>
+                                                                Nenhuma
+                                                            </Button>
+                                                        </li>
+                                                    </ul>
+                                                )}
                                             </div>
                                         )}
-                                    </li>
+                                    </SecaoArrastavel>
                                 ))}
                                 <li>
                                     <Button type="button" variant="outline" className="w-full border-dashed" onClick={() => setAdicionando(true)}>
@@ -534,6 +581,8 @@ export function ModelosClient({ inicial }: { inicial: ModeloItem[] }) {
                                     </Button>
                                 </li>
                             </ol>
+                            </SortableContext>
+                            </DndContext>
                         )}
                     </main>
 
@@ -584,6 +633,19 @@ export function ModelosClient({ inicial }: { inicial: ModeloItem[] }) {
                                     <button key={t} type="button" onClick={() => acrescentar(t)} className="rounded-md border border-border px-3 py-2 text-left text-sm hover:bg-accent">
                                         {ROTULO_DA_SECAO[t]}
                                         <span className="block text-[10px] uppercase tracking-wider text-muted-foreground">{ehPagina(t) ? 'página' : 'bloco'}</span>
+                                    </button>
+                                ))}
+                            </div>
+                            {/* A biblioteca de cláusulas: o esqueleto de um contrato, com
+                                prazo, multa, pagamento e foro marcados "(a definir)". Aparece
+                                para todo tipo — uma proposta também pode ter cláusula de
+                                confidencialidade —, mas é do contrato que ela é. */}
+                            <h3 className="mb-1 mt-4 text-sm font-semibold">Cláusulas{atual.kind === 'contrato' ? '' : ' (de contrato)'}</h3>
+                            <p className="mb-2 text-xs text-muted-foreground">Ponto de partida, não parecer jurídico: o que é compromisso vem como "(a definir)" para a organização preencher e revisar.</p>
+                            <div className="grid max-h-56 grid-cols-2 gap-2 overflow-y-auto pr-1">
+                                {CLAUSULAS.map((c) => (
+                                    <button key={c.chave} type="button" onClick={() => inserirClausula(c.chave)} className="rounded-md border border-border px-3 py-2 text-left text-sm hover:bg-accent">
+                                        {c.titulo}
                                     </button>
                                 ))}
                             </div>
