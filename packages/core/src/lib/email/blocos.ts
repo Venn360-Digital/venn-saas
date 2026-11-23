@@ -179,7 +179,10 @@ export function substituirMarcadores<C extends object>(
     return texto.replace(
         // O espaço ANTES e a pontuação DEPOIS entram na captura: é o que permite
         // engolir a pontuação órfã sem uma segunda passada sobre o texto.
-        /([ \t]*)\{\{\s*(\w+)\s*(?:\|([^}]*))?\}\}([,;:—-]?[ \t]*)/g,
+        // `[\w.]+`, e não `\w+`: desde 22/11/2026 o documento usa marcador em
+        // grupo (`cliente.nome`). Campo de campanha é palavra só, então nada
+        // muda para ele — e o verificador prova a equivalência.
+        /([ \t]*)\{\{\s*([\w.]+)\s*(?:\|([^}]*))?\}\}([,;:—-]?[ \t]*)/g,
         (inteiro, antes: string, chave: string, queda: string | undefined, depois: string) => {
             if (!(chave in padroes)) return inteiro
 

@@ -58,7 +58,26 @@ import {
     MARCADORES,
     marcadoresCitados,
 } from '@venn/core/lib/propostas/variaveis'
-import { renderDocumento, tabelaDeItens } from '@venn/core/lib/propostas/render'
+import { miolo, renderCorpoLegado, renderDocumento, tabelaDeItens } from '@venn/core/lib/propostas/render'
+import {
+    converterCorpoEmSecoes,
+    ehCompromisso,
+    ehPagina,
+    ehTipoDeSecao,
+    ROTULO_DA_SECAO,
+    secoesPadrao,
+    secoesSchema,
+    TIPOS_DE_SECAO,
+} from '@venn/core/lib/propostas/secoes'
+import { congelarVariaveis, contextoDeMapa, contextoDeVariaveis } from '@venn/core/lib/propostas/contexto'
+import {
+    achatarVariaveis,
+    APELIDOS,
+    chaveDeCampo,
+    GRUPOS,
+    REGISTRO,
+    variaveisPersonalizadas,
+} from '@venn/core/lib/propostas/variaveis'
 import { resumirNegociacao, type FatosDaProposta } from '@venn/core/lib/propostas/resumo'
 import { hostDoApp } from '@venn/core/lib/base-publica'
 import {
@@ -263,7 +282,7 @@ ok('cliente e total são marcadores', ehMarcador('cliente') && ehMarcador('total
 ok('preco não é marcador', !ehMarcador('preco'))
 
 {
-    const saida = aplicarVariaveis('Para: {{cliente}}', { cliente: 'Maria Silva' })
+    const saida = aplicarVariaveis('Para: {{cliente}}', { cliente: { nome: 'Maria Silva' } })
     ok('troca o valor', saida === 'Para: Maria Silva', saida)
 }
 
@@ -292,8 +311,7 @@ ok('preco não é marcador', !ehMarcador('preco'))
 
 {
     const saida = aplicarVariaveis('Total {{total}} em {{data}}', {
-        total: 'R$ 1.200,00',
-        data: '21/11/2026',
+        documento: { total: 'R$ 1.200,00', data: '21/11/2026' },
     })
     ok('dois marcadores na mesma frase', saida === 'Total R$ 1.200,00 em 21/11/2026', saida)
 }
@@ -368,7 +386,7 @@ const ITENS = [
 {
     const doc = renderDocumento({
         corpo: '# {{titulo}}\n\nPara: {{cliente}}\n\n{{itens}}\n\n- primeiro\n- segundo',
-        variaveis: { titulo: 'Plano de tratamento', cliente: 'Maria Silva' },
+        variaveis: { documento: { titulo: 'Plano de tratamento' }, cliente: { nome: 'Maria Silva' } },
         itens: ITENS,
         totais: calcularTotais([
             { quantity: '1', unitPrice: '150.00', discountPct: '0' },
@@ -395,7 +413,7 @@ const ITENS = [
     // deveria passar pela tela de modelos antes de mandar a primeira.
     const doc = renderDocumento({
         corpo: null,
-        variaveis: { titulo: 'Orçamento', cliente: 'João' },
+        variaveis: { documento: { titulo: 'Orçamento' }, cliente: { nome: 'João' } },
         itens: ITENS,
         totais: calcularTotais([{ quantity: '1', unitPrice: '150.00', discountPct: '0' }]),
         moeda: 'BRL',
@@ -412,7 +430,7 @@ const ITENS = [
      */
     const doc = renderDocumento({
         corpo: 'Para: {{cliente}}',
-        variaveis: { cliente: '<img src=x onerror=alert(1)>' },
+        variaveis: { cliente: { nome: '<img src=x onerror=alert(1)>' } },
         itens: [],
         totais: { subtotal: 0, discount: 0, total: 0 } as never,
         moeda: 'BRL',
@@ -430,7 +448,7 @@ const ITENS = [
      */
     const entrada = {
         corpo: '# {{titulo}}\n\n{{itens}}',
-        variaveis: { titulo: 'Proposta' },
+        variaveis: { documento: { titulo: 'Proposta' } },
         itens: ITENS,
         totais: calcularTotais([{ quantity: '1', unitPrice: '150.00', discountPct: '0' }]),
         moeda: 'BRL',
@@ -878,6 +896,130 @@ const base: FatosDaProposta = {
     const aceite = readFileSync(join(CORE, 'lib/propostas/aceite.ts'), 'utf8')
     ok('o aceite procura a etapa de ganho', aceite.includes('isWon: true'))
     ok('e mantém a queda para a última', aceite.includes("orderBy: { order: 'desc' }"))
+}
+
+// ============================================================ F0: seções e variáveis em grupo
+
+/**
+ * A fundação da v2 (22/11/2026): o documento vira seções tipadas, as variáveis
+ * ganham grupos derivados dos campos do sistema, e os dez marcadores da v1
+ * viram apelidos. O que se prova aqui é o que a migração promete: **nada da v1
+ * muda de aparência** — o render do corpo antigo e o render da sua conversão
+ * em seções são o mesmo HTML, byte a byte, descontado o embrulho `<section>`.
+ */
+{
+    // ── a gramática do token ganhou o ponto ──
+    ok('cliente.nome resolve', aplicarVariaveis('{{cliente.nome}}', { cliente: { nome: 'Helena' } }) === 'Helena')
+    ok('o apelido da v1 resolve para o mesmo valor', aplicarVariaveis('{{cliente}}', { cliente: { nome: 'Helena' } }) === 'Helena')
+    ok('todo apelido aponta para um campo do registro', Object.values(APELIDOS).every((d) => MARCADORES.includes(d)))
+    ok('grupo.campo desconhecido fica visível', aplicarVariaveis('{{cliente.sapato}}', { cliente: { nome: 'x' } }) === '{{cliente.sapato}}')
+    ok('marcadoresCitados lê o ponto', marcadoresCitados('{{cliente.nome}} e {{total}}').join(',') === 'cliente.nome,total')
+    ok('todo grupo tem rótulo e ao menos um campo', GRUPOS.every((g) => Object.keys(REGISTRO[g]).length > 0))
+    ok('todo marcador em grupo tem ajuda', MARCADORES.every((m) => (AJUDA_DO_MARCADOR[m] ?? '').length > 0))
+
+    // ── campos personalizados do cliente entram sozinhos ──
+    ok('rótulo vira chave sem acento nem espaço', chaveDeCampo('Data de nascimento') === 'data_de_nascimento')
+    ok('chave não começa nem termina com _', chaveDeCampo(' Plano? ') === 'plano')
+    {
+        const { rotulos, valores } = variaveisPersonalizadas({ 'Data de nascimento': '01/02/1990', nome: 'sombra', Idade: 36, lista: [1] })
+        ok('personalizado vira variável com o rótulo original', rotulos.data_de_nascimento === 'Data de nascimento' && valores.data_de_nascimento === '01/02/1990')
+        ok('personalizado NÃO sombreia um fixo', !('nome' in rotulos))
+        ok('número vira texto; objeto é ignorado', valores.idade === '36' && !('lista' in valores))
+        ok(
+            'e resolve no texto pelo contexto',
+            aplicarVariaveis('Nasceu em {{cliente.data_de_nascimento}}', { cliente: { nome: 'x', ...valores } }) === 'Nasceu em 01/02/1990'
+        )
+        ok('ehMarcador vê o personalizado só com o contexto', ehMarcador('cliente.data_de_nascimento', { cliente: valores }) && !ehMarcador('cliente.data_de_nascimento'))
+    }
+
+    // ── a biblioteca ──
+    ok('doze tipos mais o texto genérico', TIPOS_DE_SECAO.length === 13)
+    ok('todo tipo tem rótulo', TIPOS_DE_SECAO.every((t) => (ROTULO_DA_SECAO[t] ?? '').length > 0))
+    ok('quatro são página', TIPOS_DE_SECAO.filter(ehPagina).length === 4 && ehPagina('capa') && ehPagina('fechamento'))
+    ok('itens e aceite são bloco', !ehPagina('itens') && !ehPagina('aceite'))
+    ok('compromisso: destaques, fases, investimento, garantia, condições', ['destaques', 'fases', 'investimento', 'garantia', 'condicoes'].every((t) => ehCompromisso(t as never)))
+    ok('carta e texto NÃO são compromisso', !ehCompromisso('carta') && !ehCompromisso('texto'))
+    ok('tipo inventado é recusado', !ehTipoDeSecao('video'))
+    ok('o schema recusa seção sem id', !secoesSchema.safeParse([{ tipo: 'itens' }]).success)
+    ok('o schema recusa tipo desconhecido', !secoesSchema.safeParse([{ id: 'a', tipo: 'video' }]).success)
+    ok('o schema aceita a biblioteca inteira mínima', secoesSchema.safeParse([
+        { id: 'a', tipo: 'capa' }, { id: 'b', tipo: 'sumario' }, { id: 'c', tipo: 'carta', corpo: 'x' },
+        { id: 'd', tipo: 'destaques', itens: [] }, { id: 'e', tipo: 'escopo', cartoes: [] }, { id: 'f', tipo: 'fases', fases: [] },
+        { id: 'g', tipo: 'itens' }, { id: 'h', tipo: 'investimento', cartoes: [] }, { id: 'i', tipo: 'garantia', blocos: [] },
+        { id: 'j', tipo: 'condicoes', corpo: 'x' }, { id: 'k', tipo: 'aceite' }, { id: 'l', tipo: 'fechamento', corpo: 'x' },
+    ]).success)
+
+    // ── a conversão do corpo da v1 ──
+    const corpo = '# {{titulo}}\n\nPara: {{cliente}}\n\n{{itens}}\n\n- um\n- dois\n\n{{observacao}}'
+    const convertidas = converterCorpoEmSecoes(corpo)
+    ok('corpo com {{itens}} vira texto · itens · texto', convertidas.map((s) => s.tipo).join(',') === 'texto,itens,texto')
+    ok('a conversão é determinística', JSON.stringify(converterCorpoEmSecoes(corpo)) === JSON.stringify(convertidas))
+    ok('corpo vazio não vira seção', converterCorpoEmSecoes('  ').length === 0)
+    ok('corpo sem {{itens}} vira um texto só', converterCorpoEmSecoes('Olá {{cliente}}').map((s) => s.tipo).join(',') === 'texto')
+
+    /**
+     * O oráculo: render da v1 ≡ render da conversão, byte a byte no miolo.
+     *
+     * É a promessa da migração. Se isto falhar, uma proposta antiga mudou de
+     * cara sem ninguém pedir.
+     */
+    const entrada = {
+        corpo,
+        variaveis: { documento: { titulo: 'Plano', observacao: 'Obs.' }, cliente: { nome: 'Maria' } },
+        itens: ITENS,
+        totais: calcularTotais([{ quantity: '1', unitPrice: '150.00', discountPct: '0' }]),
+        moeda: 'BRL',
+    }
+    const legado = renderCorpoLegado(entrada)
+    const novo = miolo(renderDocumento(entrada))
+    ok('render do corpo da v1 ≡ render das seções convertidas', legado === novo, legado === novo ? '' : `\n--- legado ---\n${legado}\n--- novo ---\n${novo}`)
+    ok('seções explícitas e corpo convertido dão o mesmo', miolo(renderDocumento({ ...entrada, secoes: convertidas })) === novo)
+
+    // o que o <section> acrescenta, e só isso
+    const comEmbrulho = renderDocumento(entrada)
+    ok('cada seção vem embrulhada e identificada', (comEmbrulho.match(/<section class="doc-secao doc-secao-/g) ?? []).length === 3 && comEmbrulho.includes('data-secao="s2"'))
+    ok('página vira doc-pagina', renderDocumento({ ...entrada, secoes: [{ id: 'c', tipo: 'capa' }] }).includes('class="doc-pagina doc-pagina-capa"'))
+    ok('o padrão sem modelo tem texto, itens e observação', secoesPadrao().map((s) => s.tipo).join(',') === 'texto,itens,texto')
+
+    // ── as seções novas renderizam e escapam ──
+    const ctx = { cliente: { nome: '<b>Helena</b>' }, documento: { titulo: 'T' }, organizacao: { nome: 'Org' }, responsavel: { nome: 'A', email: 'a@b', telefone: '31' } }
+    const html = renderDocumento({
+        secoes: [
+            { id: '1', tipo: 'capa', subtitulo: 'Para {{cliente.nome}}' },
+            { id: '2', tipo: 'sumario' },
+            { id: '3', tipo: 'destaques', titulo: 'Números', itens: [{ valor: '64%', rotulo: 'Resolvidos' }] },
+            { id: '4', tipo: 'fases', fases: [{ nome: 'Diagnóstico', descricao: 'x', prazo: 'dia 1-3' }] },
+            { id: '5', tipo: 'investimento', cartoes: [{ titulo: 'Setup', valor: 'R$ 4.800', inclui: ['a', 'b'] }] },
+            { id: '6', tipo: 'aceite' },
+            { id: '7', tipo: 'fechamento', corpo: 'Obrigado', chamada: 'OBRIGADO.' },
+        ],
+        variaveis: ctx, itens: [], totais: { subtotal: 0, discount: 0, total: 0 } as never, moeda: 'BRL',
+    })
+    ok('a capa escapa o nome do cliente', html.includes('&lt;b&gt;Helena&lt;/b&gt;') && !html.includes('<b>Helena'))
+    ok('o sumário lista as seções com título', html.includes('<ol class="doc-sumario">') && html.includes('<li>Números</li>') && html.includes('<li>Fases</li>'))
+    ok('o sumário não lista a capa nem a si mesmo', !html.includes('<li>Capa</li>') && !html.includes('<li>Sumário</li>'))
+    ok('destaques, fases e investimento saem com as classes do CSS', html.includes('doc-destaques') && html.includes('doc-fases') && html.includes('doc-precos'))
+    ok('o aceite cita o cliente escapado', html.includes('doc-aceite') && html.includes('&lt;b&gt;Helena&lt;/b&gt; confirma'))
+    ok('o fechamento traz a chamada e o contato', html.includes('<p class="doc-chamada">OBRIGADO.</p>') && html.includes('a@b'))
+
+    // ── congelar e descongelar ──
+    const vivo = contextoDeVariaveis({
+        contato: { name: 'Helena Prado', phone: '5531999990001', email: 'h@x.com', customFields: { Convênio: 'Uni' } },
+        organizacao: { name: 'Clínica X', cnpj: '00.000.000/0001-00' },
+        documento: { kind: 'proposta', number: 7, title: 'T', createdAt: new Date('2026-11-22T12:00:00Z'), validUntil: null, subtotal: '100', discount: '0', total: '100', moeda: 'BRL', observacao: 'interna' },
+        negocio: { title: 'N', value: 1000, stageName: 'Em atendimento', createdAt: new Date('2026-11-18T12:00:00Z') },
+        responsavel: { name: 'André', email: 'a@v.com', phone: null },
+    })
+    ok('primeiro nome é derivado', vivo.cliente?.primeiro_nome === 'Helena')
+    ok('o número leva o rótulo do tipo', vivo.documento?.numero === 'Proposta 7')
+    ok('desconto zero é nulo (some com a pontuação)', vivo.documento?.desconto === null)
+    ok('o personalizado entrou no grupo cliente', vivo.cliente?.convenio === 'Uni')
+    const congelado = congelarVariaveis(vivo)
+    ok('o congelado só tem chaves em grupo', Object.keys(congelado).every((k) => k.includes('.')))
+    ok('e não tem apelidos', !('cliente' in congelado) && 'cliente.nome' in congelado)
+    const descongelado = contextoDeMapa(JSON.parse(JSON.stringify(congelado)))
+    ok('congelar → JSON → descongelar devolve o mesmo mapa', JSON.stringify(achatarVariaveis(descongelado)) === JSON.stringify(achatarVariaveis(vivo)))
+    ok('chave fora dos grupos é ignorada ao descongelar', !('x' in (contextoDeMapa({ 'x.y': '1', solto: '2' }) as Record<string, unknown>)))
 }
 
 // ============================================================ fecho

@@ -9,6 +9,7 @@ import {
     PERMISSION_DENIED,
 } from '@venn/core/lib/auth/workspace'
 import { TIPOS_DE_DOCUMENTO } from '@venn/core/lib/propostas/estados'
+import { secoesSchema } from '@venn/core/lib/propostas/secoes'
 import { semearModelos } from '@venn/core/lib/propostas/semente'
 import { vocab } from '@venn/core/lib/vocabulario'
 
@@ -28,6 +29,8 @@ const modeloSchema = z.object({
      * lá sobre por que não há editor rico neste projeto.
      */
     body: z.string().max(50_000).nullable().optional(),
+    /** As seções da v2. Com elas, `body` é ignorado pelo render. */
+    sections: secoesSchema.nullable().optional(),
     isDefault: z.boolean().default(false),
     isActive: z.boolean().default(true),
 })
@@ -121,6 +124,7 @@ export async function POST(request: NextRequest) {
                     name: dados.name,
                     kind: dados.kind,
                     body: dados.body ?? null,
+                    sections: dados.sections ?? undefined,
                     isDefault: dados.isDefault,
                     isActive: dados.isActive,
                 },

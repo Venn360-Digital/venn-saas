@@ -275,6 +275,24 @@ console.log('\n── requisito 6: projeção mínima ──')
         ok(`a projeção pública NÃO pede ${campo} (${porque})`, !pede(campo))
     }
 
+    /**
+     * A v2 (22/11/2026) e a tentação que ela cria.
+     *
+     * Com variáveis como `{{cliente.telefone}}`, a primeira versão alargou
+     * este `select` para telefone, e-mail e valor — e as asserções acima
+     * reprovaram. A saída certa é a da própria v2: a página pública lê os
+     * valores **congelados no envio** (`variableValues`, gravados por rota
+     * autenticada), e a projeção viva continua mínima. Estas duas linhas
+     * garantem que a saída certa continue sendo a usada.
+     */
+    ok('a projeção pública pede o congelado (variableValues)', pede('variableValues') && pede('sections'))
+    const publico = ler('lib/propostas/publico.ts')
+    ok('e a página renderiza pelo congelado antes do vivo', publico.includes('contextoDeMapa(revisao.variableValues)'))
+    ok(
+        'a queda viva é só o nome — nunca o contato inteiro',
+        publico.includes('contato: { name: proposta.deal.contact?.name ?? null }') && !publico.includes('contato: proposta.deal.contact,')
+    )
+
     // E o que ela PRECISA ter, para a página existir.
     for (const campo of ['total', 'title', 'number', 'currency', 'expiresAt']) {
         ok(`a projeção pública pede ${campo}`, pede(campo))

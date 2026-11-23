@@ -337,7 +337,10 @@ export function ModelosClient({ inicial }: { inicial: ModeloItem[] }) {
                         com <code>-</code>, item de lista.
                     </p>
                     <dl className="mt-3 space-y-2 text-xs">
-                        {MARCADORES.map((marcador) => (
+                        {/* Só os marcadores em grupo: os dez da v1 continuam
+                            valendo como apelido, mas ensinar os dois formatos
+                            seria ensinar o velho. */}
+                        {MARCADORES.filter((m) => m.includes('.')).map((marcador) => (
                             <div key={marcador}>
                                 <dt className="font-mono text-foreground">{`{{${marcador}}}`}</dt>
                                 <dd className="text-muted-foreground">{AJUDA_DO_MARCADOR[marcador]}</dd>

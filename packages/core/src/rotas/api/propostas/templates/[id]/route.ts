@@ -4,12 +4,15 @@ import { z } from 'zod'
 import prisma from '@venn/db/cliente'
 import { requireWritable } from '@venn/core/lib/billing'
 import { currentMembership, hasEditorRole, PERMISSION_DENIED } from '@venn/core/lib/auth/workspace'
+import { secoesSchema } from '@venn/core/lib/propostas/secoes'
 
 /** Editar e apagar um modelo de documento. */
 
 const editarSchema = z.object({
     name: z.string().min(1).max(100).optional(),
     body: z.string().max(50_000).nullable().optional(),
+    /** As seções da v2. Com elas, `body` é ignorado pelo render. */
+    sections: secoesSchema.nullable().optional(),
     isDefault: z.boolean().optional(),
     isActive: z.boolean().optional(),
 })
@@ -67,6 +70,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
                 data: {
                     ...(dados.name !== undefined ? { name: dados.name } : {}),
                     ...(dados.body !== undefined ? { body: dados.body } : {}),
+                    ...(dados.sections !== undefined ? { sections: dados.sections ?? undefined } : {}),
                     ...(dados.isDefault !== undefined ? { isDefault: dados.isDefault } : {}),
                     ...(dados.isActive !== undefined ? { isActive: dados.isActive } : {}),
                 },

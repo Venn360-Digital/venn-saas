@@ -3728,6 +3728,15 @@ model ProposalTemplate {
   /// com escape, porque **não há sanitizador neste projeto** — a mesma razão
   /// pela qual não existe editor WYSIWYG aqui.
   body        String? @db.Text
+  /// As seções do modelo (v2) — JSON validado por `secoesSchema` em
+  /// `lib/propostas/secoes.ts`. Nulo = modelo da v1, cujo `body` é convertido
+  /// em seções ao renderizar e na primeira abertura no editor.
+  sections    Json?
+  /// Cor principal e logo escolhidos para este modelo. Nulo = os da organização.
+  theme       Json?
+  /// De onde o modelo veio, quando importado: `{ arquivo, importadoEm }`.
+  /// Rastreabilidade, não conteúdo.
+  source      Json?
 
   /// Modelo padrão do tipo. Zero ou um por (unidade, tipo).
   isDefault   Boolean @default(false)
@@ -3833,6 +3842,14 @@ model ProposalRevision {
   /// exatamente ele aceitou?" meses depois, mesmo que o template tenha mudado.
   /// É a diferença entre uma trilha de auditoria e um booleano.
   contentHash String?
+  /// As seções **congeladas** desta revisão, copiadas do modelo no envio.
+  /// "Revisão, não edição": mudar o modelo amanhã não muda a proposta que o
+  /// cliente tem na mão hoje. Nulo antes do envio = usa o modelo vivo.
+  sections       Json?
+  /// Os valores das variáveis no instante do envio (`cliente.nome`,
+  /// `organizacao.cnpj`…). Mesmo princípio dos itens congelados: a proposta de
+  /// ontem mostra o telefone de ontem.
+  variableValues Json?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

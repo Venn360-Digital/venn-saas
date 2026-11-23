@@ -17,6 +17,8 @@ import {
     mensagemDeWhatsApp,
 } from '@venn/core/lib/propostas/enviar'
 import { ehTipoDeDocumento, podeTransicionar } from '@venn/core/lib/propostas/estados'
+import { congelarVariaveis, contextoDeVariaveis } from '@venn/core/lib/propostas/contexto'
+import { converterCorpoEmSecoes, secoesPadrao, secoesSchema } from '@venn/core/lib/propostas/secoes'
 
 /**
  * Gera o link público e, opcionalmente, o manda ao cliente.
@@ -105,18 +107,30 @@ export async function POST(
         const contexto = await prisma.proposalRevision.findUnique({
             where: { id: revisao.id },
             select: {
+                subtotal: true,
+                discount: true,
                 total: true,
+                validUntil: true,
+                notes: true,
+                sections: true,
                 items: { select: { id: true }, take: 1 },
                 proposal: {
                     select: {
                         kind: true,
                         title: true,
                         number: true,
-                        workspace: { select: { name: true } },
-                        createdBy: { select: { name: true } },
+                        currency: true,
+                        createdAt: true,
+                        template: { select: { body: true, sections: true } },
+                        workspace: { select: { name: true, cnpj: true, address: true, phone: true } },
+                        createdBy: { select: { name: true, email: true, phone: true } },
                         deal: {
                             select: {
-                                contact: { select: { id: true, name: true, email: true } },
+                                title: true,
+                                value: true,
+                                createdAt: true,
+                                stage: { select: { name: true } },
+                                contact: { select: { id: true, name: true, email: true, phone: true, customFields: true } },
                             },
                         },
                     },
@@ -160,10 +174,62 @@ export async function POST(
 
         const link = await criarLink(revisao.id, membro.userId, dados.validadeEmDias)
 
-        if (!jaEnviada) {
+        /**
+         * O envio **congela** o documento: seções e valores das variáveis.
+         *
+         * "Revisão, não edição" valia para os itens desde a v1; a v2 estende ao
+         * texto e aos dados. Mudar o modelo amanhã, ou o telefone do cliente,
+         * não muda a proposta que ele tem na mão — e o hash do aceite continua
+         * correspondendo ao que ele leu.
+         *
+         * Só na primeira ida: reenviar (link novo) não recongela, senão o
+         * cliente que guardou o primeiro link e o que recebeu o segundo
+         * leriam textos diferentes da mesma versão.
+         */
+        const congelar = !contexto.sections
+        if (!jaEnviada || congelar) {
+            const p = contexto.proposal
+            const doModelo = secoesSchema.safeParse(p.template?.sections)
+            const secoes =
+                doModelo.success && doModelo.data.length > 0
+                    ? doModelo.data
+                    : (() => {
+                          const c = converterCorpoEmSecoes(p.template?.body)
+                          return c.length > 0 ? c : secoesPadrao()
+                      })()
+            const valores = congelarVariaveis(
+                contextoDeVariaveis({
+                    contato: p.deal.contact,
+                    organizacao: p.workspace,
+                    documento: {
+                        kind: p.kind,
+                        number: p.number,
+                        title: p.title,
+                        createdAt: p.createdAt,
+                        validUntil: contexto.validUntil,
+                        subtotal: contexto.subtotal,
+                        discount: contexto.discount,
+                        total: contexto.total,
+                        moeda: p.currency,
+                        // A observação é interna e não vai ao cliente: congela
+                        // nula, para a página pública nunca a ter.
+                        observacao: null,
+                    },
+                    negocio: {
+                        title: p.deal.title,
+                        value: p.deal.value,
+                        stageName: p.deal.stage?.name ?? null,
+                        createdAt: p.deal.createdAt,
+                    },
+                    responsavel: p.createdBy,
+                })
+            )
             await prisma.proposalRevision.update({
                 where: { id: revisao.id },
-                data: { status: 'enviada' },
+                data: {
+                    ...(jaEnviada ? {} : { status: 'enviada' }),
+                    ...(congelar ? { sections: secoes, variableValues: valores } : {}),
+                },
             })
         }
 

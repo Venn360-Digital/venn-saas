@@ -3,7 +3,9 @@ import 'server-only'
 import { dentroDoLimite, ipDaRequisicao } from '../limite'
 import { pareceToken } from '../convite/token'
 import { dinheiroEmTexto } from './calculo'
+import { contextoDeMapa, contextoDeVariaveis } from './contexto'
 import { renderDocumento } from './render'
+import { converterCorpoEmSecoes, secoesPadrao, secoesSchema } from './secoes'
 import { ROTULO_DO_TIPO, ehTipoDeDocumento } from './estados'
 import type { DocumentoPublico } from './compartilhar'
 
@@ -90,33 +92,60 @@ export function renderizarPublico(share: DocumentoPublico): DocumentoRenderizado
     const tipo = ehTipoDeDocumento(proposta.kind) ? proposta.kind : 'proposta'
     const moeda = proposta.currency
 
+    /**
+     * O congelado no envio manda; o vivo é a queda para revisão de antes da v2.
+     *
+     * Determinístico nos dois casos: nada de `new Date()`. É o que garante
+     * que o hash do aceite corresponda ao HTML que a pessoa tinha na tela.
+     */
+    const congeladas = secoesSchema.safeParse(revisao.sections)
+    const doModelo = secoesSchema.safeParse(proposta.template?.sections)
+    const secoes =
+        congeladas.success && congeladas.data.length > 0
+            ? congeladas.data
+            : doModelo.success && doModelo.data.length > 0
+              ? doModelo.data
+              : (() => {
+                    const c = converterCorpoEmSecoes(proposta.template?.body)
+                    return c.length > 0 ? c : secoesPadrao()
+                })()
+
+    const variaveis =
+        revisao.variableValues && typeof revisao.variableValues === 'object'
+            ? contextoDeMapa(revisao.variableValues)
+            : // Revisão enviada antes da v2, sem valores congelados: o contexto
+              // vivo da v1 — nome do contato, da organização e do responsável.
+              // Nada mais entra na projeção pública (ver `documentoPublico`).
+              contextoDeVariaveis({
+                  contato: { name: proposta.deal.contact?.name ?? null },
+                  organizacao: { name: proposta.workspace.name },
+                  documento: {
+                      kind: proposta.kind,
+                      number: proposta.number,
+                      title: proposta.title,
+                      createdAt: proposta.createdAt,
+                      validUntil: revisao.validUntil,
+                      subtotal: revisao.subtotal,
+                      discount: revisao.discount,
+                      total: revisao.total,
+                      moeda,
+                      /**
+                       * `notes` da revisão NÃO entra aqui.
+                       *
+                       * É a observação interna do vendedor — "cliente pediu
+                       * desconto, aprovei 10%" é o tipo de frase que mora ali.
+                       * O que o cliente lê vem do modelo. É parte da projeção
+                       * mínima — e por isso `notes` nem está no `select`.
+                       */
+                      observacao: null,
+                  },
+                  negocio: null,
+                  responsavel: { name: proposta.createdBy?.name ?? null },
+              })
+
     const html = renderDocumento({
-        corpo: proposta.template?.body,
-        variaveis: {
-            cliente: proposta.deal.contact?.name ?? null,
-            organizacao: proposta.workspace.name,
-            numero: `${ROTULO_DO_TIPO[tipo]} ${proposta.number}`,
-            titulo: proposta.title,
-            data: proposta.createdAt.toLocaleDateString('pt-BR'),
-            validade: revisao.validUntil
-                ? `Válida até ${revisao.validUntil.toLocaleDateString('pt-BR')}`
-                : null,
-            total: dinheiroEmTexto(revisao.total, moeda),
-            subtotal: dinheiroEmTexto(revisao.subtotal, moeda),
-            // Desconto zero sai vazio: o marcador desaparece e leva a pontuação
-            // órfã com ele, em vez de imprimir "Desconto: R$ 0,00".
-            desconto: revisao.discount.isZero() ? null : dinheiroEmTexto(revisao.discount, moeda),
-            responsavel: proposta.createdBy?.name ?? null,
-            /**
-             * `notes` da revisão NÃO entra aqui.
-             *
-             * É a observação interna do vendedor — "cliente pediu desconto,
-             * aprovei 10%" é o tipo de frase que mora ali. O que o cliente lê
-             * vem do template. É parte da projeção mínima.
-             */
-            observacao: null,
-            profissional: null,
-        },
+        secoes,
+        variaveis,
         itens: revisao.items.map((i) => ({
             description: i.description,
             quantity: i.quantity.toString(),
