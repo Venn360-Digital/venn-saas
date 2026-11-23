@@ -1163,6 +1163,63 @@ const base: FatosDaProposta = {
     ok('cor e logotipo ficam FORA do html (o hash não muda)', publico.includes('cor: (proposta.template?.theme') && publico.includes('logo: proposta.workspace.logo'))
 }
 
+// ============================================================ F2b: as arestas — planilha, cláusulas, capa em variações
+
+{
+    console.log('\n── F2b: planilha, cláusulas e variações de capa ──')
+    const { separarTabelas } = await import('../packages/core/src/lib/propostas/planilha')
+    const { CLAUSULAS, secaoDaClausula } = await import('../packages/core/src/lib/propostas/clausulas')
+
+    const planilha = [
+        'Proposta comercial para a Helena.',
+        '## Planos',
+        'Plano\tValor\tInclui',
+        'Essencial\tR$ 990,00\tagente de IA; 1 número',
+        'Completo\tR$ 1.990,00\tagente de IA; 3 números; relatórios',
+        '## Equipe',
+        'Nome\tPapel',
+        'Ana\tComercial',
+        'Bia\tSuporte',
+        '## Tabela longa',
+        ...Array.from({ length: 6 }, (_, i) => `Item ${i + 1}\tR$ ${i + 1},00`),
+    ].join('\n')
+    const sep = separarTabelas(planilha)
+    ok('aba com coluna de dinheiro e ≤4 linhas vira investimento', sep.secoes[0]?.tipo === 'investimento' && sep.secoes[0].cartoes.length === 2 && sep.secoes[0].cartoes[1].valor === 'R$ 1.990,00')
+    ok('o cabeçalho da tabela não vira cartão', sep.secoes[0]?.tipo === 'investimento' && sep.secoes[0].cartoes[0].titulo === 'Essencial')
+    ok('"inclui" vem das outras colunas', sep.secoes[0]?.tipo === 'investimento' && sep.secoes[0].cartoes[0].inclui.join('|') === 'agente de IA; 1 número')
+    ok('aba sem dinheiro fica no texto para a IA', sep.texto.includes('Ana\tComercial') && !sep.secoes.some((x) => x.tipo === 'investimento' && x.titulo === 'Equipe'))
+    ok('tabela longa (>4) vira texto em lista, não cartões', sep.secoes[1]?.tipo === 'texto' && sep.secoes[1].corpo.split('\n').length === 6)
+    ok('a tabela lida sai do texto que vai à IA, com marca no lugar', !sep.texto.includes('R$ 1.990,00') && sep.texto.includes('[tabela de 2 linha(s)'))
+    ok('texto sem tabela passa intacto', separarTabelas('Olá\nmundo').texto === 'Olá\nmundo' && separarTabelas('Olá\nmundo').secoes.length === 0)
+
+    ok('a biblioteca tem as dez cláusulas de base', CLAUSULAS.length === 10 && CLAUSULAS.some((c) => c.chave === 'foro'))
+    ok('nenhuma cláusula promete número: prazo, multa, pagamento e foro são "(a definir)"', CLAUSULAS.every((c) => !/\d+\s*(dias|meses|%|por cento)/i.test(c.corpo) && !/multa de/i.test(c.corpo)))
+    const partes = CLAUSULAS.find((c) => c.chave === 'partes')
+    ok('as partes vêm por token, nunca por nome inventado', !!partes && partes.corpo.includes('{{organizacao.nome}}') && partes.corpo.includes('{{cliente.nome}}') && partes.corpo.includes('{{organizacao.cnpj}}'))
+    const cl = secaoDaClausula('rescisao')
+    ok('a cláusula vira seção texto com título e corpo', cl?.tipo === 'texto' && cl.titulo === 'Da rescisão' && cl.corpo.includes('(a definir)'))
+    ok('chave desconhecida devolve nulo', secaoDaClausula('bolo') === null)
+
+    const capa = readFileSync(join(CORE, 'lib/propostas/capa.ts'), 'utf8')
+    const dados = readFileSync(join(CORE, 'rotas/(dashboard)/vendas/propostas/modelos/dados.ts'), 'utf8')
+    const creditos = Number(capa.match(/CREDITOS_POR_CAPA = (\d+)/)?.[1])
+    const maximo = Number(capa.match(/MAXIMO_DE_VARIACOES = (\d+)/)?.[1])
+    ok('a tela espelha o custo e as variações da capa', dados.includes(`CREDITOS_POR_CAPA_NA_TELA = ${creditos}`) && dados.includes(`VARIACOES_DE_CAPA = ${maximo}`))
+    ok('o custo é por imagem gerada, inclusive as não escolhidas', capa.includes('CREDITOS_POR_CAPA * opcoes.length'))
+    const rotaCapa = readFileSync(join(CORE, 'rotas/api/propostas/templates/[id]/capa/route.ts'), 'utf8')
+    ok('a rota da capa não grava a escolha (quem escolhe é a pessoa)', !rotaCapa.includes('proposalTemplate.update'))
+    const modelos = readFileSync(join(CORE, 'rotas/(dashboard)/vendas/propostas/modelos/ModelosClient.tsx'), 'utf8')
+    const arrastavel = readFileSync(join(CORE, 'components/propostas/SecaoArrastavel.tsx'), 'utf8')
+    const editorDoc = readFileSync(join(CORE, 'rotas/(dashboard)/vendas/propostas/[id]/PropostaClient.tsx'), 'utf8')
+    ok('as seções se arrastam nos dois editores, pelo mesmo componente', modelos.includes('<SecaoArrastavel') && editorDoc.includes('<SecaoArrastavel') && arrastavel.includes('useSortable'))
+    ok('só a alça recebe os listeners (o texto é contentEditable)', arrastavel.indexOf('{...listeners}') > arrastavel.indexOf('<button') && !arrastavel.includes('<li ref={setNodeRef} style={style} id={idDoElemento} onFocusCapture={onFocusCapture} className={className} {...listeners}'))
+    ok('documento enviado não se reordena', editorDoc.includes('desabilitado={!editavel}'))
+    ok('as setas ficam, para o teclado', modelos.includes('aria-label="Mover para cima"'))
+    const ia = readFileSync(join(CORE, 'lib/propostas/modelo-ia.ts'), 'utf8')
+    ok('o importador separa as tabelas antes da IA e as acrescenta depois', ia.includes('separarTabelas(bruto)') && ia.includes('...separado.secoes'))
+    ok('o contrato da IA é uma seção por cláusula, com "(a definir)"', ia.includes('UMA seção "texto" por cláusula') && ia.includes('"(a definir)"'))
+}
+
 // ============================================================ fecho
 
 console.log('')

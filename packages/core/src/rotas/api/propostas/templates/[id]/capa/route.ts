@@ -4,15 +4,13 @@ import { z } from 'zod'
 import prisma from '@venn/db/cliente'
 import { requireWritable } from '@venn/core/lib/billing'
 import { currentMembership, hasEditorRole, PERMISSION_DENIED } from '@venn/core/lib/auth/workspace'
-import { CREDITOS_POR_CAPA, gerarCapa } from '@venn/core/lib/propostas/capa'
-import { secoesSchema, type Secao } from '@venn/core/lib/propostas/secoes'
+import { MAXIMO_DE_VARIACOES, gerarCapa } from '@venn/core/lib/propostas/capa'
 
 /**
- * Gera a arte da capa de um modelo e a prende na seção `capa`.
- *
- * Uma imagem por chamada: a tela mostra o custo (`CREDITOS_POR_CAPA`) antes
- * e oferece "gerar outra". Sem seção `capa`, uma nasce no começo — pedir capa
- * é pedir a página.
+ * Gera as artes da capa de um modelo — até três de uma vez — e devolve as
+ * opções. **Não grava**: quem escolhe é a pessoa, na tela, e a escolha entra
+ * na seção `capa` pela gravação automática do modelo. Gravar aqui a primeira
+ * das três seria escolher por ela.
  */
 const schema = z.object({
     /** Do que trata, para a arte ter assunto. Vazio usa o nome do modelo. */
@@ -23,6 +21,8 @@ const schema = z.object({
         .regex(/^#[0-9a-fA-F]{6}$/)
         .nullable()
         .optional(),
+    /** Quantas artes, para escolher. Padrão: três. */
+    variacoes: z.number().int().min(1).max(MAXIMO_DE_VARIACOES).default(MAXIMO_DE_VARIACOES),
 })
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -37,7 +37,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
         const modelo = await prisma.proposalTemplate.findFirst({
             where: { id, workspaceId: membro.workspaceId },
-            select: { id: true, name: true, sections: true, theme: true },
+            select: { id: true, name: true, theme: true },
         })
         if (!modelo) return NextResponse.json({ error: 'Modelo não encontrado' }, { status: 404 })
 
@@ -48,22 +48,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
             workspaceId: membro.workspaceId,
             assunto: dados.assunto?.trim() || modelo.name,
             cor: dados.cor ?? tema.cor ?? null,
+            variacoes: dados.variacoes,
         })
         if (!resultado.ok) return NextResponse.json({ error: resultado.motivo }, { status: resultado.status })
 
-        const atuais = secoesSchema.safeParse(modelo.sections)
-        const secoes: Secao[] = atuais.success ? [...atuais.data] : []
-        const indice = secoes.findIndex((s) => s.tipo === 'capa')
-        if (indice >= 0) {
-            const capa = secoes[indice]
-            if (capa.tipo === 'capa') secoes[indice] = { ...capa, imageKey: resultado.imageKey }
-        } else {
-            secoes.unshift({ id: `capa${Date.now().toString(36)}`, tipo: 'capa', imageKey: resultado.imageKey })
-        }
-
-        await prisma.proposalTemplate.update({ where: { id: modelo.id }, data: { sections: secoes } })
-
-        return NextResponse.json({ imageKey: resultado.imageKey, url: resultado.url, creditos: CREDITOS_POR_CAPA, secoes })
+        return NextResponse.json({ opcoes: resultado.opcoes, creditos: resultado.creditos })
     } catch (error) {
         if (error instanceof z.ZodError) return NextResponse.json({ errors: error.issues }, { status: 400 })
         console.error('[MODELO_CAPA]', error)

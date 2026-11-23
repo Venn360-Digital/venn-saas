@@ -45,11 +45,21 @@ export interface EntradaDaCapa {
     assunto: string
     /** A cor principal, em hex, quando a organização tem uma. */
     cor?: string | null
+    /** Quantas artes gerar de uma vez, para a pessoa escolher (1 a 3). */
+    variacoes?: number
+}
+
+export interface OpcaoDeCapa {
+    imageKey: string
+    url: string
 }
 
 export type ResultadoDaCapa =
-    | { ok: true; imageKey: string; url: string }
+    | { ok: true; opcoes: OpcaoDeCapa[]; creditos: number }
     | { ok: false; motivo: string; status: number }
+
+/** Teto de variações numa chamada: três cabem lado a lado e custam 24 créditos. */
+export const MAXIMO_DE_VARIACOES = 3
 
 export async function gerarCapa(entrada: EntradaDaCapa): Promise<ResultadoDaCapa> {
     const apiKey = process.env.OPENAI_API_KEY
@@ -60,6 +70,7 @@ export async function gerarCapa(entrada: EntradaDaCapa): Promise<ResultadoDaCapa
         return { ok: false, status: 402, motivo: 'Sem crédito de IA para gerar a capa. Compre créditos em Gerenciamento → Conta.' }
     }
 
+    const n = Math.min(MAXIMO_DE_VARIACOES, Math.max(1, Math.trunc(entrada.variacoes ?? 1)))
     const cor = entrada.cor?.trim() || null
     const prompt = [
         'Abstract editorial cover background for a business proposal document.',
@@ -71,34 +82,45 @@ export async function gerarCapa(entrada: EntradaDaCapa): Promise<ResultadoDaCapa
     ].join(' ')
 
     const cliente = new OpenAI({ apiKey, baseURL: OPENAI_BASE_URL })
-    let b64: string | undefined
+    let imagens: string[] = []
     try {
+        // Uma chamada com `n` variações: mesma cena, três leituras. É o que dá
+        // escolha de verdade — três chamadas separadas divergiriam de assunto.
         const resposta = await cliente.images.generate({
             model: MODELO_DE_IMAGEM,
             prompt,
-            n: 1,
+            n,
             size: '1024x1536',
             quality: 'medium',
         })
-        b64 = resposta.data?.[0]?.b64_json
+        imagens = (resposta.data ?? []).map((d) => d.b64_json).filter((b): b is string => !!b)
     } catch (erro) {
         console.error('[CAPA_IA]', erro)
         return { ok: false, status: 502, motivo: 'A geração da imagem falhou. Tente de novo em instantes.' }
     }
-    if (!b64) return { ok: false, status: 502, motivo: 'A geração não devolveu imagem.' }
+    if (imagens.length === 0) return { ok: false, status: 502, motivo: 'A geração não devolveu imagem.' }
 
-    const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)) as Uint8Array<ArrayBuffer>
-    const chave = chaveDe(entrada.workspaceId, 'propostas', 'capas', `${Date.now().toString(36)}.png`)
-    const ref = await gravar(CLASSES.PUBLICO, chave, bytes, { contentType: 'image/png' })
+    const base = Date.now().toString(36)
+    const opcoes: OpcaoDeCapa[] = []
+    let totalDeBytes = 0
+    for (const [i, b64] of imagens.entries()) {
+        const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)) as Uint8Array<ArrayBuffer>
+        totalDeBytes += bytes.byteLength
+        const chave = chaveDe(entrada.workspaceId, 'propostas', 'capas', `${base}-${i + 1}.png`)
+        const ref = await gravar(CLASSES.PUBLICO, chave, bytes, { contentType: 'image/png' })
+        opcoes.push({ imageKey: ref.chave, url: await enderecoPara(ref) })
+    }
 
-    // Custo por imagem: crédito debitado e registro de uso com token zero.
-    await spendAiCredits(entrada.workspaceId, CREDITOS_POR_CAPA, 'capa do documento')
+    // Custo por imagem gerada — as não escolhidas também custaram. Crédito
+    // debitado e registro de uso com token zero.
+    const creditos = CREDITOS_POR_CAPA * opcoes.length
+    await spendAiCredits(entrada.workspaceId, creditos, opcoes.length === 1 ? 'capa do documento' : `${opcoes.length} variações de capa`)
     await trackUsage('openai', MODELO_DE_IMAGEM, { promptTokens: 0, completionTokens: 0, totalTokens: 0, cachedTokens: 0 }, {
         workspaceId: entrada.workspaceId,
-        metadata: { uso: 'capa_do_documento', creditos: CREDITOS_POR_CAPA, bytes: bytes.byteLength },
+        metadata: { uso: 'capa_do_documento', creditos, imagens: opcoes.length, bytes: totalDeBytes },
     })
 
-    return { ok: true, imageKey: ref.chave, url: await enderecoPara(ref) }
+    return { ok: true, opcoes, creditos }
 }
 
 /** A URL pública da arte da capa, se alguma seção `capa` tiver `imageKey`. */
