@@ -6,6 +6,7 @@ import { currentMembership } from '@venn/core/lib/auth/workspace'
 import { propostaVisivel } from '@venn/core/lib/propostas/acesso'
 import { aceitaNovaRevisao } from '@venn/core/lib/propostas/estados'
 import { copiarItens } from '@venn/core/lib/propostas/itens'
+import { secoesSchema } from '@venn/core/lib/propostas/secoes'
 
 /**
  * Cria uma revisão nova — a operação que define o módulo.
@@ -84,12 +85,26 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
                 select: { version: true },
             })
 
+            /**
+             * As seções vêm da versão de origem — o texto que o cliente já viu
+             * é o ponto de partida da v2, como os itens. `variableValues` NÃO
+             * vem: a versão nova congela os valores de **agora** no seu envio.
+             */
+            const origemDasSecoes = await tx.proposalRevision.findUnique({
+                where: { id: vigente.id },
+                select: { sections: true },
+            })
+            const secoesHerdadas = secoesSchema.safeParse(origemDasSecoes?.sections)
+
             const criada = await tx.proposalRevision.create({
                 data: {
                     proposalId: id,
                     version: (ultima?.version ?? 0) + 1,
                     status: 'rascunho',
                     userId: membro.userId,
+                    ...(secoesHerdadas.success && secoesHerdadas.data.length > 0
+                        ? { sections: secoesHerdadas.data }
+                        : {}),
                     // Os totais são recalculados pela cópia dos itens, abaixo.
                 },
                 select: { id: true, version: true, status: true },

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { ArrowRight, Eye, FileText, Plus } from 'lucide-react'
 
 import { Button } from '@venn/ui/button'
@@ -58,13 +59,38 @@ interface PropostaDoNegocio {
 export function DealProposals({
     dealId,
     podeCriar,
-    onCriar,
+    titulo,
 }: {
     dealId: string
     podeCriar: boolean
     /** Abre o diálogo de nova proposta com este negócio já escolhido. */
-    onCriar?: () => void
+    /** O título do negócio — vira o título do primeiro documento. */
+    titulo?: string | null
 }) {
+    const router = useRouter()
+    const [criando, setCriando] = useState(false)
+
+    /**
+     * Um clique: cria a proposta no negócio e abre o compositor.
+     *
+     * Era um diálogo (tipo, negócio, título) — da ficha do negócio, as três
+     * respostas já são conhecidas. Tipo e modelo se trocam no compositor.
+     */
+    async function criar() {
+        setCriando(true)
+        try {
+            const r = await fetch('/api/propostas', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ dealId, kind: 'proposta', title: (titulo ?? '').trim() || 'Proposta' }),
+            })
+            const corpo = (await r.json().catch(() => ({}))) as { id?: string }
+            if (r.ok && corpo.id) router.push(`/vendas/propostas/${corpo.id}`)
+        } finally {
+            setCriando(false)
+        }
+    }
+
     const [propostas, setPropostas] = useState<PropostaDoNegocio[] | null>(null)
 
     const buscar = useCallback(async () => {
@@ -203,10 +229,10 @@ export function DealProposals({
                 </ul>
             )}
 
-            {podeCriar && onCriar && (
-                <Button variant="outline" size="sm" className="w-full" onClick={onCriar}>
+            {podeCriar && (
+                <Button variant="outline" size="sm" className="w-full" onClick={() => void criar()} disabled={criando}>
                     <Plus className="size-4" aria-hidden />
-                    Novo documento
+                    {criando ? 'Abrindo…' : 'Novo documento'}
                 </Button>
             )}
         </div>

@@ -519,7 +519,7 @@ export function DealPanel<T extends PanelDeal>({
                          * para voltar a propor.
                          */
                         podeCriar={!closed}
-                        onCriar={onNovaProposta}
+                        titulo={deal.title}
                     />
                 ) : null}
 

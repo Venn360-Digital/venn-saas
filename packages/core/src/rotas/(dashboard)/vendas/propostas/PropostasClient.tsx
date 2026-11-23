@@ -15,7 +15,6 @@ import { StatusBadge, type ToneEntry } from '@venn/core/components/shared/Status
 import { usePermissions } from '@venn/core/hooks/usePermissions'
 import { ROTULO_DO_ESTADO, ROTULO_DO_TIPO } from '@venn/core/lib/propostas/estados'
 
-import { NovaPropostaDialog } from '@venn/core/components/shared/NovaPropostaDialog'
 
 import { LIMITE_PADRAO, STATUS_PADRAO, TIPO_PADRAO, type DadosIniciais, type PropostaItem } from './dados'
 
@@ -103,7 +102,6 @@ export function PropostasClient({ inicial }: { inicial: DadosIniciais }) {
     const [tipo, setTipo] = useState(TIPO_PADRAO)
     const [status, setStatus] = useState(STATUS_PADRAO)
     const [carregando, setCarregando] = useState(false)
-    const [abrindoNova, setAbrindoNova] = useState(false)
 
     /**
      * O recorte servido pelo servidor é página 1, sem busca, sem filtro.
@@ -356,7 +354,7 @@ export function PropostasClient({ inicial }: { inicial: DadosIniciais }) {
                                     Modelos
                                 </Link>
                             </Button>
-                            <Button onClick={() => setAbrindoNova(true)}>
+                            <Button onClick={() => router.push('/vendas/propostas/nova')}>
                                 <Plus className="size-4" aria-hidden />
                                 Nova proposta
                             </Button>
@@ -381,7 +379,7 @@ export function PropostasClient({ inicial }: { inicial: DadosIniciais }) {
                             }
                             action={
                                 !temFiltros && canEdit ? (
-                                    <Button onClick={() => setAbrindoNova(true)}>
+                                    <Button onClick={() => router.push('/vendas/propostas/nova')}>
                                         <Plus className="size-4" aria-hidden />
                                         Nova proposta
                                     </Button>
@@ -404,12 +402,6 @@ export function PropostasClient({ inicial }: { inicial: DadosIniciais }) {
                 />
             </IndexFrame>
 
-            {abrindoNova && (
-                <NovaPropostaDialog
-                    onClose={() => setAbrindoNova(false)}
-                    onCriada={(id) => router.push(`/vendas/propostas/${id}`)}
-                />
-            )}
         </>
     )
 }

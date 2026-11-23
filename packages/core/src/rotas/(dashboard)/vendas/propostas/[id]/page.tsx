@@ -3,20 +3,32 @@ import { notFound } from 'next/navigation'
 import prisma from '@venn/db/cliente'
 import { membroOuLogin } from '@venn/core/lib/indice-servidor'
 import { escopoDaProposta } from '@venn/core/lib/propostas/acesso'
+import { congelarVariaveis, contextoDeMapa, contextoDeVariaveis } from '@venn/core/lib/propostas/contexto'
 import { resumirNegociacao } from '@venn/core/lib/propostas/resumo'
+import { converterCorpoEmSecoes, secoesPadrao, secoesSchema, type Secao } from '@venn/core/lib/propostas/secoes'
+import { GRUPOS, REGISTRO, ROTULO_DO_GRUPO, variaveisPersonalizadas } from '@venn/core/lib/propostas/variaveis'
 
 import { PropostaClient } from './PropostaClient'
+import type { Paleta } from '@venn/core/components/propostas/EditorDeTexto'
 
 /**
- * A ficha de um documento: o cabeçalho, a revisão vigente e o histórico.
+ * A casca de servidor do compositor.
  *
- * A primeira pintura vem do servidor, como nas outras telas de índice. A
- * repintura depois de gravar vem de `GET /api/propostas/[id]`, e as duas
- * consultas são a mesma — ver a nota em `vendas/propostas/page.tsx`.
+ * ## O que ela monta, e por que aqui
  *
- * `notFound()` e não uma tela de erro: a proposta de outra unidade, a apagada e
- * a que está fora do recorte do membro são indistinguíveis de propósito. Um
- * "você não tem permissão" confirmaria que o documento existe.
+ * Três coisas que o cliente não pode montar sozinho, porque dependem de
+ * módulos de servidor (`contexto.ts` → `calculo.ts` → Prisma; regra 7 de
+ * `check-marca.mjs`):
+ *
+ *   - **as seções** de cada revisão — as gravadas, ou as do modelo
+ *     convertidas, ou o padrão;
+ *   - **os valores** das variáveis da vigente, achatados por `grupo.campo` — é
+ *     o que o objeto no editor mostra ("Helena", não `{{cliente.nome}}`);
+ *   - **a paleta** do @: grupos, campos e rótulos, com os personalizados do
+ *     contato já dentro.
+ *
+ * Revisão enviada traz os valores **congelados**: o editor mostra o que o
+ * cliente tem na mão, não o cadastro de hoje.
  */
 export default async function PropostaPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = await params
@@ -33,14 +45,19 @@ export default async function PropostaPage({ params }: { params: Promise<{ id: s
             templateId: true,
             currentRevisionId: true,
             createdAt: true,
+            template: { select: { id: true, name: true, body: true, sections: true } },
+            workspace: { select: { name: true, cnpj: true, address: true, phone: true } },
             deal: {
                 select: {
                     id: true,
                     title: true,
-                    contact: { select: { id: true, name: true, email: true, phone: true } },
+                    value: true,
+                    createdAt: true,
+                    stage: { select: { name: true } },
+                    contact: { select: { id: true, name: true, email: true, phone: true, customFields: true } },
                 },
             },
-            createdBy: { select: { id: true, name: true } },
+            createdBy: { select: { id: true, name: true, email: true, phone: true } },
             revisions: {
                 orderBy: { version: 'desc' },
                 select: {
@@ -53,6 +70,8 @@ export default async function PropostaPage({ params }: { params: Promise<{ id: s
                     validUntil: true,
                     notes: true,
                     createdAt: true,
+                    sections: true,
+                    variableValues: true,
                     items: {
                         orderBy: { order: 'asc' },
                         select: {
@@ -85,14 +104,6 @@ export default async function PropostaPage({ params }: { params: Promise<{ id: s
 
     if (!proposta) notFound()
 
-    /**
-     * O resumo é montado no SERVIDOR, não no cliente.
-     *
-     * Ele depende de "há quantos dias", e `Date.now()` durante o render de um
-     * componente de cliente é o que a regra `react-hooks/purity` proíbe — com
-     * razão: dois renders dariam dois textos. No servidor o instante é um só,
-     * e o que atravessa é a frase pronta.
-     */
     const vigente = proposta.revisions.find((r) => r.id === proposta.currentRevisionId)
     const primeira = proposta.revisions.find((r) => r.version === 1)
     const linksDaVigente = vigente?.shares ?? []
@@ -105,8 +116,6 @@ export default async function PropostaPage({ params }: { params: Promise<{ id: s
               estado: vigente.status,
               desconto: Number(vigente.discount),
               descontoDaPrimeira: primeira ? Number(primeira.discount) : null,
-              // O PRIMEIRO envio, não o último: um reenvio não zera o relógio
-              // de "quantos dias o cliente levou".
               enviadaEm: linksDaVigente.reduce<Date | null>(
                   (menor, l) => (menor === null || l.sharedAt < menor ? l.sharedAt : menor),
                   null
@@ -118,9 +127,67 @@ export default async function PropostaPage({ params }: { params: Promise<{ id: s
           })
         : null
 
+    /** As seções de uma revisão: as gravadas, ou as do modelo, ou o padrão. */
+    const secoesDe = (sections: unknown): Secao[] => {
+        const gravadas = secoesSchema.safeParse(sections)
+        if (gravadas.success && gravadas.data.length > 0) return gravadas.data
+        const doModelo = secoesSchema.safeParse(proposta.template?.sections)
+        if (doModelo.success && doModelo.data.length > 0) return doModelo.data
+        const convertidas = converterCorpoEmSecoes(proposta.template?.body)
+        return convertidas.length > 0 ? convertidas : secoesPadrao()
+    }
+
+    /** Os valores da vigente: congelados se houver, vivos se não. */
+    const contexto = vigente?.variableValues
+        ? contextoDeMapa(vigente.variableValues)
+        : contextoDeVariaveis({
+              contato: proposta.deal.contact,
+              organizacao: proposta.workspace,
+              documento: {
+                  kind: proposta.kind,
+                  number: proposta.number,
+                  title: proposta.title,
+                  createdAt: proposta.createdAt,
+                  validUntil: vigente?.validUntil ?? null,
+                  subtotal: vigente?.subtotal ?? 0,
+                  discount: vigente?.discount ?? 0,
+                  total: vigente?.total ?? 0,
+                  moeda: proposta.currency,
+                  observacao: vigente?.notes ?? null,
+              },
+              negocio: {
+                  title: proposta.deal.title,
+                  value: proposta.deal.value,
+                  stageName: proposta.deal.stage?.name ?? null,
+                  createdAt: proposta.deal.createdAt,
+              },
+              responsavel: proposta.createdBy,
+          })
+    const valores = congelarVariaveis(contexto)
+
+    /**
+     * A paleta do @: o registro mais os personalizados do contato.
+     *
+     * O rótulo é o humano — "Data de nascimento" —, nunca a chave. É a paleta
+     * que faz a sintaxe não precisar aparecer.
+     */
+    const personalizados = variaveisPersonalizadas(proposta.deal.contact?.customFields)
+    const paleta: Paleta = GRUPOS.map((grupo) => ({
+        grupo,
+        rotulo: ROTULO_DO_GRUPO[grupo],
+        campos: [
+            ...Object.entries(REGISTRO[grupo]).map(([campo, rotulo]) => ({ chave: `${grupo}.${campo}`, rotulo })),
+            ...(grupo === 'cliente'
+                ? Object.entries(personalizados.rotulos).map(([campo, rotulo]) => ({ chave: `cliente.${campo}`, rotulo }))
+                : []),
+        ],
+    }))
+
     return (
         <PropostaClient
             resumo={resumo}
+            valores={valores}
+            paleta={paleta}
             proposta={{
                 id: proposta.id,
                 kind: proposta.kind,
@@ -130,6 +197,7 @@ export default async function PropostaPage({ params }: { params: Promise<{ id: s
                 createdAt: proposta.createdAt.toISOString(),
                 currentRevisionId: proposta.currentRevisionId,
                 deal: proposta.deal,
+                modelo: proposta.template ? { id: proposta.template.id, name: proposta.template.name } : null,
                 criadoPor: proposta.createdBy?.name ?? null,
                 revisoes: proposta.revisions.map((r) => ({
                     id: r.id,
@@ -142,6 +210,8 @@ export default async function PropostaPage({ params }: { params: Promise<{ id: s
                     validUntil: r.validUntil?.toISOString() ?? null,
                     notes: r.notes,
                     createdAt: r.createdAt.toISOString(),
+                    secoes: secoesDe(r.sections),
+                    congelada: Boolean(r.variableValues),
                     itens: r.items.map((i) => ({
                         id: i.id,
                         productServiceId: i.productServiceId,
