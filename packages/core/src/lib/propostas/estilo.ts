@@ -1,3 +1,5 @@
+import { tintaSobre } from '../palette'
+
 /**
  * O CSS do documento — um só, para a prévia do editor e para a página pública.
  *
@@ -26,9 +28,33 @@
  * uma crase o fecharia (foi assim que o typecheck despencou em treze erros na
  * página pública, em 21/11).
  */
-export function cssDoDocumento(seletor: string): string {
+const COR_HEX = /^#[0-9a-fA-F]{6}$/
+
+/**
+ * A identidade do modelo entra por TRÊS variáveis — a cor, a cor suave (fundo
+ * da capa) e a cor leve (fundo do preço) — e por nada mais. Sem cor do modelo,
+ * as três caem no `--primary` do tema, que é o comportamento de antes.
+ *
+ * A cor vem de dado (`proposal_templates.theme.cor`), validada aqui de novo
+ * por forma: o que não for `#rrggbb` é ignorado, para nenhum valor gravado
+ * virar CSS arbitrário. `color-mix` em vez de uma segunda cor literal: a
+ * transparência é calculada pelo navegador a partir da mesma cor.
+ */
+function variaveisDaCor(seletores: string, cor: string | null | undefined): string {
+    if (!cor || !COR_HEX.test(cor)) {
+        return `${seletores} { --doc-cor: hsl(var(--primary)); --doc-cor-texto: hsl(var(--primary-foreground)); --doc-cor-suave: hsl(var(--primary) / 0.08); --doc-cor-leve: hsl(var(--primary) / 0.05); }`
+    }
+    return `${seletores} { --doc-cor: ${cor}; --doc-cor-texto: ${tintaSobre(cor)}; --doc-cor-suave: color-mix(in srgb, ${cor} 10%, transparent); --doc-cor-leve: color-mix(in srgb, ${cor} 6%, transparent); }`
+}
+
+/**
+ * @param cor A cor principal do modelo (`#rrggbb`), ou nada para o tema.
+ */
+export function cssDoDocumento(seletor: string, cor?: string | null): string {
     const s = seletor
     return `
+${variaveisDaCor(`${s}, ${s}-moldura`, cor)}
+${s}-moldura { border-top: 4px solid var(--doc-cor); }
 ${s} { color: hsl(var(--foreground)); font-size: 0.9375rem; line-height: 1.65; }
 ${s} h1 { font-size: 1.75rem; font-weight: 700; line-height: 1.2; margin: 0 0 0.5rem; }
 ${s} h2 { font-size: 1.125rem; font-weight: 600; margin: 1.75rem 0 0.5rem; }
@@ -42,7 +68,7 @@ ${s} .doc-vazio { color: hsl(var(--muted-foreground)); }
 /* página inteira: a capa, o sumário, a carta, o fechamento */
 ${s} .doc-pagina { padding: 2.5rem 0; }
 ${s} .doc-pagina + .doc-pagina, ${s} .doc-secao + .doc-pagina { border-top: 1px solid hsl(var(--border)); }
-${s} .doc-pagina-capa { position: relative; min-height: 22rem; display: flex; align-items: flex-end; padding: 2.5rem; border-radius: 0.625rem; overflow: hidden; background: hsl(var(--primary) / 0.08); }
+${s} .doc-pagina-capa { position: relative; min-height: 22rem; display: flex; align-items: flex-end; padding: 2.5rem; border-radius: 0.625rem; overflow: hidden; background: var(--doc-cor-suave); }
 ${s} .doc-capa-arte { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 ${s} .doc-capa-texto { position: relative; max-width: 32rem; }
 ${s} .doc-capa-organizacao { font-size: 0.75rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: hsl(var(--muted-foreground)); margin: 0 0 0.75rem; }
@@ -55,7 +81,7 @@ ${s} .doc-sumario li { padding: 0.25rem 0; border-bottom: 1px dotted hsl(var(--b
 /* destaques: os três números */
 ${s} .doc-destaques { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: 0.75rem; padding: 0; margin: 1rem 0; list-style: none; }
 ${s} .doc-destaques li { display: flex; flex-direction: column; gap: 0.125rem; padding: 1rem; border: 1px solid hsl(var(--border)); border-radius: 0.625rem; margin: 0; }
-${s} .doc-destaque-valor { font-size: 1.75rem; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
+${s} .doc-destaque-valor { font-size: 1.75rem; font-weight: 700; line-height: 1.1; color: var(--doc-cor); font-variant-numeric: tabular-nums; }
 ${s} .doc-destaque-rotulo { font-weight: 600; font-size: 0.875rem; }
 ${s} .doc-destaque-legenda { font-size: 0.8125rem; color: hsl(var(--muted-foreground)); }
 
@@ -67,14 +93,14 @@ ${s} .doc-cartoes li p, ${s} .doc-garantias li p { margin: 0.25rem 0 0; font-siz
 /* fases: a linha do tempo */
 ${s} .doc-fases { list-style: none; padding: 0; margin: 1rem 0; counter-reset: fase; }
 ${s} .doc-fases li { position: relative; padding: 0 0 1.25rem 2.25rem; margin: 0; counter-increment: fase; }
-${s} .doc-fases li::before { content: counter(fase); position: absolute; left: 0; top: 0; width: 1.5rem; height: 1.5rem; border-radius: 9999px; background: hsl(var(--primary)); color: hsl(var(--primary-foreground)); font-size: 0.75rem; font-weight: 700; display: grid; place-items: center; }
+${s} .doc-fases li::before { content: counter(fase); position: absolute; left: 0; top: 0; width: 1.5rem; height: 1.5rem; border-radius: 9999px; background: var(--doc-cor); color: var(--doc-cor-texto); font-size: 0.75rem; font-weight: 700; display: grid; place-items: center; }
 ${s} .doc-fases li:not(:last-child)::after { content: ""; position: absolute; left: 0.6875rem; top: 1.75rem; bottom: 0; width: 2px; background: hsl(var(--border)); }
 ${s} .doc-fase-prazo { font-size: 0.75rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: hsl(var(--muted-foreground)); margin: 0 0 0.25rem; }
 ${s} .doc-fase-resp { font-size: 0.8125rem; color: hsl(var(--muted-foreground)); margin: 0.25rem 0 0; }
 
 /* investimento: os cartões de preço */
 ${s} .doc-precos { display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: 0.75rem; padding: 0; margin: 1rem 0; list-style: none; }
-${s} .doc-precos li { padding: 1.25rem; border: 1px solid hsl(var(--border)); border-radius: 0.625rem; margin: 0; background: hsl(var(--primary) / 0.05); }
+${s} .doc-precos li { padding: 1.25rem; border: 1px solid hsl(var(--border)); border-radius: 0.625rem; margin: 0; background: var(--doc-cor-leve); }
 ${s} .doc-preco-valor { font-size: 1.75rem; font-weight: 700; line-height: 1.1; margin: 0.25rem 0 0; font-variant-numeric: tabular-nums; }
 ${s} .doc-preco-periodo { font-size: 0.8125rem; color: hsl(var(--muted-foreground)); margin: 0 0 0.5rem; }
 ${s} .doc-precos li ul { margin: 0.5rem 0 0; padding-left: 1.1rem; font-size: 0.875rem; }
@@ -82,7 +108,7 @@ ${s} .doc-precos li ul { margin: 0.5rem 0 0; padding-left: 1.1rem; font-size: 0.
 /* aceite e fechamento */
 ${s} .doc-aceite { margin: 1.5rem 0 0; padding: 1rem 1.25rem; border: 1px solid hsl(var(--border)); border-radius: 0.625rem; }
 ${s} .doc-aceite-resp { font-size: 0.8125rem; color: hsl(var(--muted-foreground)); margin: 1.5rem 0 0; padding-top: 0.5rem; border-top: 1px solid hsl(var(--foreground)); }
-${s} .doc-chamada { font-size: 2rem; font-weight: 700; letter-spacing: -0.01em; margin: 1.5rem 0 0.5rem; }
+${s} .doc-chamada { font-size: 2rem; font-weight: 700; color: var(--doc-cor); letter-spacing: -0.01em; margin: 1.5rem 0 0.5rem; }
 ${s} .doc-contato { color: hsl(var(--muted-foreground)); font-size: 0.875rem; }
 
 /* a tabela de itens */

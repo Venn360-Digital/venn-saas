@@ -459,7 +459,7 @@ export function ModelosClient({ inicial }: { inicial: ModeloItem[] }) {
                                     </div>
                                 ) : (
                                     <>
-                                        <style>{cssDoDocumento('.documento-previa')}</style>
+                                        <style>{cssDoDocumento('.documento-previa', COR_HEX.test(cor) ? cor : null)}</style>
                                         <div className="documento-previa" dangerouslySetInnerHTML={{ __html: previa }} />
                                     </>
                                 )}

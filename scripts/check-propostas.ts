@@ -1138,6 +1138,31 @@ const base: FatosDaProposta = {
     ok('uma etapa de proposta enviada por funil (índice parcial)', /where "isProposalSent" = true/.test(migracao))
 }
 
+// ============================================================ F4: o link público v2
+
+/**
+ * "Apenas na visualização do link deve haver a possibilidade de exportar para
+ * PDF" (André, 22/11/2026). E a identidade do modelo — cor e logotipo — entra
+ * por fora do HTML, para o hash do aceite não mudar.
+ */
+{
+    console.log('\n── F4: o link público ──')
+    const publica = readFileSync(join(CORE, 'rotas/p/[token]/DocumentoPublicoCliente.tsx'), 'utf8')
+    ok('a página do link tem "Baixar PDF" pela impressão do navegador', publica.includes('Baixar PDF') && publica.includes('window.print()'))
+    ok('a página do link pinta com a cor do modelo', publica.includes("cssDoDocumento('.documento-publico', documento.cor)"))
+    ok('a página do link mostra o logotipo quando há', publica.includes('documento.logo &&'))
+    for (const arquivo of ['rotas/(dashboard)/vendas/propostas/[id]/PropostaClient.tsx', 'rotas/(dashboard)/vendas/propostas/modelos/ModelosClient.tsx']) {
+        const fonte = readFileSync(join(CORE, arquivo), 'utf8')
+        ok(`${arquivo.split('/').pop()} NÃO oferece PDF`, !fonte.includes('window.print') && !fonte.includes('PDF'))
+    }
+    const estilo = readFileSync(join(CORE, 'lib/propostas/estilo.ts'), 'utf8')
+    ok('a cor do modelo é validada por forma antes de virar CSS', /COR_HEX\.test\(cor\)/.test(estilo))
+    ok('a cor entra por variáveis, e o CSS não lê --primary direto fora delas', (estilo.split('export function cssDoDocumento')[1].match(/var\(--primary\)/g) ?? []).length === 0)
+    ok('a impressão quebra página por seção de página', estilo.includes('break-before: page'))
+    const publico = readFileSync(join(CORE, 'lib/propostas/publico.ts'), 'utf8')
+    ok('cor e logotipo ficam FORA do html (o hash não muda)', publico.includes('cor: (proposta.template?.theme') && publico.includes('logo: proposta.workspace.logo'))
+}
+
 // ============================================================ fecho
 
 console.log('')

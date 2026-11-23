@@ -77,6 +77,10 @@ export interface DocumentoRenderizado {
     aceitoPor: string | null
     expiraEm: Date
     validoAte: Date | null
+    /** A cor principal do modelo (`#rrggbb`), ou nula para o tema. Fora do `html`: não entra no hash. */
+    cor: string | null
+    /** O logotipo da organização (URL), ou nulo. Também fora do `html`. */
+    logo: string | null
 }
 
 /**
@@ -177,5 +181,7 @@ export function renderizarPublico(share: DocumentoPublico, urlDaCapa: string | n
         aceitoPor: share.acceptedByName,
         expiraEm: share.expiresAt,
         validoAte: revisao.validUntil,
+        cor: (proposta.template?.theme as { cor?: string | null } | null)?.cor ?? null,
+        logo: proposta.workspace.logo ?? null,
     }
 }

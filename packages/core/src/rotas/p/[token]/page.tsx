@@ -131,6 +131,8 @@ export default async function DocumentoPage({ params }: { params: Promise<{ toke
                 aceitoEm: doc.aceitoEm?.toISOString() ?? null,
                 aceitoPor: doc.aceitoPor,
                 validoAte: doc.validoAte?.toISOString() ?? null,
+                cor: doc.cor,
+                logo: doc.logo,
             }}
         />
     )
