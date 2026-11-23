@@ -414,7 +414,7 @@ console.log('\n── requisito 7: trilha no aceite ──')
     // A cadeia inteira numa transação.
     ok('tudo numa transação', fonte.includes('prisma.$transaction'))
     ok('a revisão vira aceita', fonte.includes("status: 'aceita'"))
-    ok('o negócio recebe o valor', fonte.includes('value: valorParaOFunil'))
+    ok('o negócio recebe o valor, pela fronteira única', fonte.includes('valorParaOFunil(revisao.total)') && fonte.includes('value: valor,'))
     ok('a passagem de etapa é registrada', fonte.includes('dealStageEntry.create'))
     ok('o vendedor é notificado', fonte.includes('notification.create'))
     ok('os outros links são revogados', fonte.includes('proposalShare.updateMany'))
@@ -426,7 +426,10 @@ console.log('\n── requisito 7: trilha no aceite ──')
      * regra do projeto ("campo novo nasce Decimal, legado não migra, conversão
      * explícita na fronteira") passou a ser contornada em silêncio.
      */
-    ok('a conversão para Float é explícita e comentada', /Number\(revisao\.total\)/.test(fonte))
+    // A fronteira mudou de lugar na F3: mora em `lib/propostas/funil.ts`, e o
+    // aceite e o envio passam por ela. O aceite NÃO pode converter sozinho.
+    const funil = readFileSync(join(CORE, 'lib/propostas/funil.ts'), 'utf8')
+    ok('a conversão para Float é explícita, comentada e única', /export function valorParaOFunil[\s\S]*return Number\(total\)/.test(funil) && !/Number\(revisao\.total\)/.test(fonte))
 }
 
 {
