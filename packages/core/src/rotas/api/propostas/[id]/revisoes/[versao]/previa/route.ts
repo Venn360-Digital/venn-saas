@@ -76,7 +76,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
                         number: true,
                         currency: true,
                         createdAt: true,
-                        template: { select: { body: true, sections: true } },
+                        template: { select: { body: true, sections: true, theme: true } },
                         createdBy: { select: { name: true, email: true, phone: true } },
                         workspace: { select: { name: true, cnpj: true, address: true, phone: true } },
                         deal: {
@@ -153,7 +153,12 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
             urlDaCapa: await urlDaCapaDe(secoes),
         })
 
-        return NextResponse.json({ html, congelada: congeladas.success && congeladas.data.length > 0 })
+        return NextResponse.json({
+            html,
+            congelada: congeladas.success && congeladas.data.length > 0,
+            // A cor do modelo: o editor pinta a prévia como a página pública pinta.
+            cor: (p.template?.theme as { cor?: string | null } | null)?.cor ?? null,
+        })
     } catch (error) {
         console.error('[PROPOSTA_PREVIA]', error)
         return NextResponse.json({ error: 'Internal error' }, { status: 500 })

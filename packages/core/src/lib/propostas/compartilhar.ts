@@ -151,7 +151,8 @@ export async function documentoPublico(token: string) {
                             number: true,
                             currency: true,
                             createdAt: true,
-                            template: { select: { body: true, sections: true } },
+                            // `theme` é a identidade do modelo (cor), não dado do cliente.
+                            template: { select: { body: true, sections: true, theme: true } },
                             /**
                              * Só o NOME do responsável e o do contato. Sem
                              * e-mail, sem telefone, sem id, sem valor do negócio.

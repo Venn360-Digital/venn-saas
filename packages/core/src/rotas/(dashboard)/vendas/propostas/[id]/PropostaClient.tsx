@@ -203,6 +203,10 @@ export function PropostaClient({
     const [secaoAtiva, setSecaoAtiva] = useState<string | null>(vigente?.secoes[0]?.id ?? null)
 
     const [previa, setPrevia] = useState<string | null>(null)
+
+    // A cor do modelo, para a prévia pintar como a página pública.
+
+    const [corDaPrevia, setCorDaPrevia] = useState<string | null>(null)
     const [carregandoPrevia, setCarregandoPrevia] = useState(false)
     const [salvando, setSalvando] = useState(false)
     const [gravado, setGravado] = useState<'ok' | 'pendente' | null>(null)
@@ -332,12 +336,13 @@ export function PropostaClient({
                 await Promise.all([gravarSecoes(secoes), gravarItens(itens, validade, observacao)])
             }
             const r = await fetch(`/api/propostas/${proposta.id}/revisoes/${vigente.version}/previa`)
-            const corpo = (await r.json().catch(() => ({}))) as { html?: string; error?: string }
+            const corpo = (await r.json().catch(() => ({}))) as { html?: string; cor?: string | null; error?: string }
             if (!r.ok || !corpo.html) {
                 setAviso(corpo.error ?? 'Não foi possível montar a prévia.')
                 return
             }
             setPrevia(corpo.html)
+            setCorDaPrevia(corpo.cor ?? null)
         } finally {
             setCarregandoPrevia(false)
         }
@@ -669,7 +674,7 @@ export function PropostaClient({
                                 </div>
                             ) : (
                                 <>
-                                    <style>{cssDoDocumento('.documento-previa')}</style>
+                                    <style>{cssDoDocumento('.documento-previa', corDaPrevia)}</style>
                                     {/* HTML nosso: `renderDocumento` escapa tudo que vem de fora. */}
                                     <div className="documento-previa" dangerouslySetInnerHTML={{ __html: previa ?? '' }} />
                                 </>

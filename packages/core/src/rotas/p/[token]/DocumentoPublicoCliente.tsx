@@ -32,6 +32,10 @@ export interface DocumentoParaCliente {
     aceitoEm: string | null
     aceitoPor: string | null
     validoAte: string | null
+    /** A cor principal do modelo, ou nula para o tema. */
+    cor: string | null
+    /** O logotipo da organização (URL), ou nulo. */
+    logo: string | null
 }
 
 export function DocumentoPublicoCliente({
@@ -102,15 +106,38 @@ export function DocumentoPublicoCliente({
     return (
         <main className="min-h-dvh bg-muted/30 px-4 py-10 print:p-0">
             <div className="mx-auto w-full max-w-3xl">
-                <article className="rounded-xl border border-border/60 bg-card p-6 shadow-sm sm:p-10 print:rounded-none print:border-0 print:p-0 print:shadow-none">
-                    <header className="mb-8 flex flex-wrap items-baseline justify-between gap-2 border-b border-border/60 pb-5">
-                        <div>
-                            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                                {documento.rotulo} {documento.numero}
-                            </p>
-                            <p className="mt-1 text-base font-semibold text-foreground">
-                                {documento.organizacao}
-                            </p>
+                {/* "Baixar PDF" só existe AQUI, na visualização do link — decisão
+                    do André em 22/11/2026: o editor visualiza e envia o link; o
+                    arquivo é do cliente. É a impressão do navegador com o CSS de
+                    `estilo.ts`: sem Browser Rendering, sem binding novo. */}
+                <div className="mb-3 flex justify-end print:hidden">
+                    <button
+                        type="button"
+                        onClick={() => window.print()}
+                        className="inline-flex items-center justify-center gap-2 rounded-lg border border-input bg-card px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent"
+                    >
+                        <svg aria-hidden viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v12" /><path d="m7 10 5 5 5-5" /><path d="M5 21h14" /></svg>
+                        Baixar PDF
+                    </button>
+                </div>
+
+                <article className="documento-publico-moldura rounded-xl border border-border/60 bg-card p-6 shadow-sm sm:p-10 print:rounded-none print:border-0 print:p-0 print:shadow-none">
+                    <header className="mb-8 flex flex-wrap items-center justify-between gap-3 border-b border-border/60 pb-5">
+                        <div className="flex items-center gap-3">
+                            {/* A identidade do modelo: o logotipo da organização. `alt` com o
+                                nome, porque o leitor de tela lê o nome e não a imagem. */}
+                            {documento.logo && (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={documento.logo} alt={documento.organizacao} className="h-10 w-auto max-w-[9rem] object-contain" />
+                            )}
+                            <div>
+                                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                                    {documento.rotulo} {documento.numero}
+                                </p>
+                                <p className="mt-1 text-base font-semibold text-foreground">
+                                    {documento.organizacao}
+                                </p>
+                            </div>
                         </div>
                         <p className="text-lg font-semibold tabular-nums text-foreground">
                             {documento.totalEmTexto}
@@ -187,13 +214,6 @@ export function DocumentoPublicoCliente({
                                 >
                                     Aceitar {documento.rotulo.toLowerCase()}
                                 </button>
-                                <button
-                                    type="button"
-                                    onClick={() => window.print()}
-                                    className="inline-flex items-center justify-center rounded-lg border border-input px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-accent"
-                                >
-                                    Imprimir ou salvar em PDF
-                                </button>
                             </div>
                         )}
                     </footer>
@@ -214,7 +234,7 @@ export function DocumentoPublicoCliente({
              */}
             {/* O CSS é o mesmo do modo Visualizar do editor — `lib/propostas/estilo.ts`.
                 Dois CSS fariam o vendedor ver uma coisa e o cliente outra. */}
-            <style>{cssDoDocumento('.documento-publico')}</style>
+            <style>{cssDoDocumento('.documento-publico', documento.cor)}</style>
         </main>
     )
 }
