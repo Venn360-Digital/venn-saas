@@ -60,8 +60,12 @@ import {
 } from '@venn/core/lib/propostas/variaveis'
 import { miolo, renderCorpoLegado, renderDocumento, tabelaDeItens } from '@venn/core/lib/propostas/render'
 import {
+    aplicarSugestoes,
     converterCorpoEmSecoes,
     ehCompromisso,
+    esvaziarCompromissos,
+    secoesDaResposta,
+    SCHEMA_DAS_SECOES_PLANAS,
     ehPagina,
     ehTipoDeSecao,
     ROTULO_DA_SECAO,
@@ -1023,6 +1027,57 @@ const base: FatosDaProposta = {
     const descongelado = contextoDeMapa(JSON.parse(JSON.stringify(congelado)))
     ok('congelar → JSON → descongelar devolve o mesmo mapa', JSON.stringify(achatarVariaveis(descongelado)) === JSON.stringify(achatarVariaveis(vivo)))
     ok('chave fora dos grupos é ignorada ao descongelar', !('x' in (contextoDeMapa({ 'x.y': '1', solto: '2' }) as Record<string, unknown>)))
+}
+
+// ============================================================ F2: a IA que monta, e o importador
+
+/**
+ * O que a IA devolve é uma forma PLANA; o que vira seção é código daqui. E o
+ * que a IA não pode fazer — prometer — é garantido em código, não em prompt.
+ */
+{
+    const planas = [
+        { tipo: 'capa', titulo: 'Proposta', corpo: 'Para {{cliente.nome}}', linhas: [] },
+        { tipo: 'destaques', titulo: 'Números', corpo: null, linhas: [{ a: '64%', b: 'Resolvidos', c: 'pela IA', d: null }] },
+        { tipo: 'fases', titulo: null, corpo: null, linhas: [{ a: 'Diagnóstico', b: 'dias 1-3', c: 'Avant', d: 'Análise' }] },
+        { tipo: 'investimento', titulo: null, corpo: 'Uma frase', linhas: [{ a: 'Setup', b: 'R$ 4.800', c: 'único', d: 'a; b ;c' }] },
+        { tipo: 'garantia', titulo: null, corpo: null, linhas: [{ a: 'Garantia', b: '7 dias', c: null, d: null }] },
+        { tipo: 'condicoes', titulo: null, corpo: 'Cláusula X', linhas: [] },
+        { tipo: 'fechamento', titulo: null, corpo: 'Obrigado pela oportunidade', linhas: [{ a: 'OBRIGADO.', b: '', c: null, d: null }] },
+        { tipo: 'video', titulo: null, corpo: null, linhas: [] },
+    ]
+    const secoes = secoesDaResposta(planas)
+    ok('tipo desconhecido é descartado, não inventado', secoes.length === 7 && !secoes.some((s) => (s.tipo as string) === 'video'))
+    ok('capa: corpo vira subtítulo', secoes[0].tipo === 'capa' && secoes[0].subtitulo === 'Para {{cliente.nome}}')
+    ok('investimento: "inclui" separa por ponto e vírgula e apara', secoes[3].tipo === 'investimento' && secoes[3].cartoes[0].inclui.join('|') === 'a|b|c')
+    ok('fases: a=nome b=prazo c=responsável d=descrição', secoes[2].tipo === 'fases' && secoes[2].fases[0].prazo === 'dias 1-3' && secoes[2].fases[0].descricao === 'Análise')
+    ok('fechamento: a primeira linha é a chamada', secoes[6].tipo === 'fechamento' && secoes[6].chamada === 'OBRIGADO.')
+    ok('o schema plano é strict em todo objeto', JSON.stringify(SCHEMA_DAS_SECOES_PLANAS).split('"additionalProperties":false').length - 1 >= 3)
+
+    const limpas = esvaziarCompromissos(secoes)
+    ok('destaques: valor esvaziado, rótulo fica', limpas[1].tipo === 'destaques' && limpas[1].itens[0].valor === '' && limpas[1].itens[0].rotulo === 'Resolvidos')
+    ok('fases: prazo esvaziado, nome fica', limpas[2].tipo === 'fases' && limpas[2].fases[0].prazo === null && limpas[2].fases[0].nome === 'Diagnóstico')
+    ok('investimento: valor esvaziado, título fica', limpas[3].tipo === 'investimento' && limpas[3].cartoes[0].valor === '' && limpas[3].cartoes[0].titulo === 'Setup')
+    ok('garantia: texto esvaziado, título fica', limpas[4].tipo === 'garantia' && limpas[4].blocos[0].texto === '' && limpas[4].blocos[0].titulo === 'Garantia')
+    ok('condições: corpo esvaziado', limpas[5].tipo === 'condicoes' && limpas[5].corpo === '')
+    ok('fechamento e capa NÃO são tocados', JSON.stringify(limpas[6]) === JSON.stringify(secoes[6]) && JSON.stringify(limpas[0]) === JSON.stringify(secoes[0]))
+
+    // ── as sugestões do importador: a pessoa confirma, e só então troca ──
+    const importadas = secoesDaResposta([
+        { tipo: 'carta', titulo: 'Proposta para Helena Prado', corpo: 'A Clínica Sorriso tem o prazer de apresentar a Helena Prado…', linhas: [] },
+        { tipo: 'investimento', titulo: null, corpo: null, linhas: [{ a: 'Total', b: 'R$ 9.600,00', c: null, d: null }] },
+    ])
+    const comTokens = aplicarSugestoes(importadas, [
+        { literal: 'Helena Prado', chave: 'cliente.nome' },
+        { literal: 'R$ 9.600,00', chave: 'documento.total' },
+        { literal: 'ab', chave: 'cliente.nome' },
+        { literal: 'Clínica Sorriso', chave: 'cliente.sapato' },
+    ])
+    ok('o literal vira token em todas as ocorrências', comTokens[0].tipo === 'carta' && comTokens[0].titulo === 'Proposta para {{cliente.nome}}' && comTokens[0].corpo?.split('{{cliente.nome}}').length === 2)
+    ok('inclusive dentro de linhas', comTokens[1].tipo === 'investimento' && comTokens[1].cartoes[0].valor === '{{documento.total}}')
+    ok('literal curto é ignorado', !JSON.stringify(comTokens).includes('{{cliente.nome}}b'))
+    ok('chave fora da lista sugerível é ignorada', !JSON.stringify(comTokens).includes('cliente.sapato') && JSON.stringify(comTokens).includes('Clínica Sorriso'))
+    ok('sem sugestões aceitas, nada muda', JSON.stringify(aplicarSugestoes(importadas, [])) === JSON.stringify(importadas))
 }
 
 // ============================================================ fecho

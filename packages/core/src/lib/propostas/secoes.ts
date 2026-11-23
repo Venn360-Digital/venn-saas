@@ -290,3 +290,195 @@ export function textosDasSecoes(secoes: readonly Secao[]): string[] {
     }
     return saida.filter((t) => t.length > 0)
 }
+
+// ── o que a IA e o importador devolvem, e como vira seção ────────────────
+
+/**
+ * A forma PLANA que o modelo preenche.
+ *
+ * Saída estruturada com `strict: true` exige todo campo presente e nenhum a
+ * mais — um schema com treze variantes de objeto seria enorme e frágil. Então o
+ * modelo devolve uma linha genérica por entrada (`a`, `b`, `c`, `d`) e o
+ * mapeamento por tipo mora aqui, em código que o verificador prova:
+ *
+ * | tipo         | a        | b          | c           | d          |
+ * |--------------|----------|------------|-------------|------------|
+ * | destaques    | valor    | rótulo     | legenda     | —          |
+ * | escopo       | título   | descrição  | —           | —          |
+ * | fases        | nome     | prazo      | responsável | descrição  |
+ * | investimento | título   | valor      | período     | inclui (;) |
+ * | garantia     | título   | texto      | —           | —          |
+ */
+export interface SecaoPlana {
+    tipo: string
+    titulo: string | null
+    corpo: string | null
+    linhas: { a: string; b: string; c: string | null; d: string | null }[]
+}
+
+/** O JSON Schema de `SecaoPlana[]`, para `generateEstruturado` (strict). */
+export const SCHEMA_DAS_SECOES_PLANAS = {
+    type: 'object',
+    properties: {
+        secoes: {
+            type: 'array',
+            items: {
+                type: 'object',
+                properties: {
+                    tipo: { type: 'string', enum: [...TIPOS_DE_SECAO] },
+                    titulo: { type: ['string', 'null'] },
+                    corpo: { type: ['string', 'null'], description: 'Texto da seção. Linha com "# " é título; com "- " é item de lista.' },
+                    linhas: {
+                        type: 'array',
+                        items: {
+                            type: 'object',
+                            properties: {
+                                a: { type: 'string' },
+                                b: { type: 'string' },
+                                c: { type: ['string', 'null'] },
+                                d: { type: ['string', 'null'] },
+                            },
+                            required: ['a', 'b', 'c', 'd'],
+                            additionalProperties: false,
+                        },
+                    },
+                },
+                required: ['tipo', 'titulo', 'corpo', 'linhas'],
+                additionalProperties: false,
+            },
+        },
+    },
+    required: ['secoes'],
+    additionalProperties: false,
+} as const
+
+/** Linha plana → seção tipada. Tipo desconhecido é descartado, não inventado. */
+export function secoesDaResposta(planas: readonly SecaoPlana[]): Secao[] {
+    const saida: Secao[] = []
+    planas.forEach((p, i) => {
+        if (!ehTipoDeSecao(p.tipo)) return
+        const id = `s${i + 1}`
+        const titulo = p.titulo?.trim() || null
+        const corpo = p.corpo?.trim() ?? ''
+        switch (p.tipo) {
+            case 'capa':
+                saida.push({ id, tipo: 'capa', titulo, subtitulo: corpo || null })
+                break
+            case 'sumario':
+                saida.push({ id, tipo: 'sumario' })
+                break
+            case 'carta':
+            case 'texto':
+            case 'condicoes':
+                saida.push({ id, tipo: p.tipo, titulo, corpo })
+                break
+            case 'destaques':
+                saida.push({ id, tipo: 'destaques', titulo, itens: p.linhas.map((l) => ({ valor: l.a, rotulo: l.b, legenda: l.c })) })
+                break
+            case 'escopo':
+                saida.push({ id, tipo: 'escopo', titulo, cartoes: p.linhas.map((l) => ({ titulo: l.a, descricao: l.b })) })
+                break
+            case 'fases':
+                saida.push({ id, tipo: 'fases', titulo, fases: p.linhas.map((l) => ({ nome: l.a, prazo: l.b || null, responsavel: l.c, descricao: l.d ?? '' })) })
+                break
+            case 'itens':
+                saida.push({ id, tipo: 'itens', titulo })
+                break
+            case 'investimento':
+                saida.push({
+                    id, tipo: 'investimento', titulo, introducao: corpo || null,
+                    cartoes: p.linhas.map((l) => ({ titulo: l.a, valor: l.b, periodo: l.c, inclui: (l.d ?? '').split(';').map((x) => x.trim()).filter(Boolean) })),
+                })
+                break
+            case 'garantia':
+                saida.push({ id, tipo: 'garantia', titulo, blocos: p.linhas.map((l) => ({ titulo: l.a, texto: l.b })) })
+                break
+            case 'aceite':
+                saida.push({ id, tipo: 'aceite', texto: corpo || null })
+                break
+            case 'fechamento':
+                saida.push({ id, tipo: 'fechamento', titulo, corpo, chamada: p.linhas[0]?.a || null })
+                break
+        }
+    })
+    return saida
+}
+
+/**
+ * Esvazia o que é compromisso — a regra "a IA não promete", aplicada em código.
+ *
+ * O prompt pede; isto garante. Número de resultado, prazo, preço e texto de
+ * garantia ficam em branco; títulos e rótulos ficam, porque são a moldura que
+ * a pessoa preenche. Condições inteira em branco — cláusula é de quem assina.
+ */
+export function esvaziarCompromissos(secoes: readonly Secao[]): Secao[] {
+    return secoes.map((s) => {
+        switch (s.tipo) {
+            case 'destaques':
+                return { ...s, itens: s.itens.map((d) => ({ ...d, valor: '' })) }
+            case 'fases':
+                return { ...s, fases: s.fases.map((f) => ({ ...f, prazo: null })) }
+            case 'investimento':
+                return { ...s, cartoes: s.cartoes.map((c) => ({ ...c, valor: '' })) }
+            case 'garantia':
+                return { ...s, blocos: s.blocos.map((b) => ({ ...b, texto: '' })) }
+            case 'condicoes':
+                return { ...s, corpo: '' }
+            default:
+                return s
+        }
+    })
+}
+
+/**
+ * As trocas que o importador sugere: um trecho literal do documento que parece
+ * um dado do sistema. A pessoa confirma uma a uma; nada é trocado sem ela.
+ */
+export interface SugestaoDeVariavel {
+    literal: string
+    chave: string
+}
+
+/** As chaves que o importador pode sugerir — o que se reconhece num texto. */
+export const CHAVES_SUGERIVEIS = [
+    'cliente.nome',
+    'organizacao.nome',
+    'organizacao.cnpj',
+    'documento.data',
+    'documento.total',
+    'responsavel.nome',
+] as const
+
+/** Aplica as sugestões aceitas: troca cada literal pelo token, em todas as seções. */
+export function aplicarSugestoes(secoes: readonly Secao[], aceitas: readonly SugestaoDeVariavel[]): Secao[] {
+    const validas = aceitas.filter((a) => a.literal.trim().length >= 3 && (CHAVES_SUGERIVEIS as readonly string[]).includes(a.chave))
+    if (validas.length === 0) return [...secoes]
+    const trocar = (t: string) => validas.reduce((acc, a) => acc.split(a.literal).join(`{{${a.chave}}}`), t)
+    const trocarOpc = (t: string | null | undefined) => (t ? trocar(t) : t)
+    return secoes.map((s) => {
+        switch (s.tipo) {
+            case 'capa':
+                return { ...s, titulo: trocarOpc(s.titulo), subtitulo: trocarOpc(s.subtitulo) }
+            case 'carta':
+            case 'texto':
+            case 'condicoes':
+                return { ...s, titulo: trocarOpc(s.titulo), corpo: trocar(s.corpo) }
+            case 'destaques':
+                return { ...s, titulo: trocarOpc(s.titulo), itens: s.itens.map((d) => ({ ...d, valor: trocar(d.valor), rotulo: trocar(d.rotulo), legenda: trocarOpc(d.legenda) })) }
+            case 'escopo':
+                return { ...s, titulo: trocarOpc(s.titulo), cartoes: s.cartoes.map((c) => ({ ...c, titulo: trocar(c.titulo), descricao: trocar(c.descricao) })) }
+            case 'fases':
+                return { ...s, titulo: trocarOpc(s.titulo), fases: s.fases.map((f) => ({ ...f, nome: trocar(f.nome), descricao: trocar(f.descricao), responsavel: trocarOpc(f.responsavel), prazo: trocarOpc(f.prazo) })) }
+            case 'investimento':
+                return { ...s, titulo: trocarOpc(s.titulo), introducao: trocarOpc(s.introducao), cartoes: s.cartoes.map((c) => ({ ...c, titulo: trocar(c.titulo), valor: trocar(c.valor), periodo: trocarOpc(c.periodo), inclui: c.inclui.map(trocar) })) }
+            case 'garantia':
+                return { ...s, titulo: trocarOpc(s.titulo), blocos: s.blocos.map((b) => ({ ...b, titulo: trocar(b.titulo), texto: trocar(b.texto) })) }
+            case 'aceite':
+                return { ...s, texto: trocarOpc(s.texto) }
+            case 'fechamento':
+                return { ...s, titulo: trocarOpc(s.titulo), corpo: trocar(s.corpo), chamada: trocarOpc(s.chamada) }
+            default:
+                return s
+        }
+    })
+}

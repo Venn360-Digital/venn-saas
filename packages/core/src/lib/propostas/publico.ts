@@ -5,7 +5,7 @@ import { pareceToken } from '../convite/token'
 import { dinheiroEmTexto } from './calculo'
 import { contextoDeMapa, contextoDeVariaveis } from './contexto'
 import { renderDocumento } from './render'
-import { converterCorpoEmSecoes, secoesPadrao, secoesSchema } from './secoes'
+import { converterCorpoEmSecoes, secoesPadrao, secoesSchema, type Secao } from './secoes'
 import { ROTULO_DO_TIPO, ehTipoDeDocumento } from './estados'
 import type { DocumentoPublico } from './compartilhar'
 
@@ -86,7 +86,24 @@ export interface DocumentoRenderizado {
  * gravado no aceite corresponda ao HTML que a pessoa tinha na tela, e não a uma
  * renderização com carimbo de outro instante.
  */
-export function renderizarPublico(share: DocumentoPublico): DocumentoRenderizado {
+/** As seções que a página pública vai renderizar — congeladas, do modelo, ou o padrão. */
+export function secoesDoCompartilhamento(share: DocumentoPublico): Secao[] {
+    const revisao = share.revision
+    const congeladas = secoesSchema.safeParse(revisao.sections)
+    if (congeladas.success && congeladas.data.length > 0) return congeladas.data
+    const doModelo = secoesSchema.safeParse(revisao.proposal.template?.sections)
+    if (doModelo.success && doModelo.data.length > 0) return doModelo.data
+    const c = converterCorpoEmSecoes(revisao.proposal.template?.body)
+    return c.length > 0 ? c : secoesPadrao()
+}
+
+/**
+ * @param urlDaCapa A URL pública da arte da capa, resolvida por quem chama
+ * (`urlDaCapaDe(secoesDoCompartilhamento(share))`). Os dois chamadores — a
+ * página e o aceite — têm de passar o mesmo, senão o hash do aceite não bate
+ * com o que a pessoa viu.
+ */
+export function renderizarPublico(share: DocumentoPublico, urlDaCapa: string | null = null): DocumentoRenderizado {
     const revisao = share.revision
     const proposta = revisao.proposal
     const tipo = ehTipoDeDocumento(proposta.kind) ? proposta.kind : 'proposta'
@@ -98,17 +115,7 @@ export function renderizarPublico(share: DocumentoPublico): DocumentoRenderizado
      * Determinístico nos dois casos: nada de `new Date()`. É o que garante
      * que o hash do aceite corresponda ao HTML que a pessoa tinha na tela.
      */
-    const congeladas = secoesSchema.safeParse(revisao.sections)
-    const doModelo = secoesSchema.safeParse(proposta.template?.sections)
-    const secoes =
-        congeladas.success && congeladas.data.length > 0
-            ? congeladas.data
-            : doModelo.success && doModelo.data.length > 0
-              ? doModelo.data
-              : (() => {
-                    const c = converterCorpoEmSecoes(proposta.template?.body)
-                    return c.length > 0 ? c : secoesPadrao()
-                })()
+    const secoes = secoesDoCompartilhamento(share)
 
     const variaveis =
         revisao.variableValues && typeof revisao.variableValues === 'object'
@@ -156,6 +163,7 @@ export function renderizarPublico(share: DocumentoPublico): DocumentoRenderizado
         })),
         totais: { subtotal: revisao.subtotal, discount: revisao.discount, total: revisao.total },
         moeda,
+        urlDaCapa,
     })
 
     return {

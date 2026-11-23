@@ -1,3 +1,5 @@
+import type { Secao } from '@venn/core/lib/propostas/secoes'
+
 /**
  * O contrato entre a casca de servidor e a tela de modelos.
  *
@@ -12,8 +14,14 @@ export interface ModeloItem {
     name: string
     /** `proposta | orcamento | contrato` — domínio em `lib/propostas/estados.ts`. */
     kind: string
-    /** HTML com marcadores. Nulo cai no corpo padrão do render. */
+    /** O corpo da v1, texto com marcadores. Nulo quando o modelo já é por seções. */
     body: string | null
+    /** As seções (v2); vazio = modelo da v1, convertido ao abrir no editor. */
+    secoes: Secao[]
+    /** De onde veio: `ia`, `importado`, ou nada (escrito à mão / semeado). */
+    origem: string | null
+    /** Cor principal do tema (`#rrggbb`); nula = a cor da organização. */
+    cor: string | null
     isDefault: boolean
     isActive: boolean
     /** Quantos documentos já usam este modelo — é o que torna apagar perigoso. */
