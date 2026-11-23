@@ -14,7 +14,9 @@ import {
     secoesDoCompartilhamento,
     userAgentDaRequisicao,
 } from '@venn/core/lib/propostas/publico'
+import prisma from '@venn/db/cliente'
 import { urlDaCapaDe } from '@venn/core/lib/propostas/capa'
+import { registrarEventoDoDocumento } from '@venn/core/lib/propostas/conversa'
 
 import { DocumentoPublicoCliente } from './DocumentoPublicoCliente'
 
@@ -113,6 +115,8 @@ export default async function DocumentoPage({ params }: { params: Promise<{ toke
     // no caminho de erro: `registrarAbertura` nunca lança — perder a contagem é
     // perder uma métrica, não abrir é perder a venda.
     await registrarAbertura(share.id, ipDaRequisicao(requisicao), userAgentDaRequisicao(requisicao))
+    // A primeira abertura consta em Conversas; as seguintes só na contagem.
+    await registrarEventoDoDocumento(prisma, { shareId: share.id, evento: 'abriu' })
 
     return (
         <DocumentoPublicoCliente

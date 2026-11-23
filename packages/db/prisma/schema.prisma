@@ -1286,6 +1286,14 @@ model PipelineStage {
   /// duas etapas de ganho fariam o aceite escolher uma em silêncio.
   isWon Boolean @default(false)
 
+  /// Esta é a etapa de **proposta enviada** deste funil.
+  ///
+  /// O envio de um documento move o negócio para cá — e só para a frente: um
+  /// negócio que já passou desta etapa não volta por causa de um reenvio. Nasce
+  /// `false`; sem ninguém marcar, o envio não move nada. Uma por funil, por
+  /// índice único parcial, como `isWon`.
+  isProposalSent Boolean @default(false)
+
   /// Quem aperta enviar nesta fase: `off`, `draft` ou `send`.
   ///
   /// `off` cobra só com tarefa. `draft` escreve a mensagem e deixa para alguém
