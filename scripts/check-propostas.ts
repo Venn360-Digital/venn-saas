@@ -24,7 +24,7 @@
 // código do core e o core PEDE a marca. Ver `./lib/marca-de-teste.ts`.
 import './lib/marca-de-teste.ts'
 
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -717,17 +717,20 @@ const base: FatosDaProposta = {
      * compilam. É o mesmo tipo de prova que o módulo usa para a linha pública
      * no middleware, e pela mesma razão: nenhum teste de unidade alcança.
      */
-    const dialogo = readFileSync(join(CORE, 'components/shared/NovaPropostaDialog.tsx'), 'utf8')
-    ok('o diálogo busca negócios em /api/deals', dialogo.includes('/api/deals?'))
+    // Em 22/11/2026 o diálogo virou a tela de três faixas (`propostas/nova`);
+    // o que se cobra é o mesmo, no arquivo novo.
+    const tela = readFileSync(join(CORE, 'rotas/(dashboard)/vendas/propostas/nova/NovaClient.tsx'), 'utf8')
+    ok('a tela de novo documento busca negócios em /api/deals', tela.includes('/api/deals?'))
     ok(
         'e lê a resposta como ARRAY, não como { data }',
-        dialogo.includes('Array.isArray(corpo)')
+        tela.includes('Array.isArray(corpo)')
     )
-    ok('o modo de cadastro existe', dialogo.includes("'cadastrar'"))
+    ok('o cadastro inline existe', tela.includes('setCadastrando(true)'))
     ok(
         'e manda negocioNovo, não contato solto',
-        dialogo.includes('negocioNovo') && !dialogo.includes("fetch('/api/contacts'")
+        tela.includes('negocioNovo') && !tela.includes("fetch('/api/contacts'")
     )
+    ok('o diálogo antigo não existe mais', !existsSync(join(CORE, 'components/shared/NovaPropostaDialog.tsx')))
 }
 
 // ============================================================ a base do link público

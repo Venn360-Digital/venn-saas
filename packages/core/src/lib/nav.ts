@@ -202,6 +202,7 @@ function segmentLabels(v: Vocabulario): Record<string, string> {
     // Sub-rota de Propostas, não item de menu: quem mexe em modelo chega pela
     // lista de documentos, e um item a mais no menu custaria mais do que entrega.
     modelos: "Modelos",
+    nova: "Novo documento",
     // O segmento curto do link público. Aparece na trilha só se alguém abrir a
     // página pública estando logado, o que acontece quando o vendedor testa o
     // próprio link.

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { cssDoDocumento } from '@venn/core/lib/propostas/estilo'
 
 /**
  * O documento como o cliente o lê, e o aceite.
@@ -211,68 +212,9 @@ export function DocumentoPublicoCliente({
              * manter as regras ao lado dele é o que impede que um ajuste no
              * tema mude a cara de um documento que já foi aceito.
              */}
-            <style>{`
-                .documento-publico { color: hsl(var(--foreground)); font-size: 0.9375rem; line-height: 1.65; }
-                .documento-publico h2 { font-size: 1.125rem; font-weight: 600; margin: 1.75rem 0 0.5rem; }
-                .documento-publico h2:first-child { margin-top: 0; }
-                .documento-publico p { margin: 0.75rem 0; }
-                .documento-publico ul { margin: 0.75rem 0; padding-left: 1.25rem; list-style: disc; }
-                .documento-publico li { margin: 0.25rem 0; }
-                .documento-publico .doc-vazio { color: hsl(var(--muted-foreground)); }
-
-                .documento-publico .doc-itens {
-                    width: 100%;
-                    margin: 1.5rem 0;
-                    border-collapse: collapse;
-                    font-size: 0.875rem;
-                }
-                .documento-publico .doc-itens th,
-                .documento-publico .doc-itens td {
-                    padding: 0.625rem 0.5rem;
-                    border-bottom: 1px solid hsl(var(--border));
-                    text-align: left;
-                    vertical-align: top;
-                }
-                .documento-publico .doc-itens th {
-                    font-size: 0.75rem;
-                    font-weight: 600;
-                    text-transform: uppercase;
-                    letter-spacing: 0.03em;
-                    color: hsl(var(--muted-foreground));
-                }
-                /* Número alinhado à direita e com largura de dígito fixa: é o que
-                   deixa a coluna somável a olho. */
-                .documento-publico .doc-col-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
-                .documento-publico .doc-itens tfoot td { border-bottom: 0; padding-top: 0.75rem; }
-                .documento-publico .doc-subtotal td { color: hsl(var(--muted-foreground)); padding-top: 0.375rem; padding-bottom: 0.375rem; }
-                .documento-publico .doc-total td { font-weight: 600; font-size: 1rem; border-top: 1px solid hsl(var(--border)); }
-
-                /*
-                 * Impressão: é isto que substitui o PDF nesta fase.
-                 *
-                 * Nenhuma cor de fundo é declarada aqui, e não é esquecimento:
-                 * o navegador não imprime fundo por omissão (print-color-adjust
-                 * em economy), então forçar branco na impressão seria uma cor
-                 * literal sem efeito — e o lint de cores a cobrou, com razão:
-                 * ele varre o comentário também, que é como deve ser, porque a
-                 * isenção não pode vir de esconder a cor dentro de uma nota.
-                 *
-                 * Sem crase nestas linhas, de propósito: este bloco vive dentro
-                 * de um template literal, e uma crase aqui o FECHA — o resto do
-                 * CSS passa a ser lido como JSX e o typecheck despenca em treze
-                 * erros a partir desta linha. Foi o que aconteceu ao escrever
-                 * esta nota pela primeira vez.
-                 */
-                @media print {
-                    .documento-publico { font-size: 11pt; }
-                    .documento-publico .doc-itens { font-size: 10pt; }
-                    /* Linha de item não se parte entre páginas: meia linha no pé
-                       de uma folha e meia no topo da outra é o defeito clássico
-                       de tabela impressa. */
-                    .documento-publico .doc-itens tr { break-inside: avoid; }
-                    .documento-publico .doc-itens thead { display: table-header-group; }
-                }
-            `}</style>
+            {/* O CSS é o mesmo do modo Visualizar do editor — `lib/propostas/estilo.ts`.
+                Dois CSS fariam o vendedor ver uma coisa e o cliente outra. */}
+            <style>{cssDoDocumento('.documento-publico')}</style>
         </main>
     )
 }

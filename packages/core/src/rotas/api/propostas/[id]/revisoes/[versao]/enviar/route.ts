@@ -113,6 +113,7 @@ export async function POST(
                 validUntil: true,
                 notes: true,
                 sections: true,
+                variableValues: true,
                 items: { select: { id: true }, take: 1 },
                 proposal: {
                     select: {
@@ -186,8 +187,9 @@ export async function POST(
          * cliente que guardou o primeiro link e o que recebeu o segundo
          * leriam textos diferentes da mesma versão.
          */
-        const congelar = !contexto.sections
-        if (!jaEnviada || congelar) {
+        const faltamSecoes = !contexto.sections
+        const faltamValores = !contexto.variableValues
+        if (!jaEnviada || faltamSecoes || faltamValores) {
             const p = contexto.proposal
             const doModelo = secoesSchema.safeParse(p.template?.sections)
             const secoes =
@@ -228,7 +230,10 @@ export async function POST(
                 where: { id: revisao.id },
                 data: {
                     ...(jaEnviada ? {} : { status: 'enviada' }),
-                    ...(congelar ? { sections: secoes, variableValues: valores } : {}),
+                    // Seções: só se a revisão não tiver as suas (rascunho de antes
+                    // da F0). Valores: só na primeira vez — reenviar não recongela.
+                    ...(faltamSecoes ? { sections: secoes } : {}),
+                    ...(faltamValores ? { variableValues: valores } : {}),
                 },
             })
         }

@@ -16,6 +16,7 @@ import { proximoNumero } from '@venn/core/lib/propostas/numeracao'
 import { clienteAlcancavel, negocioParaProposta } from '@venn/core/lib/propostas/negocio'
 import { primeiraFaseDoPadrao } from '@venn/core/lib/pipeline/funis'
 import { TIPOS_DE_DOCUMENTO } from '@venn/core/lib/propostas/estados'
+import { converterCorpoEmSecoes, secoesPadrao, secoesSchema } from '@venn/core/lib/propostas/secoes'
 
 /**
  * A lista de documentos e a criação de um.
@@ -241,10 +242,11 @@ export async function POST(request: NextRequest) {
 
         /** O modelo, quando informado, também é da unidade. */
         let templateId: string | null = dados.templateId ?? null
+        let modelo: { id: string; body: string | null; sections: unknown } | null = null
         if (templateId) {
-            const modelo = await prisma.proposalTemplate.findFirst({
+            modelo = await prisma.proposalTemplate.findFirst({
                 where: { id: templateId, workspaceId: membro.workspaceId },
-                select: { id: true },
+                select: { id: true, body: true, sections: true },
             })
             if (!modelo) {
                 return NextResponse.json({ error: 'Modelo não encontrado' }, { status: 404 })
@@ -253,12 +255,28 @@ export async function POST(request: NextRequest) {
             // Nenhum informado: o padrão do tipo. Nulo é legítimo — o render
             // tem corpo padrão, e a primeira proposta não deve exigir uma
             // passagem pela tela de modelos.
-            const padrao = await prisma.proposalTemplate.findFirst({
+            modelo = await prisma.proposalTemplate.findFirst({
                 where: { workspaceId: membro.workspaceId, kind: dados.kind, isDefault: true, isActive: true },
-                select: { id: true },
+                select: { id: true, body: true, sections: true },
             })
-            templateId = padrao?.id ?? null
+            templateId = modelo?.id ?? null
         }
+
+        /**
+         * A revisão 1 nasce com as **próprias** seções, copiadas do modelo.
+         *
+         * É o que faz o documento ser editável sem mexer no modelo: acrescentar
+         * uma seção nesta proposta não acrescenta nas próximas. Modelo da v1
+         * (só `body`) é convertido; sem modelo, entra o padrão.
+         */
+        const doModelo = secoesSchema.safeParse(modelo?.sections)
+        const secoesIniciais =
+            doModelo.success && doModelo.data.length > 0
+                ? doModelo.data
+                : (() => {
+                      const c = converterCorpoEmSecoes(modelo?.body)
+                      return c.length > 0 ? c : secoesPadrao()
+                  })()
 
         const proposta = await prisma.$transaction(async (tx) => {
             /**
@@ -319,7 +337,13 @@ export async function POST(request: NextRequest) {
             })
 
             const v1 = await tx.proposalRevision.create({
-                data: { proposalId: criada.id, version: 1, status: 'rascunho', userId: membro.userId },
+                data: {
+                    proposalId: criada.id,
+                    version: 1,
+                    status: 'rascunho',
+                    userId: membro.userId,
+                    sections: secoesIniciais,
+                },
                 select: { id: true, version: true, status: true },
             })
 
