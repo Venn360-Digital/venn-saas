@@ -1124,9 +1124,12 @@ dado.
 
 ## 19. Documentos: propostas, orçamentos e contratos
 
-Entregue em 21/11/2026. O desenho saiu da engenharia reversa do Ploomes
+Entregue em 21/11/2026; a **v2** entrou em homologação em 23/11/2026 (ver "A
+v2: o modelo primeiro", abaixo). O desenho saiu da engenharia reversa do Ploomes
 (`docs/ploomes/`), e o patch de dados veio de `docs/ploomes/modulos/01-proposta.md`,
-que já havia sido validado com `prisma migrate diff` contra este schema.
+que já havia sido validado com `prisma migrate diff` contra este schema. Na
+homologação da v1 o Andre concluiu que *"o Ploomes foi muito básico para o que
+precisamos"* — a v2 é o que ele pediu em cima.
 
 ### Um ciclo de vida, três nomes
 
@@ -1163,8 +1166,10 @@ conversão mora numa fronteira só, comentada, em `lib/propostas/aceite.ts`.
 
 ### O documento é um link, não um arquivo
 
-A entrega é a página pública `/p/{token}` com CSS de impressão. Não há geração
-de PDF, e a decisão tem três razões: **nenhum dos dois caminhos de e-mail deste
+A entrega é a página pública `/p/{token}` com CSS de impressão. **Não há
+geração de PDF, e isto é definitivo**, não fase: "Baixar PDF" é a impressão do
+navegador, **só na página do link** — o editor visualiza e envia, o arquivo é do
+cliente (decisão do Andre, 22/11/2026). A decisão tem três razões: **nenhum dos dois caminhos de e-mail deste
 projeto suporta anexo**; no WhatsApp o provedor busca a URL ele mesmo, e a URL
 assinada do bucket privado vale 600 segundos; e o link **registra abertura**.
 
@@ -1196,9 +1201,18 @@ interna passa a sair na página do cliente.
 ### Aceitar move o negócio
 
 O aceite é uma transação com seis passos: a trilha, a revisão vira `aceita`,
-`Deal.value` recebe o total, o negócio anda para a etapa de fechamento gravando
+`Deal.value` recebe o total, o negócio anda para a **etapa de ganho** gravando
 `DealStageEntry`, o dono é notificado, e os outros links da proposta são
 revogados.
+
+**Posição não é significado.** A etapa de ganho é a que a organização marcou
+(`isWon`, uma por funil); sem marcar, cai na última — e a homologação de 21/11
+mostrou o preço disso: as etapas padrão terminam em *Retrabalho*. O mesmo vale
+para a **etapa de proposta enviada** (`isProposalSent`): o **envio** move o
+negócio para ela e lhe dá o valor da versão, **só para a frente** — reenviar não
+devolve um negócio em negociação para "proposta enviada". A conversão
+`Decimal → Float` do dinheiro tem **uma** fronteira, `valorParaOFunil`, e aceite
+e envio passam por ela.
 
 Os passos 3 a 5 são o que o Ploomes não faz: lá o aceite é um booleano e o funil
 é outro módulo. Aqui o funil, o canal e o documento estão no mesmo banco.
@@ -1244,14 +1258,17 @@ promovido a entidade (`ProductGroup`) — texto livre produzia "Implantes",
 
 ### O que **não** foi feito, e por quê
 
-- **PDF arquivado.** A página com `@media print` cobre o caso; o arquivo entra
-  por Browser Rendering (binding novo, provisionamento, custo) partindo do mesmo
-  HTML — e é por isso que o corpo do modelo é HTML e não JSON de blocos.
+- **PDF arquivado — e não vai existir.** Em 21/11 isto estava reservado para
+  uma fase 2 por Browser Rendering; em 22/11 o Andre decidiu o contrário: o PDF
+  é exportação do navegador, só na página do link. O corpo do modelo, que era
+  texto com marcadores, virou **seções tipadas em JSON** na v2 — a razão antiga
+  ("HTML para o Browser Rendering partir dele") deixou de existir junto.
 - **Assinatura com certificadora.** O aceite tem trilha e hash, o que é prova
   razoável. Validade jurídica plena é fornecedor novo, credencial por unidade e
   custo por documento.
-- **Alçada de desconto.** `em_aprovacao`, `aprovada` e `reprovada` existem no
-  domínio e **não têm tela**: entram quando alguém pedir, sem migração.
+- **Alçada de desconto — feita em 22/11.** `em_aprovacao`, `aprovada` e
+  `reprovada` ganharam tela e rota: quem pediu não decide (`403`), reprovar
+  exige motivo, e o motivo vai para quem montou — nunca para o cliente.
 - **Preço por cliente e composição de item (CPQ).** O achado mais valioso do
   estudo — `Products@Parts` com mínimo e máximo de preço e quantidade — ficou
   para uma rodada futura.
@@ -1348,6 +1365,64 @@ mais sensível do módulo, que é o valor. O painel lê e leva.
 Negócio fechado não ganha documento novo — o que fechou está explicado pelo que
 já existe —, mas o modo continua acessível: a proposta aceita é a explicação do
 valor que fechou, e é ali que alguém vai procurá-la.
+
+### A v2: o modelo primeiro, o documento depois
+
+Pedido em 22/11/2026, depois da homologação da v1, em quatro eixos: menos
+cliques, documento visível no rascunho, campos do sistema como variáveis, e
+modelos criados por IA ou importados. Cinco fases, todas em `staging` em
+23/11/2026. O que elas fixam como regra:
+
+**O documento é a tela.** Um canvas de **seções tipadas** (capa, sumário,
+carta, destaques, escopo, fases, itens, investimento, garantia, condições,
+aceite, fechamento, texto), com dois modos no mesmo lugar — Editar e
+Visualizar. Nunca HTML colado: não há sanitizador neste projeto, e é decisão.
+O render continua **um e no servidor**; o modo Visualizar pede o HTML pronto a
+uma rota de prévia, e a página pública usa a mesma função e o mesmo CSS. Dois
+CSS fariam o vendedor ver uma coisa e o cliente outra.
+
+**A sintaxe da variável nunca aparece.** *"Esse formato assusta quem é leigo.
+Um erro de digitação e a variável quebra"* (Andre, 22/11). A variável é um
+**objeto atômico** no texto, mostrando o valor real — no modelo, o rótulo entre
+‹›. Entra por botão, por `@` ou por sugestão ("tornar dinâmico"); Backspace
+apaga o objeto inteiro. `{{grupo.campo}}` existe só por dentro, gravado pelo
+editor. Vale para qualquer superfície futura que exponha variáveis, e-mail de
+campanha incluído.
+
+**O envio congela.** Seções e valores das variáveis são gravados na revisão na
+primeira ida ao cliente; reenviar (link novo) não recongela. Mudar o modelo ou
+o telefone do cliente amanhã não muda a proposta que ele tem na mão, e o hash do
+aceite continua correspondendo ao que ele leu. A projeção pública segue mínima:
+dado do cliente chega à página só pelo congelado, gravado por rota autenticada.
+
+**O modelo vem antes.** *"Montar modelos com IA primeiro e depois inserir as
+variáveis. Uma vez o modelo pronto é só preencher."* Quatro passos: descrever
+(ou importar um `.docx`/`.pdf`/`.xlsx` que a organização já usa) → a IA monta
+todas as páginas, e a arte da capa se pedida → marcar o que varia (no
+importado, as sugestões vêm prontas para confirmar; nada é trocado sem a
+pessoa) → ativar. **Modelo novo nasce inativo**: texto não revisado na frente do
+vendedor seria pior que nenhum. E a IA **não promete**: número, prazo, preço,
+garantia e condições saem em branco, garantido em código e não só no prompt —
+prometer é de quem assina.
+
+**A capa é arte, não texto.** Abstrata, na cor do modelo, sem letra nenhuma
+(modelo de imagem erra grafia); título, cliente e data entram por cima como
+dados dinâmicos. Custa créditos e vive no bucket público — pode, porque não
+leva dado de cliente.
+
+**O documento consta em Conversas.** O envio por e-mail que **saiu** vira
+mensagem no fio `email` do contato — um por contato, da equipe e com dono (quem
+enviou). "Abriu" e "aceitou" são mensagens do sistema, **idempotentes**: a
+segunda abertura do mesmo link não gera segunda linha ("abriu três vezes" é a
+contagem, não o fio). A caixa de resposta não existe nesse canal, e a tela diz
+por quê; a rota recusa (`409`). Conversas enviar e-mail é a etapa seguinte, e é
+ali que entra.
+
+**Identidade do modelo fora do HTML.** A cor do modelo e o logotipo da unidade
+pintam a página do link e a prévia, mas ficam fora do HTML renderizado — o hash
+do aceite da v1 continua válido.
+
+O que a v2 deixou de fora está em §18.
 
 ## 20. Relatórios
 
