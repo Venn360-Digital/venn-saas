@@ -129,6 +129,10 @@ export async function documentoPublico(token: string) {
                     validUntil: true,
                     status: true,
                     createdAt: true,
+                    // O congelado no envio — é o que a página pública mostra
+                    // quando existe. Ver `lib/propostas/contexto.ts`.
+                    sections: true,
+                    variableValues: true,
                     items: {
                         orderBy: { order: 'asc' },
                         select: {
@@ -147,9 +151,18 @@ export async function documentoPublico(token: string) {
                             number: true,
                             currency: true,
                             createdAt: true,
-                            template: { select: { body: true } },
-                            // Só o NOME do responsável e o do contato. Sem
-                            // e-mail, sem telefone, sem id.
+                            template: { select: { body: true, sections: true } },
+                            /**
+                             * Só o NOME do responsável e o do contato. Sem
+                             * e-mail, sem telefone, sem id, sem valor do negócio.
+                             *
+                             * A v2 NÃO alargou isto, de propósito: telefone,
+                             * e-mail, CNPJ e o resto chegam à página pública
+                             * **congelados** em `variableValues`, gravados no
+                             * envio por uma rota autenticada. A projeção viva
+                             * continua mínima — e `check:proposta-publica`
+                             * varre este `select` para que continue.
+                             */
                             createdBy: { select: { name: true } },
                             deal: { select: { contact: { select: { name: true } } } },
                             workspace: { select: { name: true, logo: true } },
