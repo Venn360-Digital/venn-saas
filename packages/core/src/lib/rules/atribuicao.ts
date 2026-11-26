@@ -1,4 +1,5 @@
 import prisma from '@venn/db/cliente'
+import { lerPolitica } from '../conversas/distribuicao'
 
 /**
  * Quem recebe uma conversa entregue à equipe.
@@ -77,8 +78,8 @@ export async function resolverResponsavel(destino: Destino): Promise<string | un
 }
 
 /**
- * O responsável natural de uma conversa quando ninguém foi indicado: o
- * departamento **da linha** por onde ela entrou.
+ * O responsável natural de uma conversa quando ninguém foi indicado: o atendente
+ * fixo da linha, se ela tiver um; o departamento **da linha**, se não.
  *
  * É o que dá destino à entrega feita pelo próprio agente, que não recebe
  * parâmetro de ninguém. Conversa sem linha — intake da recepção, widget do site,
@@ -88,6 +89,20 @@ export async function resolverResponsavel(destino: Destino): Promise<string | un
  *
  * A linha é buscada pelo id **e** pelo workspace do agente: id de linha é
  * `cuid`, não é adivinhável, mas o recorte custa nada e fecha a porta.
+ *
+ * ## Só `fixo` muda este caminho, e de propósito
+ *
+ * Esta função **não** aplica rodízio nem balanceado, mesmo quando a linha ou a
+ * conta os configuram. Dois caminhos de propósito, como diz
+ * `resolverResponsavel` logo acima: trocar o critério aqui mudaria para quem as
+ * regras de ação **existentes** entregam, sem ninguém ter pedido.
+ *
+ * `fixo` é a exceção porque é a única política que **nomeia uma pessoa**. A
+ * linha que a clínica apontou para a Fulana tem de entregar a ela a conversa que
+ * a IA devolve, senão o número configurado como dela distribuiria pelo rodízio
+ * justamente no momento que mais importa: quando o paciente pediu um humano.
+ * Era a divergência mais provável deste recurso — a distribuição respeitando a
+ * linha e o handoff ignorando-a.
  */
 export async function responsavelDaLinha(
     workspaceId: string,
@@ -97,8 +112,24 @@ export async function responsavelDaLinha(
 
     const linha = await prisma.agentIntegration.findFirst({
         where: { id: integrationId, agent: { workspaceId } },
-        select: { departmentId: true },
+        select: { departmentId: true, distribuicao: true },
     })
+
+    if (linha?.distribuicao != null) {
+        const politica = lerPolitica(linha.distribuicao)
+        if (politica.estrategia === 'fixo' && politica.donoFixoUserId) {
+            /**
+             * Passa por `resolverResponsavel` e não volta direto: é ele que
+             * confirma que a pessoa ainda é membro **ativo** desta clínica. Id
+             * guardado em JSON não tem chave estrangeira que o limpe quando
+             * alguém sai, então a conferência é aqui ou em lugar nenhum.
+             *
+             * Se ela não for mais, o `undefined` leva à entrega sem responsável
+             * — a fila geral, onde alguém vê. Nunca ao rodízio: ver acima.
+             */
+            return resolverResponsavel({ workspaceId, userId: politica.donoFixoUserId })
+        }
+    }
 
     return resolverResponsavel({ workspaceId, departmentId: linha?.departmentId ?? null })
 }

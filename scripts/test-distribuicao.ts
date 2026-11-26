@@ -22,9 +22,11 @@
 import './lib/marca-de-teste.ts'
 
 import {
+    ESTRATEGIAS,
     POLITICA_PADRAO,
     destinoDaEntrega,
     escolherDono,
+    lerPolitica,
     MINUTOS_PARA_DESCONECTADO,
     estaDisponivel,
     estadoVisivel,
@@ -465,6 +467,120 @@ console.log('\n— a paciência por pessoa ganha da conta —\n')
             agora
         ),
         false
+    )
+}
+
+// ─────────────────────────── O atendente fixo ────────────────────────────────
+//
+// O pedido do Andre (26/11/2026): um número de WhatsApp sem rodízio, entregue
+// direto a um atendente, ao lado de outro número que roda a fila. O que estes
+// casos protegem é a fronteira — `fixo` que não resolve vai para a FILA GERAL,
+// nunca para o rodízio. Virar fila em silêncio entregaria o paciente a quem a
+// clínica não escolheu.
+{
+    console.log('\nAtendente fixo — a linha que não roda fila')
+
+    const FIXO = (quem: string | null): PoliticaDeDistribuicao => ({
+        estrategia: 'fixo',
+        soDisponiveis: false,
+        donoFixoUserId: quem,
+    })
+
+    // Bia esperou mais que a Ana: pelo rodízio seria dela. O fixo ignora a ordem.
+    const equipe = [
+        membro({ userId: 'ana', ultimaAtribuicao: em('2026-11-26T12:00:00Z') }),
+        membro({ userId: 'bia', ultimaAtribuicao: em('2026-11-20T08:00:00Z') }),
+    ]
+
+    conferir('o rodízio daria a quem esperou mais', escolherDono(equipe, RODIZIO), 'bia')
+    conferir('o fixo dá a quem foi nomeado, não a quem esperou', escolherDono(equipe, FIXO('ana')), 'ana')
+
+    /**
+     * As três quedas, e todas na fila geral.
+     *
+     * Política pela metade (sem pessoa), pessoa que saiu da clínica, e pessoa
+     * fora com o interruptor ligado. Em nenhuma delas o resultado pode ser
+     * **outra** pessoa: é o que diferencia "cai na fila" de "vira rodízio".
+     */
+    conferir('fixo sem pessoa não escolhe ninguém', escolherDono(equipe, FIXO(null)), null)
+    conferir(
+        'fixo apontando para quem não está na lista cai na fila geral',
+        escolherDono(equipe, FIXO('quem-saiu-da-clinica')),
+        null
+    )
+    conferir(
+        'e não escolhe outra pessoa no lugar — fila geral, nunca rodízio',
+        escolherDono(equipe, FIXO('quem-saiu-da-clinica')) === 'ana' ||
+            escolherDono(equipe, FIXO('quem-saiu-da-clinica')) === 'bia',
+        false
+    )
+
+    // Com o interruptor ligado, o fixo ausente também cai na fila: quem configurou
+    // "só disponíveis" pediu para o lead não ficar parado com quem não vai olhar.
+    const agora = em('2026-11-26T20:00:00Z')
+    const paradoHa = (min: number) => new Date(agora.getTime() - min * 60_000)
+    const comInterruptor: PoliticaDeDistribuicao = { ...FIXO('ana'), soDisponiveis: true }
+
+    conferir(
+        'fixo ausente, interruptor ligado: fila geral',
+        escolherDono(
+            [membro({ userId: 'ana', ultimaAtividadeEm: paradoHa(600) })],
+            comInterruptor,
+            60,
+            agora
+        ),
+        null
+    )
+    conferir(
+        'fixo ausente, interruptor desligado: continua sendo dele',
+        escolherDono([membro({ userId: 'ana', ultimaAtividadeEm: paradoHa(600) })], FIXO('ana'), 60, agora),
+        'ana'
+    )
+}
+
+// ──────────────────── A política lida de JSON, nos dois depósitos ────────────
+//
+// `lerPolitica` é a mesma função para o `automations` da conta e para o
+// `distribuicao` da linha. Era validação inline em `automations.ts`, e a lista
+// de estratégias válidas morava lá — o que faria a linha aceitar `fixo` e a
+// conta não. Estes casos são o que mantém os dois depósitos lendo igual.
+{
+    console.log('\nA política vem de JSON, e JSON é desconhecido até ser conferido')
+
+    conferir('`fixo` está na lista de estratégias válidas', ESTRATEGIAS.includes('fixo'), true)
+    conferir('lixo não derruba: vira o padrão', lerPolitica(null), POLITICA_PADRAO)
+    conferir('texto no lugar do objeto também', lerPolitica('rodizio'), POLITICA_PADRAO)
+    conferir(
+        'estratégia inventada vira `nenhuma`, não erro',
+        lerPolitica({ estrategia: 'sorteio' }).estrategia,
+        'nenhuma'
+    )
+    conferir(
+        'o que é válido atravessa inteiro',
+        lerPolitica({ estrategia: 'rodizio', soDisponiveis: true }),
+        { estrategia: 'rodizio', soDisponiveis: true, donoFixoUserId: null }
+    )
+    conferir(
+        'com `fixo`, a pessoa é guardada',
+        lerPolitica({ estrategia: 'fixo', donoFixoUserId: 'ana' }).donoFixoUserId,
+        'ana'
+    )
+    /**
+     * A pessoa só é guardada **dentro** de `fixo`.
+     *
+     * Um id que sobrasse de uma troca de estratégia voltaria a valer se alguém
+     * devolvesse a linha para `fixo` meses depois — escolhendo, sem saber, uma
+     * pessoa que ninguém reviu.
+     */
+    conferir(
+        'fora de `fixo`, a pessoa não sobra no objeto',
+        lerPolitica({ estrategia: 'rodizio', donoFixoUserId: 'ana' }).donoFixoUserId,
+        null
+    )
+    conferir(
+        '`fixo` com pessoa vazia não inventa uma',
+        lerPolitica({ estrategia: 'fixo', donoFixoUserId: '' }).donoFixoUserId,
+        null
     )
 }
 

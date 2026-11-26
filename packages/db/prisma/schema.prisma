@@ -882,6 +882,30 @@ model AgentIntegration {
   /// quem não usa departamentos, para quem nada muda.
   departmentId String?
 
+  /// Quem recebe as conversas **desta** linha. Nulo é "como na conta".
+  ///
+  /// A política de distribuição era só da clínica, em `Workspace.automations`:
+  /// uma estratégia para todos os números. O pedido do Andre (26/11/2026) não
+  /// cabe nisso — um número de WhatsApp entregue direto a um atendente, ao lado
+  /// de outro número que roda o rodízio normal.
+  ///
+  /// Guarda uma política **inteira** (`estrategia`, `soDisponiveis` e, em
+  /// `fixo`, a pessoa), validada por `lerPolitica` em
+  /// `lib/conversas/distribuicao.ts` — a mesma função que lê a da conta, para
+  /// que os dois depósitos não divirjam. Quando preenchida, substitui a da
+  /// conta por completo; não se mistura campo a campo, que produziria
+  /// combinações que nenhuma tela sabe mostrar.
+  ///
+  /// **Nulo é o estado de toda linha existente**, e por isso esta migração não
+  /// muda o comportamento de ninguém: sem política própria, vale a da clínica,
+  /// exatamente como antes. Mesma convenção de `departmentId` (nulo é fila
+  /// geral) e de `WorkspaceUser.minutosParaAusente` (nulo é o padrão do
+  /// sistema).
+  ///
+  /// JSON e não colunas pela razão de sempre: é ajuste de operação, muda numa
+  /// tarde, e uma coluna por chave viraria uma migração por melhoria.
+  distribuicao Json?
+
   /// A origem que esta linha semeia na ficha de quem escreve por ela.
   ///
   /// É o que separa duas linhas do **mesmo** canal: o WhatsApp QR da V4 e o do

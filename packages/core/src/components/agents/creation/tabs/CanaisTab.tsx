@@ -24,9 +24,12 @@ import {
     Select,
     SelectContent,
     SelectItem,
+    SelectLabel,
+    SelectSeparator,
     SelectTrigger,
     SelectValue,
 } from '@venn/ui/select'
+import type { EstrategiaDeDistribuicao } from '../../../../lib/conversas/distribuicao'
 import { ConfirmDialog } from '../../../shared/ConfirmDialog'
 import { SettingsCard, SettingsRow } from '../../../shared/TabsFrame'
 import { InstagramConnect } from '../InstagramConnect'
@@ -52,10 +55,25 @@ import type { Vocabulario } from '../../../../lib/vocabulario'
  * ações. O teto é o do plano, dito antes do clique em vez de depois.
  */
 
+/**
+ * A política de distribuição desta linha. `null` é "como na conta".
+ *
+ * Mesma forma de `PoliticaDeDistribuicao` no servidor, declarada aqui porque a
+ * tela só precisa do formato — o módulo de decisão é neutro e o tipo vem dele,
+ * mas o objeto que atravessa a rota é este.
+ */
+interface PoliticaDaLinha {
+    estrategia: EstrategiaDeDistribuicao
+    soDisponiveis: boolean
+    donoFixoUserId?: string | null
+}
+
 interface Line {
     id: string
     label: string | null
     departmentId: string | null
+    /** Quem recebe as conversas desta linha; `null` segue a política da conta. */
+    distribuicao: PoliticaDaLinha | null
     /** A origem que esta linha semeia na ficha de quem escreve por ela. */
     defaultOriginId: string | null
     phoneNumber: string | null
@@ -238,6 +256,131 @@ function SeletorDaLinha({
     )
 }
 
+/**
+ * O seletor de **quem recebe** as conversas da linha.
+ *
+ * É um seletor só, e não dois, porque a pergunta é uma: quem atende este número.
+ * As respostas possíveis vivem em dois planos — uma estratégia de fila ou uma
+ * pessoa — e juntá-las numa lista é o que faz "este número é da Fulana" ser um
+ * clique em vez de uma estratégia mais um campo.
+ *
+ * **"Só quem está online" é item, não caixa de seleção**, pelo mesmo motivo que
+ * no respond.io "Rodada Robin" e "Robin redondo + Apenas Online" são duas opções
+ * da mesma lista: online é modificador da estratégia, e um interruptor separado
+ * numa linha de tabela viraria duas colunas para uma decisão.
+ *
+ * Em `fixo` não há modificador: nomear uma pessoa já diz que a conversa é dela.
+ * Se ela estiver fora no momento da entrega, `destinoDaEntrega` manda a entrega
+ * urgente para a fila geral sem tirar a conversa da carteira dela.
+ */
+const HERANCA = 'heranca'
+
+const OPCOES_DE_FILA: { valor: string; rotulo: string; politica: PoliticaDaLinha }[] = [
+    { valor: 'nenhuma', rotulo: 'Sem distribuição', politica: { estrategia: 'nenhuma', soDisponiveis: false } },
+    { valor: 'rodizio', rotulo: 'Rodízio', politica: { estrategia: 'rodizio', soDisponiveis: false } },
+    {
+        valor: 'rodizio-online',
+        rotulo: 'Rodízio, só quem está online',
+        politica: { estrategia: 'rodizio', soDisponiveis: true },
+    },
+    { valor: 'balanceado', rotulo: 'Balanceado', politica: { estrategia: 'balanceado', soDisponiveis: false } },
+    {
+        valor: 'balanceado-online',
+        rotulo: 'Balanceado, só quem está online',
+        politica: { estrategia: 'balanceado', soDisponiveis: true },
+    },
+]
+
+/** O valor do seletor para a política gravada. `fixo` carrega a pessoa no valor. */
+function valorDaPolitica(p: PoliticaDaLinha | null): string {
+    if (!p) return HERANCA
+    if (p.estrategia === 'fixo') return p.donoFixoUserId ? `fixo:${p.donoFixoUserId}` : HERANCA
+    return (
+        OPCOES_DE_FILA.find(
+            (o) => o.politica.estrategia === p.estrategia && o.politica.soDisponiveis === p.soDisponiveis
+        )?.valor ?? HERANCA
+    )
+}
+
+/** O caminho de volta: `null` devolve a linha à política da conta. */
+function politicaDoValor(valor: string): PoliticaDaLinha | null {
+    if (valor === HERANCA) return null
+    if (valor.startsWith('fixo:')) {
+        return { estrategia: 'fixo', soDisponiveis: false, donoFixoUserId: valor.slice('fixo:'.length) }
+    }
+    return OPCOES_DE_FILA.find((o) => o.valor === valor)?.politica ?? null
+}
+
+function SeletorDeAtribuicao({
+    nome,
+    canManage,
+    politica,
+    atendentes,
+    onChange,
+}: {
+    nome: string
+    canManage: boolean
+    politica: PoliticaDaLinha | null
+    atendentes: { id: string; name: string }[]
+    onChange: (p: PoliticaDaLinha | null) => void
+}) {
+    /**
+     * A pessoa apontada saiu da clínica — e a tela **tem de dizer isso**.
+     *
+     * O id do atendente fixo mora no JSON da linha, sem chave estrangeira que o
+     * limpe quando alguém é desativado. O sistema já se protege (ela não entra na
+     * lista de elegíveis e a conversa cai na fila geral), mas sem este item o
+     * seletor ficaria em branco: a linha estaria configurada para ninguém e a
+     * tela não saberia explicar por quê.
+     */
+    const fixoOrfao =
+        politica?.estrategia === 'fixo' &&
+        !!politica.donoFixoUserId &&
+        !atendentes.some((a) => a.id === politica.donoFixoUserId)
+
+    return (
+        <td className="px-2.5 py-2 align-middle">
+            <Select
+                value={valorDaPolitica(politica)}
+                disabled={!canManage}
+                onValueChange={(v) => onChange(politicaDoValor(v))}
+            >
+                <SelectTrigger
+                    aria-label={`Atribuição de ${nome}`}
+                    className="h-8 w-full max-w-[13rem] text-xs"
+                >
+                    <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value={HERANCA}>Como na conta</SelectItem>
+                    <SelectSeparator />
+                    {OPCOES_DE_FILA.map((o) => (
+                        <SelectItem key={o.valor} value={o.valor}>
+                            {o.rotulo}
+                        </SelectItem>
+                    ))}
+                    {atendentes.length > 0 ? (
+                        <>
+                            <SelectSeparator />
+                            <SelectLabel>Atendente fixo</SelectLabel>
+                            {atendentes.map((a) => (
+                                <SelectItem key={a.id} value={`fixo:${a.id}`}>
+                                    {a.name}
+                                </SelectItem>
+                            ))}
+                        </>
+                    ) : null}
+                    {fixoOrfao ? (
+                        <SelectItem value={`fixo:${politica!.donoFixoUserId}`} disabled>
+                            Atendente removido — escolha outro
+                        </SelectItem>
+                    ) : null}
+                </SelectContent>
+            </Select>
+        </td>
+    )
+}
+
 /** O mesmo seletor fora da tabela, para os canais de linha única. */
 function SeletorSolto({
     rotulo,
@@ -284,6 +427,13 @@ export function CanaisTab({ agentId, canManage = true }: CanaisTabProps) {
     const [departments, setDepartments] = useState<{ id: string; name: string }[]>([])
     const [origins, setOrigins] = useState<{ id: string; name: string }[]>([])
     const [medias, setMedias] = useState<{ id: string; name: string }[]>([])
+    /**
+     * Quem pode ser atendente fixo de uma linha: membro ativo da clínica.
+     *
+     * Vem junto das linhas, na mesma resposta, pela razão que já valia para
+     * departamentos e origens — uma segunda chamada pode discordar desta.
+     */
+    const [atendentes, setAtendentes] = useState<{ id: string; name: string }[]>([])
     /**
      * Todas as linhas do agente, de qualquer canal, para a atribuição.
      *
@@ -334,6 +484,7 @@ export function CanaisTab({ agentId, canManage = true }: CanaisTabProps) {
             setLimit(data.limit ?? null)
             setDepartments(data.departments ?? [])
             setOrigins(data.origins ?? [])
+            setAtendentes(data.atendentes ?? [])
         } finally {
             setLoading(false)
         }
@@ -551,7 +702,12 @@ export function CanaisTab({ agentId, canManage = true }: CanaisTabProps) {
 
     const ajustar = async (
         line: Line,
-        patch: { label?: string; departmentId?: string | null; defaultOriginId?: string | null }
+        patch: {
+            label?: string
+            departmentId?: string | null
+            defaultOriginId?: string | null
+            distribuicao?: PoliticaDaLinha | null
+        }
     ) => {
         const res = await fetch(`/api/agents/${agentId}/integrations/whatsapp`, {
             method: 'PATCH',
@@ -650,7 +806,7 @@ export function CanaisTab({ agentId, canManage = true }: CanaisTabProps) {
                    responde pela linha por onde entrou" — comportamento do
                    sistema que a coluna Linha já mostra — e a explicação da
                    fila virou a frase curta dele. */
-                description="Cada linha é um número; a fila indica quem vê as conversas, por departamento ou todos."
+                description="Cada linha é um número. A fila indica quem vê as conversas; a atribuição, quem as recebe — a da conta, ou só desta linha."
                 /*
                  * A ação primária sobe para o cabeçalho, ao lado do medidor.
                  *
@@ -712,7 +868,7 @@ export function CanaisTab({ agentId, canManage = true }: CanaisTabProps) {
                         <table className="w-full min-w-[46rem] border-collapse text-left">
                             <thead>
                                 <tr className="border-b border-border">
-                                    {['Linha', 'Fila', 'Origem', 'Mídia'].map((c) => (
+                                    {['Linha', 'Fila', 'Atribuição', 'Origem', 'Mídia'].map((c) => (
                                         <th
                                             key={c}
                                             className="px-2.5 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground first:pl-5"
@@ -793,6 +949,15 @@ export function CanaisTab({ agentId, canManage = true }: CanaisTabProps) {
                                                     onChange: (v) =>
                                                         void ajustar(line, { departmentId: v }),
                                                 }}
+                                            />
+                                            <SeletorDeAtribuicao
+                                                nome={nomeDaLinha(line)}
+                                                canManage={canManage}
+                                                politica={line.distribuicao}
+                                                atendentes={atendentes}
+                                                onChange={(p) =>
+                                                    void ajustar(line, { distribuicao: p })
+                                                }
                                             />
                                             <SeletorDaLinha
                                                 rotulo="Origem"

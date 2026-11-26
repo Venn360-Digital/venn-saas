@@ -1,9 +1,5 @@
 import type { Prisma } from '@venn/db'
-import {
-    POLITICA_PADRAO,
-    type EstrategiaDeDistribuicao,
-    type PoliticaDeDistribuicao,
-} from './conversas/distribuicao'
+import { POLITICA_PADRAO, lerPolitica, type PoliticaDeDistribuicao } from './conversas/distribuicao'
 
 /**
  * O que a clínica deixou ligado.
@@ -73,24 +69,18 @@ export function readAutomations(value: Prisma.JsonValue | null | undefined): Aut
     const raw = value as Record<string, unknown>
     const hour = Number(raw.briefingHour)
 
-    /**
-     * A política vem de JSON, então **tudo** é desconhecido até ser conferido.
-     * Estratégia inválida vira `nenhuma` em vez de lançar: configuração
-     * estragada não pode derrubar o atendimento, só deixar de distribuir.
-     */
-    const dist = (raw.distribuicao ?? {}) as Record<string, unknown>
-    const estrategias: EstrategiaDeDistribuicao[] = ['nenhuma', 'rodizio', 'balanceado']
-
     return {
         followUpTasks: typeof raw.followUpTasks === 'boolean' ? raw.followUpTasks : DEFAULT_AUTOMATIONS.followUpTasks,
         briefing: typeof raw.briefing === 'boolean' ? raw.briefing : DEFAULT_AUTOMATIONS.briefing,
         briefingHour: Number.isInteger(hour) && hour >= 0 && hour <= 23 ? hour : DEFAULT_AUTOMATIONS.briefingHour,
-        distribuicao: {
-            estrategia: estrategias.includes(dist.estrategia as EstrategiaDeDistribuicao)
-                ? (dist.estrategia as EstrategiaDeDistribuicao)
-                : POLITICA_PADRAO.estrategia,
-            soDisponiveis:
-                typeof dist.soDisponiveis === 'boolean' ? dist.soDisponiveis : POLITICA_PADRAO.soDisponiveis,
-        },
+        /**
+         * A conferência mora em `lerPolitica`, no módulo puro, e não aqui.
+         *
+         * Era inline, e tinha de sair: a linha de atendimento também guarda uma
+         * política (`AgentIntegration.distribuicao`), e duas cópias desta
+         * validação divergiriam na primeira estratégia nova. Foi o que aconteceu
+         * com `fixo` — a lista de estratégias válidas estava escrita aqui.
+         */
+        distribuicao: lerPolitica(raw.distribuicao),
     }
 }
