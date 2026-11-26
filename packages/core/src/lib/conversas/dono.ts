@@ -3,7 +3,9 @@ import { readAutomations, MINUTOS_PARA_AUSENTE_PADRAO } from '../automations'
 import {
     destinoDaEntrega,
     escolherDono,
+    lerPoliticaDoCanal,
     type MembroElegivel,
+    type PoliticaDeDistribuicao,
     type StatusDoMembro,
 } from './distribuicao'
 import { createLogger } from '../../trabalhos/registro'
@@ -23,7 +25,21 @@ const log = createLogger('DONO')
  */
 
 /**
- * Os elegíveis de uma linha, já com o que o rodízio e o balanceado precisam.
+ * A política em vigor para uma linha, mais o departamento dela.
+ *
+ * `departmentId` viaja junto porque sai da **mesma** consulta da política: a
+ * linha é lida uma vez e responde às duas perguntas. Quando `elegiveisDaLinha`
+ * buscava o departamento por conta própria, a entrada de toda conversa nova
+ * fazia duas leituras da mesma linha — e o arquivo avisa que aqui o custo
+ * importa.
+ */
+export type PoliticaEmVigor = PoliticaDeDistribuicao & {
+    departmentId: string | null
+    minutosParaAusente: number
+}
+
+/**
+ * Os elegíveis, já com o que o rodízio e o balanceado precisam.
  *
  * **O departamento vem da linha, não da conversa** — é um fato do terreno, não
  * uma escolha: `AgentIntegration.departmentId` existe, `Conversation` não tem
@@ -35,30 +51,45 @@ const log = createLogger('DONO')
  */
 export async function elegiveisDaLinha(
     workspaceId: string,
-    integrationId: string | null
+    politica: Pick<PoliticaEmVigor, 'departmentId' | 'estrategia' | 'donoFixoUserId'>
 ): Promise<MembroElegivel[]> {
+    const { departmentId } = politica
+
     /**
-     * **O escopo passa pelo agente, e isto não é estilo.** `AgentIntegration`
-     * não tem `workspaceId`: ela pertence a um `Agent`, que pertence à clínica.
-     * Um `findFirst` só por `id` aceitaria a linha de outra clínica se o id
-     * viesse errado — e aí o departamento de lá escolheria quem atende aqui.
-     * Mesma regra de `lib/auth/workspace.ts` e de `resolverResponsavel`.
+     * O atendente fixo entra na lista **mesmo fora do departamento da linha e
+     * mesmo sem `recebeConversas`** — e sem isso o recurso não funcionaria.
+     *
+     * Nomear uma pessoa é mais específico que o departamento da linha: a clínica
+     * que aponta a Fulana para o número da ortodontia não quer saber se ela está
+     * naquele departamento, quer as conversas dele com ela. Com o filtro cego, a
+     * linha ficaria configurada e nunca entregaria nada — configuração que não
+     * faz efeito e não explica por quê.
+     *
+     * `isActive` **não** é relaxado, e é a única porta que fica fechada: quem
+     * saiu da clínica não recebe paciente, qualquer que seja a configuração que
+     * sobrou apontando para ela.
      */
-    const departmentId = integrationId
-        ? (
-              await prisma.agentIntegration.findFirst({
-                  where: { id: integrationId, agent: { workspaceId } },
-                  select: { departmentId: true },
-              })
-          )?.departmentId ?? null
-        : null
+    const fixo = politica.estrategia === 'fixo' ? politica.donoFixoUserId || null : null
+
+    /**
+     * Com `fixo`, a consulta traz **só ela** — e não a fila inteira mais ela.
+     *
+     * `escolherDono` em `fixo` procura um userId na lista e descarta o resto, e
+     * `fixo` não tem desempate nem fallback para o rodízio (de propósito, ver
+     * lá). Trazer o departamento todo seria buscar uma dúzia de membros e rodar
+     * duas agregações sobre eles para jogar fora — na entrada de **toda**
+     * mensagem daquela linha, que é o caso de uso do recurso.
+     */
+    const daFila = {
+        recebeConversas: true,
+        ...(departmentId ? { departments: { some: { departmentId } } } : {}),
+    }
 
     const membros = await prisma.workspaceUser.findMany({
         where: {
             workspaceId,
             isActive: true,
-            recebeConversas: true,
-            ...(departmentId ? { departments: { some: { departmentId } } } : {}),
+            ...(fixo ? { userId: fixo } : daFila),
         },
         select: { userId: true, status: true, ultimaAtividadeEm: true, minutosParaAusente: true },
     })
@@ -100,16 +131,75 @@ export async function elegiveisDaLinha(
     }))
 }
 
-/** A política da clínica, com os padrões centralizados. */
-async function politicaDo(workspaceId: string) {
-    const w = await prisma.workspace.findUnique({
-        where: { id: workspaceId },
-        select: { automations: true },
-    })
-    const a = readAutomations(w?.automations)
-    // A queda para ausente não vem mais do JSON da conta: é constante do
-    // sistema desde 2026-11-09, e quem quer outro número põe na ficha.
-    return { ...a.distribuicao, minutosParaAusente: MINUTOS_PARA_AUSENTE_PADRAO }
+/**
+ * A política que vale aqui: **a estratégia do canal, se ele tiver uma; a da
+ * conta, se não. O interruptor é sempre o da conta.**
+ *
+ * ## O que o canal decide, e o que não decide
+ *
+ * A estratégia era só da clínica, e isso não cobria o pedido do Andre
+ * (26/11/2026): "um canal pode ter a atribuição para um atendente específico e
+ * outro canal pode ter outro atendente ou mesmo o rodízio". Uma política por
+ * conta não tem como dizer duas coisas.
+ *
+ * O canal decide **a estratégia e a pessoa**, que viajam juntas: canal em `fixo`
+ * traz a pessoa dele, nunca a que sobrou na conta. O que ele **não** decide é o
+ * `soDisponiveis` — esse é modificador da operação da clínica ("distribuo para
+ * quem está fora?"), não do número por onde o paciente escreveu, e as três
+ * opções que o Andre fixou para o canal não o incluem.
+ *
+ * Isto é a única mistura de campos que existe aqui, e é uma fronteira declarada,
+ * não um merge: um campo é sempre da conta, os outros dois são sempre do canal
+ * quando ele fala. Nenhuma combinação surpresa sai disso.
+ *
+ * `null` na coluna é "como na conta", e é o estado de toda linha que já existia:
+ * por isso esta mudança não altera o comportamento de nenhuma clínica até alguém
+ * configurar um canal. Mesma convenção de `departmentId` (nulo é fila geral) e
+ * de `WorkspaceUser.minutosParaAusente` (nulo é o padrão do sistema).
+ *
+ * ## Duas leituras, em paralelo
+ *
+ * A da conta é sempre lida, mesmo quando o canal manda — é dela que sai o
+ * interruptor, e é ela o piso quando a coluna está nula. As duas vão num
+ * `Promise.all` para não somar latência na entrada da mensagem.
+ */
+async function politicaDo(workspaceId: string, integrationId: string | null): Promise<PoliticaEmVigor> {
+    /**
+     * **O escopo da linha passa pelo agente, e isto não é estilo.**
+     * `AgentIntegration` não tem `workspaceId`: ela pertence a um `Agent`, que
+     * pertence à clínica. Um `findFirst` só por `id` aceitaria a linha de outra
+     * clínica se o id viesse errado — e aí a política de lá decidiria quem atende
+     * aqui. Mesma regra de `lib/auth/workspace.ts` e de `resolverResponsavel`.
+     */
+    const [w, linha] = await Promise.all([
+        prisma.workspace.findUnique({
+            where: { id: workspaceId },
+            select: { automations: true },
+        }),
+        integrationId
+            ? prisma.agentIntegration.findFirst({
+                  where: { id: integrationId, agent: { workspaceId } },
+                  select: { departmentId: true, distribuicao: true },
+              })
+            : null,
+    ])
+
+    const daConta = readAutomations(w?.automations).distribuicao
+    const doCanal = lerPoliticaDoCanal(linha?.distribuicao)
+
+    return {
+        // Estratégia e pessoa: do canal quando ele fala, da conta quando não.
+        // O `doCanal ?` e não `doCanal.donoFixoUserId ??` é o que impede a
+        // pessoa da conta de vazar para um canal que escolheu rodízio.
+        estrategia: doCanal ? doCanal.estrategia : daConta.estrategia,
+        donoFixoUserId: doCanal ? doCanal.donoFixoUserId : daConta.donoFixoUserId ?? null,
+        // O interruptor é da conta, sempre. Ver o cabeçalho.
+        soDisponiveis: daConta.soDisponiveis,
+        departmentId: linha?.departmentId ?? null,
+        // A queda para ausente não vem mais do JSON da conta: é constante do
+        // sistema desde 2026-11-09, e quem quer outro número põe na ficha.
+        minutosParaAusente: MINUTOS_PARA_AUSENTE_PADRAO,
+    }
 }
 
 /**
@@ -137,10 +227,10 @@ export async function proximoResponsavel(
     integrationId: string | null
 ): Promise<string | null> {
     try {
-        const politica = await politicaDo(workspaceId)
+        const politica = await politicaDo(workspaceId, integrationId)
         if (politica.estrategia === 'nenhuma') return null
 
-        const elegiveis = await elegiveisDaLinha(workspaceId, integrationId)
+        const elegiveis = await elegiveisDaLinha(workspaceId, politica)
         return escolherDono(elegiveis, politica, politica.minutosParaAusente)
     } catch (erro) {
         // Distribuir é melhoria, não requisito — a mesma regra de `darDono`.
@@ -166,11 +256,13 @@ export async function darDono(entrada: {
     integrationId: string | null
     origem?: 'rodizio' | 'balanceado' | 'recepcao'
 }): Promise<string | null> {
+    // `ownerSource` grava a procedência, e `fixo` entra nela pela estratégia —
+    // quem distribuiu continua auditável sem o chamador precisar saber disso.
     try {
-        const politica = await politicaDo(entrada.workspaceId)
+        const politica = await politicaDo(entrada.workspaceId, entrada.integrationId)
         if (politica.estrategia === 'nenhuma') return null
 
-        const elegiveis = await elegiveisDaLinha(entrada.workspaceId, entrada.integrationId)
+        const elegiveis = await elegiveisDaLinha(entrada.workspaceId, politica)
         const escolhido = escolherDono(elegiveis, politica, politica.minutosParaAusente)
         if (!escolhido) return null
 
@@ -302,13 +394,19 @@ export async function donoDisponivel(
 ): Promise<string | null> {
     if (!responsavel) return null
 
-    const [m, politica] = await Promise.all([
-        prisma.workspaceUser.findFirst({
-            where: { workspaceId, userId: responsavel, isActive: true },
-            select: { userId: true, status: true, ultimaAtividadeEm: true, minutosParaAusente: true },
-        }),
-        politicaDo(workspaceId),
-    ])
+    /**
+     * Uma consulta só, e não duas.
+     *
+     * Havia um `politicaDo` aqui em paralelo, e dele se usava **um** campo:
+     * `minutosParaAusente`. Esse campo deixou de sair do JSON da conta em
+     * 2026-11-09 e passou a ser constante do sistema, então a leitura do
+     * workspace virava uma ida ao banco cujo resultado era descartado. Nenhuma
+     * outra parte da política pesa aqui: a entrega lê status, não estratégia.
+     */
+    const m = await prisma.workspaceUser.findFirst({
+        where: { workspaceId, userId: responsavel, isActive: true },
+        select: { userId: true, status: true, ultimaAtividadeEm: true, minutosParaAusente: true },
+    })
     if (!m) return null
 
     return destinoDaEntrega(
@@ -320,7 +418,7 @@ export async function donoDisponivel(
             ultimaAtividadeEm: m.ultimaAtividadeEm,
             minutosParaAusente: m.minutosParaAusente,
         },
-        politica.minutosParaAusente
+        MINUTOS_PARA_AUSENTE_PADRAO
     )
 }
 
@@ -352,9 +450,21 @@ export async function varrerFilaSemDono(workspaceId: string, gatilho: string): P
     const TETO = 5
 
     try {
-        const politica = await politicaDo(workspaceId)
-        if (politica.estrategia === 'nenhuma') return 0
-
+        /**
+         * **Sem guarda de política aqui, e isto é um conserto.**
+         *
+         * Havia um `politicaDo(workspaceId)` com `if (estrategia === 'nenhuma')
+         * return 0` antes de olhar conversa nenhuma. Com a política podendo vir
+         * da linha, essa saída passou a estar errada: a clínica que deixa a conta
+         * em "sem distribuição" e configura **uma** linha com atendente fixo
+         * nunca teria a fila varrida, e as conversas daquela linha ficariam
+         * órfãs para sempre — exatamente o caso que a varredura existe para
+         * resolver.
+         *
+         * Quem decide agora é `darDono`, uma vez por conversa, com a política da
+         * linha daquela conversa. A consulta abaixo continua sendo a saída
+         * barata do caso comum: fila vazia encerra a varredura numa leitura.
+         */
         const semDono = await prisma.conversation.findMany({
             where: { workspaceId, assignedTo: null, status: 'active' },
             select: { id: true, integrationId: true },

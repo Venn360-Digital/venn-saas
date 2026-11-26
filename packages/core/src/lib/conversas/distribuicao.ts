@@ -32,8 +32,17 @@
  */
 export type StatusDoMembro = 'disponivel' | 'ocupado' | 'ausente' | 'desconectado'
 
-/** `nenhuma` desliga a distribuição: a conversa nasce sem dono, como antes. */
-export type EstrategiaDeDistribuicao = 'nenhuma' | 'rodizio' | 'balanceado'
+/**
+ * `nenhuma` desliga a distribuição: a conversa nasce sem dono, como antes.
+ *
+ * `fixo` é a exceção que não é fila: a linha tem **um** atendente, e toda
+ * conversa dela vai para ele. Existe porque o pedido do Andre (26/11/2026) é
+ * concreto: um número de WhatsApp sem rodízio, entregue direto a uma pessoa, ao
+ * lado de outro número que roda a fila normalmente. Antes dela a única forma de
+ * expressar isso era um departamento de um membro só — que dá o mesmo resultado
+ * por acidente e some no dia em que alguém entra no departamento.
+ */
+export type EstrategiaDeDistribuicao = 'nenhuma' | 'rodizio' | 'balanceado' | 'fixo'
 
 export interface MembroElegivel {
     userId: string
@@ -78,11 +87,125 @@ export interface PoliticaDeDistribuicao {
      * estratégia, não estratégia.
      */
     soDisponiveis: boolean
+    /**
+     * A pessoa, quando a estratégia é `fixo`. Ignorado nas outras.
+     *
+     * **Nulo com `fixo` não escolhe ninguém**, e isso é de propósito: política
+     * pela metade não pode virar rodízio por conta própria. A conversa nasce sem
+     * dono e aparece na fila geral, que é onde alguém a vê e a assume — o mesmo
+     * destino de toda política que não resolve.
+     *
+     * Mora no JSON e não em coluna com chave estrangeira, e o custo é conhecido:
+     * ninguém apaga este id quando a pessoa sai da clínica. Quem fecha essa porta
+     * é a consulta dos elegíveis, que só traz membro ativo — id órfão não entra na
+     * lista, `escolherDono` devolve nulo e a tela da linha acusa. A alternativa
+     * seria uma coluna com `onDelete: SetNull`, ao custo de dois mecanismos
+     * respondendo "quem recebe".
+     */
+    donoFixoUserId?: string | null
+}
+
+/**
+ * A política de um **canal**: a estratégia e, em `fixo`, a pessoa.
+ *
+ * ## Por que não é a política inteira
+ *
+ * Falta de propósito o `soDisponiveis`. Ele é **modificador da conta**, não do
+ * canal: diz se a clínica distribui para quem está fora, e a resposta é da
+ * operação dela, não do número por onde o paciente escreveu. O André fixou as
+ * opções do canal em 26/11/2026 e são três — atendente específico, rodízio,
+ * balanceamento —, sem variante de online; pôr o interruptor aqui dobraria a
+ * lista para dizer o que a conta já diz uma vez.
+ *
+ * O par estratégia+pessoa viaja junto, e isso continua valendo: o canal que
+ * escolhe `fixo` traz a pessoa dele, nunca a que sobrou na conta.
+ */
+export interface PoliticaDoCanal {
+    estrategia: EstrategiaDeDistribuicao
+    donoFixoUserId: string | null
 }
 
 export const POLITICA_PADRAO: PoliticaDeDistribuicao = {
     estrategia: 'nenhuma',
     soDisponiveis: false,
+    donoFixoUserId: null,
+}
+
+/** As estratégias válidas, em um lugar só: o leitor e a rota conferem na mesma lista. */
+export const ESTRATEGIAS: readonly EstrategiaDeDistribuicao[] = [
+    'nenhuma',
+    'rodizio',
+    'balanceado',
+    'fixo',
+]
+
+/**
+ * Lê uma política de JSON. **Nunca lança; o pior caso é não distribuir.**
+ *
+ * Mora aqui, no módulo puro, porque agora tem **dois** depósitos: o
+ * `Workspace.automations` da conta e o `AgentIntegration.distribuicao` da linha.
+ * Duas validações para o mesmo formato discordariam na primeira estratégia nova
+ * — e discordar aqui significa uma linha distribuindo por uma regra que a tela
+ * da conta não sabe mostrar.
+ *
+ * Tudo que vem de JSON é desconhecido até ser conferido: estratégia inválida
+ * vira `nenhuma` em vez de erro, porque configuração estragada não pode derrubar
+ * o atendimento — só deixar de distribuir, que é visível na fila geral.
+ */
+/**
+ * Lê a política de um canal. **`null` é "como na conta"**, e é a resposta a
+ * tudo que não seja uma política legível.
+ *
+ * Aqui o lixo cai na herança, e não em `nenhuma` como no leitor da conta — a
+ * diferença é intencional. A coluna do canal tem **um** significado, que é
+ * "sobrescrevo a conta"; uma sobrescrita ilegível não é sobrescrita. Resolver
+ * como `nenhuma` pararia a distribuição daquele canal em silêncio por causa de
+ * um JSON torto, enquanto cair na conta mantém o atendimento andando por uma
+ * regra que a clínica configurou e consegue ver.
+ */
+export function lerPoliticaDoCanal(valor: unknown): PoliticaDoCanal | null {
+    if (!valor || typeof valor !== 'object' || Array.isArray(valor)) return null
+
+    const raw = valor as Record<string, unknown>
+    if (!ESTRATEGIAS.includes(raw.estrategia as EstrategiaDeDistribuicao)) return null
+
+    const estrategia = raw.estrategia as EstrategiaDeDistribuicao
+    return {
+        estrategia,
+        // Só dentro de `fixo`, pela mesma razão do leitor da conta: id que
+        // sobrasse de uma troca de estratégia voltaria a valer se alguém
+        // devolvesse o canal para `fixo` meses depois.
+        donoFixoUserId:
+            estrategia === 'fixo' && typeof raw.donoFixoUserId === 'string' && raw.donoFixoUserId
+                ? raw.donoFixoUserId
+                : null,
+    }
+}
+
+export function lerPolitica(valor: unknown): PoliticaDeDistribuicao {
+    const raw = (valor && typeof valor === 'object' && !Array.isArray(valor) ? valor : {}) as Record<
+        string,
+        unknown
+    >
+
+    const estrategia = ESTRATEGIAS.includes(raw.estrategia as EstrategiaDeDistribuicao)
+        ? (raw.estrategia as EstrategiaDeDistribuicao)
+        : POLITICA_PADRAO.estrategia
+
+    return {
+        estrategia,
+        soDisponiveis:
+            typeof raw.soDisponiveis === 'boolean' ? raw.soDisponiveis : POLITICA_PADRAO.soDisponiveis,
+        /**
+         * Só faz sentido com `fixo`, e é guardado só nela. Um id que sobrasse de
+         * uma troca de estratégia voltaria a valer se alguém devolvesse a linha
+         * para `fixo` meses depois, escolhendo uma pessoa que ninguém reviu.
+         */
+        donoFixoUserId:
+            estrategia === 'fixo' && typeof raw.donoFixoUserId === 'string' && raw.donoFixoUserId
+                ? raw.donoFixoUserId
+                : null,
+    }
 }
 
 /**
@@ -207,6 +330,26 @@ export function escolherDono(
 
     const candidatos = elegiveis.filter((m) => podeReceber(m, politica, minutosParaAusente, agora))
     if (candidatos.length === 0) return null
+
+    if (politica.estrategia === 'fixo') {
+        /**
+         * A pessoa indicada, **se ela estiver na lista** — e a condição é o que
+         * importa aqui.
+         *
+         * A lista já passou por workspace, `isActive` e pelo filtro de
+         * disponibilidade. Então "não está na lista" cobre três casos reais com
+         * uma resposta só: a pessoa saiu da clínica, foi desativada, ou está fora
+         * com o interruptor ligado. Nos três a conversa vai para a fila geral em
+         * vez de ficar presa em quem não pode atendê-la.
+         *
+         * **Não cai no rodízio.** A linha foi configurada para uma pessoa; virar
+         * fila sozinha seria entregar o paciente a quem a clínica não escolheu, e
+         * em silêncio. Fila geral é visível; rodízio escondido não.
+         */
+        const fixo = politica.donoFixoUserId
+        if (!fixo) return null
+        return candidatos.some((m) => m.userId === fixo) ? fixo : null
+    }
 
     if (politica.estrategia === 'balanceado') {
         /**
