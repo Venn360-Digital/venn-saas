@@ -28,6 +28,7 @@ import {
     escolherDono,
     lerPolitica,
     lerPoliticaDoCanal,
+    recorteDeElegiveis,
     MINUTOS_PARA_DESCONECTADO,
     estaDisponivel,
     estadoVisivel,
@@ -601,6 +602,69 @@ console.log('\n— a paciência por pessoa ganha da conta —\n')
             soDisponiveis: false,
         }),
         null
+    )
+}
+
+// ───────── Quem entra na lista: a assimetria entre departamento e marca ─────
+//
+// `fixo` ignora o departamento do canal e OBEDECE ao `recebeConversas` da
+// pessoa. Passava por cima dos dois até 26/11/2026, e o André bateu no caso
+// homologando: a pessoa entra de férias, alguém desmarca a caixa, e as
+// conversas continuavam chegando no canal fixado nela.
+{
+    console.log('\nO recorte dos elegíveis — departamento sim, marca da pessoa não')
+
+    const FIXO_EM = (quem: string, departmentId: string | null = null) =>
+        recorteDeElegiveis({ estrategia: 'fixo', donoFixoUserId: quem, departmentId })
+
+    /**
+     * A asserção que o conserto existe para sustentar.
+     *
+     * Se alguém tirar `recebeConversas` deste recorte, este caso reprova — e era
+     * justamente isto que estava faltando quando o defeito foi relatado.
+     */
+    conferir(
+        '`fixo` exige `recebeConversas` da pessoa',
+        FIXO_EM('ana').recebeConversas,
+        true
+    )
+    conferir(
+        'e mira só nela, sem varrer a fila',
+        FIXO_EM('ana'),
+        { userId: 'ana', recebeConversas: true }
+    )
+    conferir(
+        '`fixo` ignora o departamento do canal — nomear é mais específico',
+        Object.keys(FIXO_EM('ana', 'ortodontia')).sort(),
+        ['recebeConversas', 'userId']
+    )
+
+    // As outras estratégias fazem o contrário: obedecem ao departamento.
+    conferir(
+        'rodízio obedece ao departamento do canal',
+        recorteDeElegiveis({ estrategia: 'rodizio', departmentId: 'ortodontia' }),
+        { recebeConversas: true, departments: { some: { departmentId: 'ortodontia' } } }
+    )
+    conferir(
+        'canal sem departamento abre para a fila inteira',
+        recorteDeElegiveis({ estrategia: 'rodizio', departmentId: null }),
+        { recebeConversas: true }
+    )
+    conferir(
+        'e o balanceado é igual ao rodízio neste recorte',
+        recorteDeElegiveis({ estrategia: 'balanceado', departmentId: 'ortodontia' }),
+        recorteDeElegiveis({ estrategia: 'rodizio', departmentId: 'ortodontia' })
+    )
+
+    /**
+     * `fixo` sem pessoa cai no recorte da fila **de propósito**: quem decide não
+     * escolher ninguém é `escolherDono`, e inventar aqui um filtro que não casa
+     * com ninguém espalharia a mesma regra por dois lugares.
+     */
+    conferir(
+        '`fixo` sem pessoa cai no recorte da fila, e a decisão fica com escolherDono',
+        recorteDeElegiveis({ estrategia: 'fixo', donoFixoUserId: null, departmentId: null }),
+        { recebeConversas: true }
     )
 }
 

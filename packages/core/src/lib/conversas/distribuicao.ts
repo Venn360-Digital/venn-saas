@@ -8,9 +8,15 @@
  *
  * ## O que este módulo NÃO decide
  *
- * Não decide **quem está na lista**. Quem monta a lista é a consulta, que já
- * aplica o workspace, o departamento da linha, `isActive` e `recebeConversas`.
- * Misturar as duas coisas faria a parte testável depender do banco.
+ * Não decide **quem está na lista** — mas decide o **recorte** dela, desde que
+ * `fixo` existe (26/11/2026). Quem executa a consulta segue sendo a casca, que
+ * aplica o workspace e o `isActive`; o que passou para cá é a parte que depende
+ * da estratégia, e portanto é decisão: `fixo` ignora o departamento da linha e
+ * obedece ao `recebeConversas` da pessoa, e as outras estratégias fazem o
+ * contrário. Ver `recorteDeElegiveis`.
+ *
+ * Mudou de lado porque virou regra de negócio com caso de uso contado, e regra
+ * assim não pode morar só numa cláusula `where` que nenhum teste lê.
  *
  * Ver §11 de `docs/agente-ia/estudo-metodo-de-treinamento.md`.
  */
@@ -309,6 +315,50 @@ function porRodizio(a: MembroElegivel, b: MembroElegivel): number {
     const tb = b.ultimaAtribuicao?.getTime() ?? -Infinity
     if (ta !== tb) return ta - tb
     return a.userId < b.userId ? -1 : a.userId > b.userId ? 1 : 0
+}
+
+/**
+ * O recorte de quem entra na lista de elegíveis — a parte que a estratégia
+ * decide. Devolve o pedaço de `where` que a casca junta ao workspace e ao
+ * `isActive`.
+ *
+ * ## A assimetria é a decisão, e tem razão
+ *
+ * | | departamento da linha | `recebeConversas` da pessoa |
+ * |---|---|---|
+ * | `fixo` | **ignora** | **obedece** |
+ * | `rodizio` / `balanceado` | obedece | obedece |
+ *
+ * Departamento é roteamento padrão: a clínica que aponta a Fulana para o número
+ * da ortodontia não quer saber se ela está naquele departamento. Nomear alguém
+ * é mais específico que isso.
+ *
+ * `recebeConversas` é outra coisa: é a chave **da própria pessoa**, e quem a
+ * desmarca está dizendo "não mandem conversa para ela". `fixo` passava por cima
+ * dela até 26/11/2026, e o Andre bateu no caso homologando — a pessoa entra de
+ * férias, alguém desmarca a caixa, e as conversas continuam chegando no canal
+ * fixado nela. Marca que só vale às vezes é pior que marca nenhuma.
+ *
+ * Quando o recorte não acha ninguém, `escolherDono` devolve nulo e a conversa
+ * vai para a **fila geral**. Nunca para o rodízio.
+ *
+ * `fixo` sem pessoa cai no recorte da fila de propósito: a decisão de não
+ * escolher ninguém é de `escolherDono`, que já devolve nulo nesse caso, e
+ * inventar aqui um filtro que não casa com ninguém espalharia a mesma regra por
+ * dois lugares.
+ */
+export function recorteDeElegiveis(p: {
+    estrategia: EstrategiaDeDistribuicao
+    donoFixoUserId?: string | null
+    departmentId: string | null
+}): Record<string, unknown> {
+    const fixo = p.estrategia === 'fixo' ? p.donoFixoUserId || null : null
+    if (fixo) return { userId: fixo, recebeConversas: true }
+
+    return {
+        recebeConversas: true,
+        ...(p.departmentId ? { departments: { some: { departmentId: p.departmentId } } } : {}),
+    }
 }
 
 /**
