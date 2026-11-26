@@ -4,6 +4,7 @@ import {
     destinoDaEntrega,
     escolherDono,
     lerPoliticaDoCanal,
+    recorteDeElegiveis,
     type MembroElegivel,
     type PoliticaDeDistribuicao,
     type StatusDoMembro,
@@ -56,40 +57,28 @@ export async function elegiveisDaLinha(
     const { departmentId } = politica
 
     /**
-     * O atendente fixo entra na lista **mesmo fora do departamento da linha e
-     * mesmo sem `recebeConversas`** — e sem isso o recurso não funcionaria.
+     * O recorte sai de `recorteDeElegiveis`, no módulo puro, e **não** daqui.
      *
-     * Nomear uma pessoa é mais específico que o departamento da linha: a clínica
-     * que aponta a Fulana para o número da ortodontia não quer saber se ela está
-     * naquele departamento, quer as conversas dele com ela. Com o filtro cego, a
-     * linha ficaria configurada e nunca entregaria nada — configuração que não
-     * faz efeito e não explica por quê.
+     * Ele decide o que a estratégia manda: `fixo` ignora o departamento da linha
+     * e obedece ao `recebeConversas` da pessoa; as outras fazem o contrário. É
+     * regra de negócio com caso de uso contado, e regra assim não pode morar só
+     * numa cláusula `where` que nenhum teste lê — `scripts/test-distribuicao.ts`
+     * a exercita sem banco.
      *
-     * `isActive` **não** é relaxado, e é a única porta que fica fechada: quem
-     * saiu da clínica não recebe paciente, qualquer que seja a configuração que
-     * sobrou apontando para ela.
+     * O que fica com a casca é o que depende do banco e não da estratégia: o
+     * workspace e o `isActive`. Quem saiu da clínica não recebe paciente,
+     * qualquer que seja a configuração que sobrou apontando para ela.
+     *
+     * Com `fixo` o recorte traz **só a pessoa**, e não a fila inteira mais ela:
+     * `escolherDono` descartaria o resto, e buscar uma dúzia de membros para
+     * rodar duas agregações sobre eles e jogar fora acontece na entrada de
+     * **toda** mensagem daquele canal.
      */
-    const fixo = politica.estrategia === 'fixo' ? politica.donoFixoUserId || null : null
-
-    /**
-     * Com `fixo`, a consulta traz **só ela** — e não a fila inteira mais ela.
-     *
-     * `escolherDono` em `fixo` procura um userId na lista e descarta o resto, e
-     * `fixo` não tem desempate nem fallback para o rodízio (de propósito, ver
-     * lá). Trazer o departamento todo seria buscar uma dúzia de membros e rodar
-     * duas agregações sobre eles para jogar fora — na entrada de **toda**
-     * mensagem daquela linha, que é o caso de uso do recurso.
-     */
-    const daFila = {
-        recebeConversas: true,
-        ...(departmentId ? { departments: { some: { departmentId } } } : {}),
-    }
-
     const membros = await prisma.workspaceUser.findMany({
         where: {
             workspaceId,
             isActive: true,
-            ...(fixo ? { userId: fixo } : daFila),
+            ...recorteDeElegiveis({ ...politica, departmentId }),
         },
         select: { userId: true, status: true, ultimaAtividadeEm: true, minutosParaAusente: true },
     })

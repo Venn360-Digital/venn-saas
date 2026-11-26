@@ -269,6 +269,31 @@ function SeletorDaLinha({
  */
 const HERANCA = 'heranca'
 
+/**
+ * Quem pode ser atendente específico, e se a marca da pessoa deixa.
+ *
+ * `recebeConversas` vem junto porque a lista **não** é filtrada por ela: quem
+ * não recebe aparece desabilitado e com o motivo no rótulo. Sumir da lista
+ * protegeria igual e não explicaria nada — ver a rota `marketing`.
+ */
+interface Atendente {
+    id: string
+    name: string
+    recebeConversas: boolean
+}
+
+/**
+ * O rótulo da pessoa no seletor. Quem não recebe conversas carrega o motivo.
+ *
+ * O motivo mora **no rótulo** e não num aviso ao lado, e isso é o que faz o
+ * canal já configurado se acusar sozinho: o gatilho fechado mostra o texto do
+ * item escolhido, então "André (não recebe conversas)" aparece sem abrir a
+ * lista e sem marcação extra em nenhum dos dois desenhos de linha.
+ */
+function rotuloDoAtendente(a: Atendente): string {
+    return a.recebeConversas ? a.name : `${a.name} (não recebe conversas)`
+}
+
 const OPCOES_DE_FILA: { valor: EstrategiaDeDistribuicao; rotulo: string }[] = [
     { valor: 'rodizio', rotulo: 'Rodízio' },
     { valor: 'balanceado', rotulo: 'Balanceamento' },
@@ -310,7 +335,7 @@ function CorpoDaAtribuicao({
     nome: string
     canManage: boolean
     politica: PoliticaDoCanal | null
-    atendentes: { id: string; name: string }[]
+    atendentes: Atendente[]
     onChange: (p: PoliticaDoCanal | null) => void
     className: string
 }) {
@@ -327,6 +352,23 @@ function CorpoDaAtribuicao({
         politica?.estrategia === 'fixo' &&
         !!politica.donoFixoUserId &&
         !atendentes.some((a) => a.id === politica.donoFixoUserId)
+
+    /**
+     * O grupo aparece quando há alguém **escolhível** — ou quando o canal já
+     * está apontado para alguém da lista, ainda que essa pessoa não receba mais.
+     *
+     * A segunda metade não é zelo: sem ela, a clínica em que ninguém recebe
+     * perderia o item do atendente já configurado, e o gatilho ficaria em branco
+     * justamente no canal que precisa explicar o próprio estado. É o caso que a
+     * homologação tinha na mão em 26/11/2026 — uma pessoa na unidade, com a
+     * marca desmarcada.
+     */
+    const escolhidoNaLista =
+        politica?.estrategia === 'fixo' &&
+        !!politica.donoFixoUserId &&
+        atendentes.some((a) => a.id === politica.donoFixoUserId)
+
+    const mostrarGrupo = atendentes.some((a) => a.recebeConversas) || escolhidoNaLista
 
     return (
         <Select
@@ -345,7 +387,7 @@ function CorpoDaAtribuicao({
                         {o.rotulo}
                     </SelectItem>
                 ))}
-                {atendentes.length > 0 ? (
+                {mostrarGrupo ? (
                     <>
                         <SelectSeparator />
                         {/*
@@ -367,8 +409,23 @@ function CorpoDaAtribuicao({
                         <SelectGroup>
                             <SelectLabel>Atendente específico</SelectLabel>
                             {atendentes.map((a) => (
-                                <SelectItem key={a.id} value={`fixo:${a.id}`}>
-                                    {a.name}
+                                /*
+                                 * Desabilitado, não escondido: a proteção é a
+                                 * mesma e a pergunta "cadê a Fulana?" ganha
+                                 * resposta na própria tela.
+                                 *
+                                 * Continua sendo um item de verdade porque o
+                                 * canal pode **já** estar apontado para ela —
+                                 * a marca pode ter sido desmarcada depois da
+                                 * configuração, que é o caso das férias. Sem o
+                                 * item, o gatilho ficaria em branco.
+                                 */
+                                <SelectItem
+                                    key={a.id}
+                                    value={`fixo:${a.id}`}
+                                    disabled={!a.recebeConversas}
+                                >
+                                    {rotuloDoAtendente(a)}
                                 </SelectItem>
                             ))}
                         </SelectGroup>
@@ -389,7 +446,7 @@ function SeletorDeAtribuicao(props: {
     nome: string
     canManage: boolean
     politica: PoliticaDoCanal | null
-    atendentes: { id: string; name: string }[]
+    atendentes: Atendente[]
     onChange: (p: PoliticaDoCanal | null) => void
 }) {
     return (
@@ -404,7 +461,7 @@ function AtribuicaoSolta(props: {
     nome: string
     canManage: boolean
     politica: PoliticaDoCanal | null
-    atendentes: { id: string; name: string }[]
+    atendentes: Atendente[]
     onChange: (p: PoliticaDoCanal | null) => void
 }) {
     return <CorpoDaAtribuicao {...props} className="h-8 w-[9.5rem] text-xs" />
@@ -462,7 +519,7 @@ export function CanaisTab({ agentId, canManage = true }: CanaisTabProps) {
      * Vem junto das linhas, na mesma resposta, pela razão que já valia para
      * departamentos e origens — uma segunda chamada pode discordar desta.
      */
-    const [atendentes, setAtendentes] = useState<{ id: string; name: string }[]>([])
+    const [atendentes, setAtendentes] = useState<Atendente[]>([])
     /**
      * Todas as linhas do agente, de qualquer canal, para a atribuição.
      *

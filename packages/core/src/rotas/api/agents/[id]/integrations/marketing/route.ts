@@ -88,25 +88,36 @@ export async function GET(_req: NextRequest, context: { params: Promise<{ id: st
 
     /**
      * Quem pode ser o atendente específico de um canal: **todo membro ativo**,
-     * sem filtrar por `recebeConversas` nem por departamento.
+     * com a marca `recebeConversas` de cada um junto.
      *
-     * Nomear uma pessoa é mais específico que a marca genérica de quem entra no
-     * rodízio, e é o mesmo recorte que `elegiveisDaLinha` aplica ao montar a
-     * lista. Oferecer menos aqui faria a tela esconder uma escolha que o sistema
-     * aceita.
+     * A marca vem, e a lista **não** é filtrada por ela de propósito. Quem não
+     * recebe conversas não pode ser escolhido — a tela desabilita e a gravação
+     * recusa, logo abaixo —, mas precisa **aparecer**: sumir da lista não
+     * explica o sumiço, e quem procura a pessoa lá fica sem resposta na tela.
+     * É a mesma razão pela qual a linha acusa "Atendente removido" em vez de
+     * ficar em branco (decisão do Andre, 26/11/2026).
+     *
+     * E é esta marca que faz o canal já configurado se acusar: quando a pessoa
+     * escolhida deixa de receber, o rótulo dela no seletor passa a dizer isso, e
+     * o gatilho fechado mostra o rótulo inteiro sem precisar ser aberto.
      *
      * Vem nesta resposta e não numa chamada à parte porque a tela desenha os
      * seletores dos quatro canais a partir dela: duas listas podem discordar.
      */
     const membros = await prisma.workspaceUser.findMany({
         where: { workspaceId: auth.member.workspaceId, isActive: true },
-        select: { userId: true, user: { select: { name: true, lastName: true } } },
+        select: {
+            userId: true,
+            recebeConversas: true,
+            user: { select: { name: true, lastName: true } },
+        },
     })
 
     const atendentes = membros
         .map((m) => ({
             id: m.userId,
             name: [m.user.name, m.user.lastName].filter(Boolean).join(' ') || 'Sem nome',
+            recebeConversas: m.recebeConversas,
         }))
         .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
 
@@ -237,12 +248,31 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
                  */
                 const membro = await prisma.workspaceUser.findFirst({
                     where: { workspaceId: auth.member.workspaceId, userId: quem, isActive: true },
-                    select: { userId: true },
+                    select: { userId: true, recebeConversas: true },
                 })
                 if (!membro) {
                     return NextResponse.json(
                         { error: 'Atendente não encontrado nesta organização' },
                         { status: 404 }
+                    )
+                }
+                /**
+                 * **A recusa é aqui, não só na tela.**
+                 *
+                 * A tela desabilita quem não recebe, mas tela é sugestão: sem
+                 * esta porta, uma chamada direta grava um atendente que a
+                 * distribuição vai recusar depois, e o canal fica configurado
+                 * para entregar na fila geral sem ninguém entender por quê.
+                 * Proteção que só existe no cliente é enfeite.
+                 */
+                if (!membro.recebeConversas) {
+                    return NextResponse.json(
+                        {
+                            error:
+                                'Este atendente está marcado para não receber conversas. ' +
+                                'Marque-o em Usuários, ou escolha outro.',
+                        },
+                        { status: 409 }
                     )
                 }
                 donoFixoUserId = membro.userId

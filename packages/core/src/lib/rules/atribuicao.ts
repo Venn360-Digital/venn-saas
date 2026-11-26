@@ -118,15 +118,34 @@ export async function responsavelDaLinha(
     const doCanal = lerPoliticaDoCanal(linha?.distribuicao)
     if (doCanal?.estrategia === 'fixo' && doCanal.donoFixoUserId) {
         /**
-         * Passa por `resolverResponsavel` e não volta direto: é ele que confirma
-         * que a pessoa ainda é membro **ativo** desta clínica. Id guardado em
-         * JSON não tem chave estrangeira que o limpe quando alguém sai, então a
-         * conferência é aqui ou em lugar nenhum.
+         * A conferência é **aqui**, e não em `resolverResponsavel`, por duas
+         * razões que não se misturam.
          *
-         * Se ela não for mais, o `undefined` leva à entrega sem responsável — a
-         * fila geral, onde alguém vê. Nunca ao rodízio: ver acima.
+         * A primeira é que id guardado em JSON não tem chave estrangeira que o
+         * limpe quando alguém sai da clínica: alguém tem de confirmar que a
+         * pessoa ainda é membro ativo, e é aqui ou em lugar nenhum.
+         *
+         * A segunda é `recebeConversas`, e é por isso que esta consulta não
+         * reusa `resolverResponsavel`. Aquela função serve também às **regras de
+         * ação** que nomeiam uma pessoa diretamente, e ali a marca nunca pesou.
+         * Mudá-la trocaria o destino de regras que a clínica já configurou, sem
+         * ninguém ter pedido — é o que o comentário dela avisa logo acima.
+         * Então a regra nova vale só no caminho do canal, que é onde ela foi
+         * decidida (Andre, 26/11/2026).
+         *
+         * Nos dois casos o `undefined` leva à entrega sem responsável — a fila
+         * geral, onde alguém vê. Nunca ao rodízio.
          */
-        return resolverResponsavel({ workspaceId, userId: doCanal.donoFixoUserId })
+        const dono = await prisma.workspaceUser.findFirst({
+            where: {
+                workspaceId,
+                userId: doCanal.donoFixoUserId,
+                isActive: true,
+                recebeConversas: true,
+            },
+            select: { userId: true },
+        })
+        return dono?.userId
     }
 
     return resolverResponsavel({ workspaceId, departmentId: linha?.departmentId ?? null })
