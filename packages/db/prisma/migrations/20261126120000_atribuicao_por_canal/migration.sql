@@ -9,9 +9,10 @@
 -- sua, para o caso de um número entregue direto a um atendente ao lado de outro
 -- que roda o rodízio.
 --
--- O conteúdo é a mesma forma do `distribuicao` de `workspaces.automations`
--- (`estrategia`, `soDisponiveis` e, em `fixo`, `donoFixoUserId`), lida pela
--- mesma função: `lerPolitica`, em `lib/conversas/distribuicao.ts`.
+-- O conteúdo é `estrategia` e, em `fixo`, `donoFixoUserId`, lido por
+-- `lerPoliticaDoCanal` em `lib/conversas/distribuicao.ts`. NÃO guarda
+-- `soDisponiveis`: aquele interruptor é da conta, não do canal, e segue vivendo
+-- só em `workspaces.automations`.
 --
 -- NULL é "como na conta", e é o estado de toda linha já existente — por isso
 -- não há UPDATE de retrocompatibilidade aqui, nem DEFAULT: um objeto padrão

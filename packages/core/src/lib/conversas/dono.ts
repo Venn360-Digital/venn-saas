@@ -3,7 +3,7 @@ import { readAutomations, MINUTOS_PARA_AUSENTE_PADRAO } from '../automations'
 import {
     destinoDaEntrega,
     escolherDono,
-    lerPolitica,
+    lerPoliticaDoCanal,
     type MembroElegivel,
     type PoliticaDeDistribuicao,
     type StatusDoMembro,
@@ -132,30 +132,36 @@ export async function elegiveisDaLinha(
 }
 
 /**
- * A política que vale aqui: **a da linha, se ela tiver uma; a da conta, se não.**
+ * A política que vale aqui: **a estratégia do canal, se ele tiver uma; a da
+ * conta, se não. O interruptor é sempre o da conta.**
  *
- * ## Por que a linha sobrescreve, e por inteiro
+ * ## O que o canal decide, e o que não decide
  *
  * A estratégia era só da clínica, e isso não cobria o pedido do Andre
- * (26/11/2026): um número de WhatsApp entregue direto a um atendente ao lado de
- * outro número que roda o rodízio. Uma política por conta não tem como dizer
- * duas coisas.
+ * (26/11/2026): "um canal pode ter a atribuição para um atendente específico e
+ * outro canal pode ter outro atendente ou mesmo o rodízio". Uma política por
+ * conta não tem como dizer duas coisas.
  *
- * A substituição é do **objeto inteiro**, não campo a campo. Misturar produziria
- * estados como "a linha está em rodízio mas herdou o só-disponíveis da conta",
- * que nenhuma tela sabe mostrar e ninguém sabe depurar. O seletor da linha grava
- * a política completa, então o que está gravado é o que vale.
+ * O canal decide **a estratégia e a pessoa**, que viajam juntas: canal em `fixo`
+ * traz a pessoa dele, nunca a que sobrou na conta. O que ele **não** decide é o
+ * `soDisponiveis` — esse é modificador da operação da clínica ("distribuo para
+ * quem está fora?"), não do número por onde o paciente escreveu, e as três
+ * opções que o Andre fixou para o canal não o incluem.
+ *
+ * Isto é a única mistura de campos que existe aqui, e é uma fronteira declarada,
+ * não um merge: um campo é sempre da conta, os outros dois são sempre do canal
+ * quando ele fala. Nenhuma combinação surpresa sai disso.
  *
  * `null` na coluna é "como na conta", e é o estado de toda linha que já existia:
  * por isso esta mudança não altera o comportamento de nenhuma clínica até alguém
- * configurar uma linha. Mesma convenção de `departmentId` (nulo é fila geral) e
+ * configurar um canal. Mesma convenção de `departmentId` (nulo é fila geral) e
  * de `WorkspaceUser.minutosParaAusente` (nulo é o padrão do sistema).
  *
  * ## Duas leituras, em paralelo
  *
- * A da conta é sempre lida, mesmo quando a linha manda — é ela o piso quando a
- * coluna está nula, e descobrir isso exigiria a leitura de qualquer modo. As
- * duas vão num `Promise.all` para não somar latência na entrada da mensagem.
+ * A da conta é sempre lida, mesmo quando o canal manda — é dela que sai o
+ * interruptor, e é ela o piso quando a coluna está nula. As duas vão num
+ * `Promise.all` para não somar latência na entrada da mensagem.
  */
 async function politicaDo(workspaceId: string, integrationId: string | null): Promise<PoliticaEmVigor> {
     /**
@@ -179,13 +185,16 @@ async function politicaDo(workspaceId: string, integrationId: string | null): Pr
     ])
 
     const daConta = readAutomations(w?.automations).distribuicao
-    // `!= null` e não um teste de verdade: a coluna é a chave da herança, e só
-    // nula significa "não decidi". JSON estragado é política inválida, que
-    // `lerPolitica` resolve como `nenhuma` — não como "pergunte à conta".
-    const efetiva = linha?.distribuicao != null ? lerPolitica(linha.distribuicao) : daConta
+    const doCanal = lerPoliticaDoCanal(linha?.distribuicao)
 
     return {
-        ...efetiva,
+        // Estratégia e pessoa: do canal quando ele fala, da conta quando não.
+        // O `doCanal ?` e não `doCanal.donoFixoUserId ??` é o que impede a
+        // pessoa da conta de vazar para um canal que escolheu rodízio.
+        estrategia: doCanal ? doCanal.estrategia : daConta.estrategia,
+        donoFixoUserId: doCanal ? doCanal.donoFixoUserId : daConta.donoFixoUserId ?? null,
+        // O interruptor é da conta, sempre. Ver o cabeçalho.
+        soDisponiveis: daConta.soDisponiveis,
         departmentId: linha?.departmentId ?? null,
         // A queda para ausente não vem mais do JSON da conta: é constante do
         // sistema desde 2026-11-09, e quem quer outro número põe na ficha.

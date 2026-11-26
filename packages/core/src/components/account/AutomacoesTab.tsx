@@ -106,8 +106,13 @@ export function AutomacoesTab() {
                    distribuição, o que deixou de ser verdade: uma linha de
                    WhatsApp com atribuição própria ignora o que está aqui, e o
                    gestor olharia esta tela para explicar um comportamento cuja
-                   causa está em Canais. */
-                description="Quem fica responsável por cada conversa nova e por cada lead de formulário. O agente continua atendendo. Vale para todos os canais, menos as linhas que tiverem atribuição própria em Canais."
+                   causa está em Canais.
+
+                   O interruptor "só quem está disponível", abaixo, NÃO tem
+                   equivalente por canal: ele é da operação da clínica, e vale
+                   para toda distribuição, inclusive a dos canais que escolheram
+                   a sua. */
+                description="Quem fica responsável por cada conversa nova e por cada lead de formulário. O agente continua atendendo. Vale para os canais que não tiverem atribuição própria, escolhida em Canais."
             >
                 <div className="divide-y divide-border rounded-lg border border-border">
                     <div className="flex items-start gap-3 p-4">
@@ -147,7 +152,14 @@ export function AutomacoesTab() {
                             <SelectContent>
                                 <SelectItem value="nenhuma">Não distribuir</SelectItem>
                                 <SelectItem value="rodizio">Rodízio</SelectItem>
-                                <SelectItem value="balanceado">Balanceado</SelectItem>
+                                {/* "Balanceamento", e não "Balanceado" — a palavra
+                                    é do Andre em 26/11/2026, ao fixar as opções do
+                                    canal. Substantivo como "Rodízio" ao lado, e o
+                                    seletor do canal diz a mesma coisa: duas
+                                    palavras para um conceito fariam o gestor
+                                    procurar a diferença que não existe. O valor
+                                    gravado segue `balanceado`. */}
+                                <SelectItem value="balanceado">Balanceamento</SelectItem>
                             </SelectContent>
                         </Select>
                     </div>

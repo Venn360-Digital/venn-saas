@@ -1,5 +1,5 @@
 import prisma from '@venn/db/cliente'
-import { lerPolitica } from '../conversas/distribuicao'
+import { lerPoliticaDoCanal } from '../conversas/distribuicao'
 
 /**
  * Quem recebe uma conversa entregue à equipe.
@@ -115,20 +115,18 @@ export async function responsavelDaLinha(
         select: { departmentId: true, distribuicao: true },
     })
 
-    if (linha?.distribuicao != null) {
-        const politica = lerPolitica(linha.distribuicao)
-        if (politica.estrategia === 'fixo' && politica.donoFixoUserId) {
-            /**
-             * Passa por `resolverResponsavel` e não volta direto: é ele que
-             * confirma que a pessoa ainda é membro **ativo** desta clínica. Id
-             * guardado em JSON não tem chave estrangeira que o limpe quando
-             * alguém sai, então a conferência é aqui ou em lugar nenhum.
-             *
-             * Se ela não for mais, o `undefined` leva à entrega sem responsável
-             * — a fila geral, onde alguém vê. Nunca ao rodízio: ver acima.
-             */
-            return resolverResponsavel({ workspaceId, userId: politica.donoFixoUserId })
-        }
+    const doCanal = lerPoliticaDoCanal(linha?.distribuicao)
+    if (doCanal?.estrategia === 'fixo' && doCanal.donoFixoUserId) {
+        /**
+         * Passa por `resolverResponsavel` e não volta direto: é ele que confirma
+         * que a pessoa ainda é membro **ativo** desta clínica. Id guardado em
+         * JSON não tem chave estrangeira que o limpe quando alguém sai, então a
+         * conferência é aqui ou em lugar nenhum.
+         *
+         * Se ela não for mais, o `undefined` leva à entrega sem responsável — a
+         * fila geral, onde alguém vê. Nunca ao rodízio: ver acima.
+         */
+        return resolverResponsavel({ workspaceId, userId: doCanal.donoFixoUserId })
     }
 
     return resolverResponsavel({ workspaceId, departmentId: linha?.departmentId ?? null })

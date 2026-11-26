@@ -27,6 +27,7 @@ import {
     destinoDaEntrega,
     escolherDono,
     lerPolitica,
+    lerPoliticaDoCanal,
     MINUTOS_PARA_DESCONECTADO,
     estaDisponivel,
     estadoVisivel,
@@ -535,6 +536,71 @@ console.log('\n— a paciência por pessoa ganha da conta —\n')
         'fixo ausente, interruptor desligado: continua sendo dele',
         escolherDono([membro({ userId: 'ana', ultimaAtividadeEm: paradoHa(600) })], FIXO('ana'), 60, agora),
         'ana'
+    )
+}
+
+// ─────────── A política do CANAL: o que ela decide e o que não decide ───────
+//
+// O André fixou as opções do canal em 26/11/2026: atendente específico, rodízio
+// e balanceamento. O interruptor "só disponíveis" NÃO está entre elas — é da
+// conta —, e a composição em `politicaDo` é uma fronteira declarada: um campo
+// sempre da conta, dois sempre do canal quando ele fala.
+{
+    console.log('\nA atribuição do canal — três opções, e a fronteira com a conta')
+
+    conferir('canal sem nada é herança, não `nenhuma`', lerPoliticaDoCanal(null), null)
+    conferir('coluna com lixo também cai na herança', lerPoliticaDoCanal('rodizio'), null)
+    /**
+     * A diferença proposital entre os dois leitores.
+     *
+     * Na conta, estratégia inválida vira `nenhuma`. No canal, vira **herança**:
+     * a coluna do canal só significa "sobrescrevo", e sobrescrita ilegível não é
+     * sobrescrita. Resolver como `nenhuma` pararia aquele canal em silêncio por
+     * causa de um JSON torto.
+     */
+    conferir(
+        'estratégia inventada no canal cai na herança; na conta vira `nenhuma`',
+        [lerPoliticaDoCanal({ estrategia: 'sorteio' }), lerPolitica({ estrategia: 'sorteio' }).estrategia],
+        [null, 'nenhuma']
+    )
+
+    conferir(
+        'as três opções do André são aceitas pelo canal',
+        ['fixo', 'rodizio', 'balanceado'].map(
+            (e) => lerPoliticaDoCanal({ estrategia: e, donoFixoUserId: 'ana' })?.estrategia ?? null
+        ),
+        ['fixo', 'rodizio', 'balanceado']
+    )
+
+    /**
+     * **O canal não guarda o interruptor.** Se um JSON trouxer `soDisponiveis`,
+     * ele é descartado na leitura — e tem de ser, senão a tela da conta diria
+     * uma coisa e aquele canal faria outra sem ter onde ser configurado.
+     */
+    conferir(
+        'o canal não carrega `soDisponiveis` nem quando ele vem no JSON',
+        Object.keys(lerPoliticaDoCanal({ estrategia: 'rodizio', soDisponiveis: true }) ?? {}).sort(),
+        ['donoFixoUserId', 'estrategia']
+    )
+
+    // A pessoa só dentro de `fixo`, igual ao leitor da conta.
+    conferir(
+        'canal em rodízio não guarda pessoa',
+        lerPoliticaDoCanal({ estrategia: 'rodizio', donoFixoUserId: 'ana' })?.donoFixoUserId,
+        null
+    )
+    conferir(
+        'canal em `fixo` sem pessoa continua `fixo`, e a decisão cai na fila geral',
+        lerPoliticaDoCanal({ estrategia: 'fixo' }),
+        { estrategia: 'fixo', donoFixoUserId: null }
+    )
+    conferir(
+        'e `escolherDono` confirma a queda',
+        escolherDono([membro({ userId: 'ana' })], {
+            ...(lerPoliticaDoCanal({ estrategia: 'fixo' }) ?? { estrategia: 'nenhuma', donoFixoUserId: null }),
+            soDisponiveis: false,
+        }),
+        null
     )
 }
 

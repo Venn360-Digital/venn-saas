@@ -105,6 +105,26 @@ export interface PoliticaDeDistribuicao {
     donoFixoUserId?: string | null
 }
 
+/**
+ * A política de um **canal**: a estratégia e, em `fixo`, a pessoa.
+ *
+ * ## Por que não é a política inteira
+ *
+ * Falta de propósito o `soDisponiveis`. Ele é **modificador da conta**, não do
+ * canal: diz se a clínica distribui para quem está fora, e a resposta é da
+ * operação dela, não do número por onde o paciente escreveu. O André fixou as
+ * opções do canal em 26/11/2026 e são três — atendente específico, rodízio,
+ * balanceamento —, sem variante de online; pôr o interruptor aqui dobraria a
+ * lista para dizer o que a conta já diz uma vez.
+ *
+ * O par estratégia+pessoa viaja junto, e isso continua valendo: o canal que
+ * escolhe `fixo` traz a pessoa dele, nunca a que sobrou na conta.
+ */
+export interface PoliticaDoCanal {
+    estrategia: EstrategiaDeDistribuicao
+    donoFixoUserId: string | null
+}
+
 export const POLITICA_PADRAO: PoliticaDeDistribuicao = {
     estrategia: 'nenhuma',
     soDisponiveis: false,
@@ -132,6 +152,36 @@ export const ESTRATEGIAS: readonly EstrategiaDeDistribuicao[] = [
  * vira `nenhuma` em vez de erro, porque configuração estragada não pode derrubar
  * o atendimento — só deixar de distribuir, que é visível na fila geral.
  */
+/**
+ * Lê a política de um canal. **`null` é "como na conta"**, e é a resposta a
+ * tudo que não seja uma política legível.
+ *
+ * Aqui o lixo cai na herança, e não em `nenhuma` como no leitor da conta — a
+ * diferença é intencional. A coluna do canal tem **um** significado, que é
+ * "sobrescrevo a conta"; uma sobrescrita ilegível não é sobrescrita. Resolver
+ * como `nenhuma` pararia a distribuição daquele canal em silêncio por causa de
+ * um JSON torto, enquanto cair na conta mantém o atendimento andando por uma
+ * regra que a clínica configurou e consegue ver.
+ */
+export function lerPoliticaDoCanal(valor: unknown): PoliticaDoCanal | null {
+    if (!valor || typeof valor !== 'object' || Array.isArray(valor)) return null
+
+    const raw = valor as Record<string, unknown>
+    if (!ESTRATEGIAS.includes(raw.estrategia as EstrategiaDeDistribuicao)) return null
+
+    const estrategia = raw.estrategia as EstrategiaDeDistribuicao
+    return {
+        estrategia,
+        // Só dentro de `fixo`, pela mesma razão do leitor da conta: id que
+        // sobrasse de uma troca de estratégia voltaria a valer se alguém
+        // devolvesse o canal para `fixo` meses depois.
+        donoFixoUserId:
+            estrategia === 'fixo' && typeof raw.donoFixoUserId === 'string' && raw.donoFixoUserId
+                ? raw.donoFixoUserId
+                : null,
+    }
+}
+
 export function lerPolitica(valor: unknown): PoliticaDeDistribuicao {
     const raw = (valor && typeof valor === 'object' && !Array.isArray(valor) ? valor : {}) as Record<
         string,

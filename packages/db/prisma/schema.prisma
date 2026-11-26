@@ -889,12 +889,16 @@ model AgentIntegration {
   /// cabe nisso — um número de WhatsApp entregue direto a um atendente, ao lado
   /// de outro número que roda o rodízio normal.
   ///
-  /// Guarda uma política **inteira** (`estrategia`, `soDisponiveis` e, em
-  /// `fixo`, a pessoa), validada por `lerPolitica` em
-  /// `lib/conversas/distribuicao.ts` — a mesma função que lê a da conta, para
-  /// que os dois depósitos não divirjam. Quando preenchida, substitui a da
-  /// conta por completo; não se mistura campo a campo, que produziria
-  /// combinações que nenhuma tela sabe mostrar.
+  /// Guarda `estrategia` e, em `fixo`, `donoFixoUserId` — validados por
+  /// `lerPoliticaDoCanal` em `lib/conversas/distribuicao.ts`. As três opções
+  /// que o André fixou em 26/11/2026 são atendente específico, rodízio e
+  /// balanceamento.
+  ///
+  /// **Não guarda `soDisponiveis`**, de propósito: aquele interruptor é da
+  /// operação da clínica ("distribuo para quem está fora?"), não do número por
+  /// onde o paciente escreveu, e vive só em `Workspace.automations`. A
+  /// fronteira é declarada e não um merge: um campo é sempre da conta, os
+  /// outros dois são sempre do canal quando ele fala.
   ///
   /// **Nulo é o estado de toda linha existente**, e por isso esta migração não
   /// muda o comportamento de ninguém: sem política própria, vale a da clínica,

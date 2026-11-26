@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto'
 import prisma from '@venn/db/cliente'
 import { manageAgent } from '@venn/core/lib/auth/agent'
 import { lineName, phoneFromConfig } from '@venn/core/lib/conversation-line'
-import { Prisma, type AgentIntegration } from '@venn/db'
+import type { AgentIntegration } from '@venn/db'
 import {
     CHANNEL_PROVIDER,
     ChannelProviderError,
@@ -17,11 +17,6 @@ import {
 } from '@venn/core/lib/whatsapp'
 import type { ConnectionState } from '@venn/core/lib/whatsapp/types'
 import { nomeDaInstancia } from '@venn/core/lib/whatsapp/instancia'
-import {
-    ESTRATEGIAS,
-    lerPolitica,
-    type EstrategiaDeDistribuicao,
-} from '@venn/core/lib/conversas/distribuicao'
 
 /**
  * As linhas de WhatsApp de um agente, servidas por Evolution Go (whatsmeow).
@@ -221,16 +216,6 @@ function toListItem(line: AgentIntegration) {
         id: line.id,
         label: line.label,
         departmentId: line.departmentId,
-        /**
-         * A política desta linha, já conferida — ou `null`, que é "como na conta".
-         *
-         * Vai lida e não crua porque o seletor precisa de `estrategia` e
-         * `donoFixoUserId` em forma conhecida, e porque JSON estragado no banco
-         * não pode chegar à tela como uma estratégia que ela não sabe desenhar.
-         * `null` é o que mantém o seletor em "Como na conta" para toda linha que
-         * nunca foi configurada.
-         */
-        distribuicao: line.distribuicao != null ? lerPolitica(line.distribuicao) : null,
         defaultOriginId: line.defaultOriginId,
         phoneNumber: line.phoneNumber ?? phoneFromConfig(line.config),
         status: line.status,
@@ -469,7 +454,7 @@ export async function GET(
         const integrationId = new URL(request.url).searchParams.get('integrationId')
 
         if (!integrationId) {
-            const [lines, limits, departments, origins, atendentes] = await Promise.all([
+            const [lines, limits, departments, origins] = await Promise.all([
                 prisma.agentIntegration.findMany({
                     where: { agentId, channel: CHANNEL },
                     orderBy: { createdAt: 'asc' },
@@ -488,32 +473,12 @@ export async function GET(
                     orderBy: { name: 'asc' },
                     select: { id: true, name: true },
                 }),
-                /**
-                 * Quem pode ser o atendente fixo de uma linha: **todo membro
-                 * ativo**, sem filtrar por `recebeConversas` nem por
-                 * departamento.
-                 *
-                 * Nomear alguém é mais específico que a marca genérica de quem
-                 * entra no rodízio, e é o mesmo recorte que `elegiveisDaLinha`
-                 * aplica ao incluir o fixo na lista. Oferecer menos aqui faria a
-                 * tela esconder uma escolha que o sistema aceita.
-                 */
-                prisma.workspaceUser.findMany({
-                    where: { workspaceId, isActive: true },
-                    select: { userId: true, user: { select: { name: true, lastName: true } } },
-                }),
             ])
             return NextResponse.json({
                 lines: lines.map(toListItem),
                 limit: limits.whatsapp,
                 departments,
                 origins,
-                atendentes: atendentes
-                    .map((m) => ({
-                        id: m.userId,
-                        name: [m.user.name, m.user.lastName].filter(Boolean).join(' ') || 'Sem nome',
-                    }))
-                    .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')),
             })
         }
 
@@ -645,8 +610,6 @@ export async function PATCH(
             label?: string
             departmentId?: string | null
             defaultOriginId?: string | null
-            /** `null` devolve a linha à política da conta. Ver `politicaDo`. */
-            distribuicao?: { estrategia?: string; soDisponiveis?: boolean; donoFixoUserId?: string | null } | null
         }
         if (!body.integrationId) {
             return NextResponse.json({ error: 'Linha não informada' }, { status: 400 })
@@ -655,12 +618,7 @@ export async function PATCH(
         const line = await findLine(body.integrationId, agentId, workspaceId)
         if (!line) return NextResponse.json({ error: 'Linha não encontrada' }, { status: 404 })
 
-        /**
-         * `Unchecked` porque esta rota escreve as **chaves** (`departmentId`,
-         * `defaultOriginId`), e não as relações: na variante checada esses
-         * campos não existem, substituídos por `department: { connect }`.
-         */
-        const data: Prisma.AgentIntegrationUncheckedUpdateInput = {}
+        const data: { label?: string | null; departmentId?: string | null; defaultOriginId?: string | null } = {}
 
         if (typeof body.label === 'string') {
             data.label = body.label.trim().slice(0, 60) || null
@@ -700,79 +658,6 @@ export async function PATCH(
                 }
             }
             data.defaultOriginId = wanted
-        }
-
-        if ('distribuicao' in body) {
-            /**
-             * `null` apaga a política da linha, devolvendo-a à da conta — é o
-             * item "Como na conta" do seletor, e tem de ser possível desfazer a
-             * configuração sem apagar a linha.
-             */
-            if (body.distribuicao === null) {
-                /**
-                 * `Prisma.DbNull` e não `null`: em coluna JSON anulável, `null`
-                 * é ambíguo — pode ser o valor JSON `null` gravado na coluna ou
-                 * a coluna vazia. Só a coluna vazia significa "como na conta"
-                 * para `politicaDo`, que decide a herança com `!= null`.
-                 * Mesmo padrão de `marketing/lists/[id]`.
-                 */
-                data.distribuicao = Prisma.DbNull
-            } else {
-                const pedida = body.distribuicao ?? {}
-                const estrategia = pedida.estrategia as EstrategiaDeDistribuicao
-
-                // Lista fechada, conferida contra a **mesma** constante que o
-                // leitor usa: estratégia que a tela inventasse seria gravada e
-                // depois lida como `nenhuma`, parando a linha em silêncio.
-                if (!ESTRATEGIAS.includes(estrategia)) {
-                    return NextResponse.json(
-                        { error: 'Estratégia de distribuição inválida' },
-                        { status: 400 }
-                    )
-                }
-
-                let donoFixoUserId: string | null = null
-
-                if (estrategia === 'fixo') {
-                    const quem = pedida.donoFixoUserId || null
-                    if (!quem) {
-                        return NextResponse.json(
-                            { error: 'Escolha o atendente desta linha' },
-                            { status: 400 }
-                        )
-                    }
-                    /**
-                     * Membro ativo **desta** clínica, pela mesma razão do
-                     * departamento acima: o id vem do corpo da requisição, não de
-                     * uma lista fechada, e sem esta conferência a linha poderia
-                     * apontar para alguém de outro workspace. O JSON não tem
-                     * chave estrangeira que faça isso por nós.
-                     */
-                    const membro = await prisma.workspaceUser.findFirst({
-                        where: { workspaceId, userId: quem, isActive: true },
-                        select: { userId: true },
-                    })
-                    if (!membro) {
-                        return NextResponse.json(
-                            { error: 'Atendente não encontrado nesta organização' },
-                            { status: 404 }
-                        )
-                    }
-                    donoFixoUserId = membro.userId
-                }
-
-                /**
-                 * Grava a política **inteira**, e é por isso que ela passa por
-                 * `lerPolitica` antes: o que fica no banco é um objeto completo e
-                 * já normalizado, nunca um pedaço que depois se misture com o da
-                 * conta. Ver `politicaDo`, que substitui e não mescla.
-                 */
-                data.distribuicao = lerPolitica({
-                    estrategia,
-                    soDisponiveis: pedida.soDisponiveis === true,
-                    donoFixoUserId,
-                }) as unknown as Prisma.InputJsonValue
-            }
         }
 
         if (Object.keys(data).length === 0) {
