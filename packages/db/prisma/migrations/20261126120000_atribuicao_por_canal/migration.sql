@@ -1,0 +1,26 @@
+-- Atribuição de conversa por canal, sobrescrevendo a da conta.
+--
+-- Expand puro: uma coluna anulável, nada existente tocado. Código velho rodando
+-- contra este schema não lê a coluna e segue distribuindo pela política da
+-- clínica — que continua sendo a resposta para toda linha com NULL aqui.
+--
+-- A política de distribuição era só de `workspaces.automations`: uma estratégia
+-- por clínica, valendo para todos os números. Isto dá à linha a opção de ter a
+-- sua, para o caso de um número entregue direto a um atendente ao lado de outro
+-- que roda o rodízio.
+--
+-- O conteúdo é `estrategia` e, em `fixo`, `donoFixoUserId`, lido por
+-- `lerPoliticaDoCanal` em `lib/conversas/distribuicao.ts`. NÃO guarda
+-- `soDisponiveis`: aquele interruptor é da conta, não do canal, e segue vivendo
+-- só em `workspaces.automations`.
+--
+-- NULL é "como na conta", e é o estado de toda linha já existente — por isso
+-- não há UPDATE de retrocompatibilidade aqui, nem DEFAULT: um objeto padrão
+-- gravado em cada linha diria "esta linha decidiu", o que é diferente de "esta
+-- linha não decidiu nada".
+--
+-- `donoFixoUserId` mora dentro do JSON e portanto não tem chave estrangeira:
+-- ninguém o apaga quando a pessoa sai da clínica. Quem fecha a porta é a
+-- consulta dos elegíveis em `lib/conversas/dono.ts`, que só traz membro ativo —
+-- id órfão não entra na lista e a conversa cai na fila geral.
+ALTER TABLE "agent_integrations" ADD COLUMN "distribuicao" JSONB;
