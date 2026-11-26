@@ -23,10 +23,17 @@ import { Switch } from '@venn/ui/switch'
 import {
     Select,
     SelectContent,
+    SelectGroup,
     SelectItem,
+    SelectLabel,
+    SelectSeparator,
     SelectTrigger,
     SelectValue,
 } from '@venn/ui/select'
+import type {
+    EstrategiaDeDistribuicao,
+    PoliticaDoCanal,
+} from '../../../../lib/conversas/distribuicao'
 import { ConfirmDialog } from '../../../shared/ConfirmDialog'
 import { SettingsCard, SettingsRow } from '../../../shared/TabsFrame'
 import { InstagramConnect } from '../InstagramConnect'
@@ -238,6 +245,228 @@ function SeletorDaLinha({
     )
 }
 
+/**
+ * O seletor de **quem recebe** as conversas de um canal.
+ *
+ * ## Três opções, e o André as fixou
+ *
+ * Em 26/11/2026: "as opções de atribuição devem ser: atendente específico,
+ * rodízio, balanceamento". Mais o item de herança, que não é uma quarta
+ * estratégia — é a **ausência** de escolha, e existe porque a regra da conta
+ * continua valendo para todo canal que não disser nada.
+ *
+ * O que ficou fora, de propósito: as variantes "só quem está online". Elas são
+ * o interruptor `soDisponiveis`, que é da operação da clínica e vive na tela da
+ * conta; repetido por canal, dobraria esta lista para dizer o que já está dito
+ * uma vez. Ver `PoliticaDoCanal`.
+ *
+ * ## Um seletor, não dois
+ *
+ * A pergunta é uma — quem atende este canal — e as respostas vivem em dois
+ * planos: uma estratégia de fila ou uma pessoa. Juntá-las numa lista é o que faz
+ * "este canal é da Fulana" ser um clique, em vez de uma estratégia mais um
+ * campo que só aparece depois.
+ */
+const HERANCA = 'heranca'
+
+/**
+ * Quem pode ser atendente específico, e se a marca da pessoa deixa.
+ *
+ * `recebeConversas` vem junto porque a lista **não** é filtrada por ela: quem
+ * não recebe aparece desabilitado e com o motivo no rótulo. Sumir da lista
+ * protegeria igual e não explicaria nada — ver a rota `marketing`.
+ */
+interface Atendente {
+    id: string
+    name: string
+    recebeConversas: boolean
+}
+
+/**
+ * O rótulo da pessoa no seletor. Quem não recebe conversas carrega o motivo.
+ *
+ * O motivo mora **no rótulo** e não num aviso ao lado, e isso é o que faz o
+ * canal já configurado se acusar sozinho: o gatilho fechado mostra o texto do
+ * item escolhido, então "André (não recebe conversas)" aparece sem abrir a
+ * lista e sem marcação extra em nenhum dos dois desenhos de linha.
+ */
+function rotuloDoAtendente(a: Atendente): string {
+    return a.recebeConversas ? a.name : `${a.name} (não recebe conversas)`
+}
+
+const OPCOES_DE_FILA: { valor: EstrategiaDeDistribuicao; rotulo: string }[] = [
+    { valor: 'rodizio', rotulo: 'Rodízio' },
+    { valor: 'balanceado', rotulo: 'Balanceamento' },
+]
+
+/** O valor do seletor para o que está gravado. `fixo` carrega a pessoa no valor. */
+function valorDaPolitica(p: PoliticaDoCanal | null): string {
+    if (!p) return HERANCA
+    if (p.estrategia === 'fixo') return p.donoFixoUserId ? `fixo:${p.donoFixoUserId}` : HERANCA
+    return OPCOES_DE_FILA.some((o) => o.valor === p.estrategia) ? p.estrategia : HERANCA
+}
+
+/** O caminho de volta. `null` devolve o canal à regra da conta. */
+function politicaDoValor(valor: string): PoliticaDoCanal | null {
+    if (valor === HERANCA) return null
+    if (valor.startsWith('fixo:')) {
+        return { estrategia: 'fixo', donoFixoUserId: valor.slice('fixo:'.length) }
+    }
+    const fila = OPCOES_DE_FILA.find((o) => o.valor === valor)
+    return fila ? { estrategia: fila.valor, donoFixoUserId: null } : null
+}
+
+/**
+ * O corpo do seletor, usado nas duas formas de desenho: dentro da tabela do
+ * WhatsApp QR e solto na linha dos canais de número único.
+ *
+ * Um componente e não dois porque a lista de opções é a mesma, e duas cópias
+ * dela divergiriam no dia em que uma estratégia nova entrasse — foi exatamente
+ * o que aconteceu com a atribuição nascendo só na rota do QR.
+ */
+function CorpoDaAtribuicao({
+    nome,
+    canManage,
+    politica,
+    atendentes,
+    onChange,
+    className,
+}: {
+    nome: string
+    canManage: boolean
+    politica: PoliticaDoCanal | null
+    atendentes: Atendente[]
+    onChange: (p: PoliticaDoCanal | null) => void
+    className: string
+}) {
+    /**
+     * A pessoa apontada saiu da clínica — e a tela **tem de dizer isso**.
+     *
+     * O id do atendente mora no JSON do canal, sem chave estrangeira que o limpe
+     * quando alguém é desativado. O sistema já se protege (ela não entra na lista
+     * de elegíveis e a conversa cai na fila geral), mas sem este item o seletor
+     * ficaria em branco: o canal estaria configurado para ninguém e a tela não
+     * saberia explicar por quê.
+     */
+    const fixoOrfao =
+        politica?.estrategia === 'fixo' &&
+        !!politica.donoFixoUserId &&
+        !atendentes.some((a) => a.id === politica.donoFixoUserId)
+
+    /**
+     * O grupo aparece quando há alguém **escolhível** — ou quando o canal já
+     * está apontado para alguém da lista, ainda que essa pessoa não receba mais.
+     *
+     * A segunda metade não é zelo: sem ela, a clínica em que ninguém recebe
+     * perderia o item do atendente já configurado, e o gatilho ficaria em branco
+     * justamente no canal que precisa explicar o próprio estado. É o caso que a
+     * homologação tinha na mão em 26/11/2026 — uma pessoa na unidade, com a
+     * marca desmarcada.
+     */
+    const escolhidoNaLista =
+        politica?.estrategia === 'fixo' &&
+        !!politica.donoFixoUserId &&
+        atendentes.some((a) => a.id === politica.donoFixoUserId)
+
+    const mostrarGrupo = atendentes.some((a) => a.recebeConversas) || escolhidoNaLista
+
+    return (
+        <Select
+            value={valorDaPolitica(politica)}
+            disabled={!canManage}
+            onValueChange={(v) => onChange(politicaDoValor(v))}
+        >
+            <SelectTrigger aria-label={`Atribuição de ${nome}`} className={className}>
+                <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+                <SelectItem value={HERANCA}>Como na conta</SelectItem>
+                <SelectSeparator />
+                {OPCOES_DE_FILA.map((o) => (
+                    <SelectItem key={o.valor} value={o.valor}>
+                        {o.rotulo}
+                    </SelectItem>
+                ))}
+                {mostrarGrupo ? (
+                    <>
+                        <SelectSeparator />
+                        {/*
+                         * `SelectGroup` é **obrigatório** em volta do
+                         * `SelectLabel`, e a falta dele não é detalhe de
+                         * marcação: `SelectLabel` lê o contexto do grupo e o
+                         * Radix **lança** `must be used within SelectGroup`
+                         * quando ele não existe.
+                         *
+                         * Pior, lança no carregamento e não ao abrir a lista:
+                         * `SelectContent` fechado ainda monta os filhos num
+                         * DocumentFragment para recolher os itens. Em
+                         * 26/11/2026 isso derrubou a aba inteira de Canais em
+                         * homologação, no instante em que a primeira linha de
+                         * WhatsApp passou a existir — antes dela a tabela não
+                         * renderizava célula nenhuma e o defeito ficava
+                         * escondido. Varrido por `scripts/lint-select-group.mjs`.
+                         */}
+                        <SelectGroup>
+                            <SelectLabel>Atendente específico</SelectLabel>
+                            {atendentes.map((a) => (
+                                /*
+                                 * Desabilitado, não escondido: a proteção é a
+                                 * mesma e a pergunta "cadê a Fulana?" ganha
+                                 * resposta na própria tela.
+                                 *
+                                 * Continua sendo um item de verdade porque o
+                                 * canal pode **já** estar apontado para ela —
+                                 * a marca pode ter sido desmarcada depois da
+                                 * configuração, que é o caso das férias. Sem o
+                                 * item, o gatilho ficaria em branco.
+                                 */
+                                <SelectItem
+                                    key={a.id}
+                                    value={`fixo:${a.id}`}
+                                    disabled={!a.recebeConversas}
+                                >
+                                    {rotuloDoAtendente(a)}
+                                </SelectItem>
+                            ))}
+                        </SelectGroup>
+                    </>
+                ) : null}
+                {fixoOrfao ? (
+                    <SelectItem value={`fixo:${politica!.donoFixoUserId}`} disabled>
+                        Atendente removido — escolha outro
+                    </SelectItem>
+                ) : null}
+            </SelectContent>
+        </Select>
+    )
+}
+
+/** Dentro da tabela do WhatsApp QR, como as outras colunas. */
+function SeletorDeAtribuicao(props: {
+    nome: string
+    canManage: boolean
+    politica: PoliticaDoCanal | null
+    atendentes: Atendente[]
+    onChange: (p: PoliticaDoCanal | null) => void
+}) {
+    return (
+        <td className="px-2.5 py-2 align-middle">
+            <CorpoDaAtribuicao {...props} className="h-8 w-full max-w-[13rem] text-xs" />
+        </td>
+    )
+}
+
+/** Solto na linha do canal, para os canais de número único. */
+function AtribuicaoSolta(props: {
+    nome: string
+    canManage: boolean
+    politica: PoliticaDoCanal | null
+    atendentes: Atendente[]
+    onChange: (p: PoliticaDoCanal | null) => void
+}) {
+    return <CorpoDaAtribuicao {...props} className="h-8 w-[9.5rem] text-xs" />
+}
+
 /** O mesmo seletor fora da tabela, para os canais de linha única. */
 function SeletorSolto({
     rotulo,
@@ -285,11 +514,22 @@ export function CanaisTab({ agentId, canManage = true }: CanaisTabProps) {
     const [origins, setOrigins] = useState<{ id: string; name: string }[]>([])
     const [medias, setMedias] = useState<{ id: string; name: string }[]>([])
     /**
+     * Quem pode ser atendente fixo de uma linha: membro ativo da clínica.
+     *
+     * Vem junto das linhas, na mesma resposta, pela razão que já valia para
+     * departamentos e origens — uma segunda chamada pode discordar desta.
+     */
+    const [atendentes, setAtendentes] = useState<Atendente[]>([])
+    /**
      * Todas as linhas do agente, de qualquer canal, para a atribuição.
      *
-     * A lista de cima é só do WhatsApp QR — é a rota dela. Origem e mídia,
-     * porém, valem para Instagram, canal oficial e widget do site: a coluna
-     * sempre foi do `AgentIntegration`, e só a tela limitava.
+     * A lista de cima é só do WhatsApp QR — é a rota dela. Origem, mídia e
+     * **atribuição**, porém, valem para Instagram, canal oficial e widget do
+     * site: as colunas sempre foram do `AgentIntegration`, e só a tela limitava.
+     *
+     * A atribuição chegou aqui em 26/11/2026, depois de nascer na rota do QR e
+     * o André cobrar o alcance no mesmo dia: "atribuição deve ser por canal.
+     * Para todos."
      */
     const [linhasDeAtribuicao, setLinhasDeAtribuicao] = useState<
         {
@@ -302,6 +542,8 @@ export function CanaisTab({ agentId, canManage = true }: CanaisTabProps) {
             errorMessage: string | null
             defaultOriginId: string | null
             defaultMediaId: string | null
+            /** Quem recebe as conversas deste canal; `null` segue a regra da conta. */
+            distribuicao: PoliticaDoCanal | null
         }[]
     >([])
     const [limit, setLimit] = useState<LineLimit | null>(null)
@@ -349,6 +591,7 @@ export function CanaisTab({ agentId, canManage = true }: CanaisTabProps) {
                 fetch('/api/medias').then((r) => (r.ok ? r.json() : [])),
             ])
             setLinhasDeAtribuicao(linhas?.linhas ?? [])
+            setAtendentes(linhas?.atendentes ?? [])
             setMedias(Array.isArray(listaDeMidias) ? listaDeMidias : [])
         } catch {
             // Sem a lista, a seção de atribuição não aparece. O resto da aba
@@ -358,7 +601,14 @@ export function CanaisTab({ agentId, canManage = true }: CanaisTabProps) {
 
     /** Grava o par da linha e recarrega, para o seletor refletir o gravado. */
     const atribuir = useCallback(
-        async (integrationId: string, patch: { defaultOriginId?: string | null; defaultMediaId?: string | null }) => {
+        async (
+            integrationId: string,
+            patch: {
+                defaultOriginId?: string | null
+                defaultMediaId?: string | null
+                distribuicao?: PoliticaDoCanal | null
+            }
+        ) => {
             const res = await fetch(`/api/agents/${agentId}/integrations/marketing`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
@@ -589,11 +839,15 @@ export function CanaisTab({ agentId, canManage = true }: CanaisTabProps) {
     const linhaDoCanal = (channel: string) => linhasDeAtribuicao.find((l) => l.channel === channel)
 
     /**
-     * Origem e mídia de um canal de linha única, soltos na própria linha dele.
+     * Atribuição, origem e mídia de um canal de número único, soltos na própria
+     * linha dele.
      *
      * Eles ficam **antes** da chave, nunca depois: a chave encerra a linha em
      * todos os canais, e enfiar um seletor depois dela quebraria a vertical em
      * que as oito chaves da tela se alinham.
+     *
+     * A atribuição vem **primeiro** entre os três: ela decide quem trabalha, e
+     * os outros dois decidem o que a ficha do paciente vai registrar.
      */
     const atribuicaoDoCanal = (channel: string, nome: string) => {
         const linha = linhasDeAtribuicao.find((l) => l.channel === channel)
@@ -601,6 +855,13 @@ export function CanaisTab({ agentId, canManage = true }: CanaisTabProps) {
 
         return (
             <>
+                <AtribuicaoSolta
+                    nome={nome}
+                    canManage={canManage}
+                    politica={linha.distribuicao}
+                    atendentes={atendentes}
+                    onChange={(p) => void atribuir(linha.id, { distribuicao: p })}
+                />
                 <SeletorSolto
                     rotulo="Origem"
                     nome={nome}
@@ -650,7 +911,7 @@ export function CanaisTab({ agentId, canManage = true }: CanaisTabProps) {
                    responde pela linha por onde entrou" — comportamento do
                    sistema que a coluna Linha já mostra — e a explicação da
                    fila virou a frase curta dele. */
-                description="Cada linha é um número; a fila indica quem vê as conversas, por departamento ou todos."
+                description="Cada linha é um número. A fila indica quem vê as conversas; a atribuição, quem as recebe — a da conta, ou só desta linha."
                 /*
                  * A ação primária sobe para o cabeçalho, ao lado do medidor.
                  *
@@ -712,7 +973,7 @@ export function CanaisTab({ agentId, canManage = true }: CanaisTabProps) {
                         <table className="w-full min-w-[46rem] border-collapse text-left">
                             <thead>
                                 <tr className="border-b border-border">
-                                    {['Linha', 'Fila', 'Origem', 'Mídia'].map((c) => (
+                                    {['Linha', 'Fila', 'Atribuição', 'Origem', 'Mídia'].map((c) => (
                                         <th
                                             key={c}
                                             className="px-2.5 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground first:pl-5"
@@ -793,6 +1054,15 @@ export function CanaisTab({ agentId, canManage = true }: CanaisTabProps) {
                                                     onChange: (v) =>
                                                         void ajustar(line, { departmentId: v }),
                                                 }}
+                                            />
+                                            <SeletorDeAtribuicao
+                                                nome={nomeDaLinha(line)}
+                                                canManage={canManage}
+                                                politica={atribuicaoDe(line.id)?.distribuicao ?? null}
+                                                atendentes={atendentes}
+                                                onChange={(p) =>
+                                                    void atribuir(line.id, { distribuicao: p })
+                                                }
                                             />
                                             <SeletorDaLinha
                                                 rotulo="Origem"
@@ -944,7 +1214,7 @@ export function CanaisTab({ agentId, canManage = true }: CanaisTabProps) {
                                     : 'Uma bolha de conversa nas páginas do site.'
                             }
                             action={
-                                <div className="flex items-center gap-2.5">
+                                <div className="flex flex-wrap items-center justify-end gap-2.5">
                                     {site?.connected
                                         ? atribuicaoDoCanal('site', `Site ${comArtigo(v, 'organizacao', 'de')}`)
                                         : null}
@@ -1050,7 +1320,7 @@ export function CanaisTab({ agentId, canManage = true }: CanaisTabProps) {
                             }
                             action={
                                 canManage ? (
-                                    <div className="flex items-center gap-2.5">
+                                    <div className="flex flex-wrap items-center justify-end gap-2.5">
                                         {linhaDoCanal('whatsapp_business')
                                             ? atribuicaoDoCanal(
                                                   'whatsapp_business',
@@ -1136,7 +1406,7 @@ export function CanaisTab({ agentId, canManage = true }: CanaisTabProps) {
                             agentId={agentId}
                             canManage={canManage}
                             renderAcao={({ conectado, carregando, configurado, conectar, desligar }) => (
-                                <div className="flex items-center gap-2.5">
+                                <div className="flex flex-wrap items-center justify-end gap-2.5">
                                     {conectado
                                         ? atribuicaoDoCanal('instagram', 'Instagram Direct')
                                         : null}
