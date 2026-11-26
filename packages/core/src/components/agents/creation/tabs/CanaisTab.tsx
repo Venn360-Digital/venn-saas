@@ -23,6 +23,7 @@ import { Switch } from '@venn/ui/switch'
 import {
     Select,
     SelectContent,
+    SelectGroup,
     SelectItem,
     SelectLabel,
     SelectSeparator,
@@ -347,12 +348,30 @@ function CorpoDaAtribuicao({
                 {atendentes.length > 0 ? (
                     <>
                         <SelectSeparator />
-                        <SelectLabel>Atendente específico</SelectLabel>
-                        {atendentes.map((a) => (
-                            <SelectItem key={a.id} value={`fixo:${a.id}`}>
-                                {a.name}
-                            </SelectItem>
-                        ))}
+                        {/*
+                         * `SelectGroup` é **obrigatório** em volta do
+                         * `SelectLabel`, e a falta dele não é detalhe de
+                         * marcação: `SelectLabel` lê o contexto do grupo e o
+                         * Radix **lança** `must be used within SelectGroup`
+                         * quando ele não existe.
+                         *
+                         * Pior, lança no carregamento e não ao abrir a lista:
+                         * `SelectContent` fechado ainda monta os filhos num
+                         * DocumentFragment para recolher os itens. Em
+                         * 26/11/2026 isso derrubou a aba inteira de Canais em
+                         * homologação, no instante em que a primeira linha de
+                         * WhatsApp passou a existir — antes dela a tabela não
+                         * renderizava célula nenhuma e o defeito ficava
+                         * escondido. Varrido por `scripts/lint-select-group.mjs`.
+                         */}
+                        <SelectGroup>
+                            <SelectLabel>Atendente específico</SelectLabel>
+                            {atendentes.map((a) => (
+                                <SelectItem key={a.id} value={`fixo:${a.id}`}>
+                                    {a.name}
+                                </SelectItem>
+                            ))}
+                        </SelectGroup>
                     </>
                 ) : null}
                 {fixoOrfao ? (
