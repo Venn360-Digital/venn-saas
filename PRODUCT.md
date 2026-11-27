@@ -790,7 +790,47 @@ O Asaas oferece os dois. `POST /v3/creditCard/tokenizeCreditCard` recebe o
 número do cartão **no nosso servidor**; o Asaas Checkout é uma página deles onde
 o pagador digita. Vamos de Checkout: a diferença não é de conveniência, é de
 responsabilidade — no primeiro caminho o cartão passa pela nossa aplicação e
-pelos nossos logs, e o escopo de PCI sai de SAQ A para SAQ A-EP.
+pelos nossos logs, e o escopo de PCI deixa de ser SAQ A.
+
+**Corrigido em 27/11/2026, lendo a página de PCI-DSS deles.** Esta seção dizia
+"sai de SAQ A para SAQ A-EP", e isso é otimista. O que a documentação do Asaas
+afirma é que, na tokenização pelo back-end, "os dados passam pelo servidor antes
+da tokenização" e "sua infraestrutura permanece no escopo" — sem fixar um nível,
+porque "a definição depende de todo o fluxo de dados". Mas pelos critérios de
+elegibilidade que a própria página enumera: **SAQ A** exige que nossos sistemas
+não armazenem, processem **nem transmitam** dado de cartão, e **SAQ A-EP** é
+para quem terceiriza o processamento tendo sistemas que afetam a segurança da
+página. Tokenizar no servidor é **transmitir**, o que desqualifica os dois e
+deixa **SAQ D** — o questionário cheio.
+
+É leitura dos critérios, não citação: antes de bancar essa troca, confirmar com
+o Asaas ou com a adquirente.
+
+**E não existe meio-termo client-side.** O Asaas não oferece tokenização pelo
+front-end — não há equivalente de campo hospedado em iframe que mantivesse o PAN
+fora do nosso servidor com formulário nosso. Ou a página deles, ou o cartão no
+nosso Worker.
+
+**O que já é embutido, e por isso a troca renderia menos do que parece.**
+`lib/asaas/cobranca-no-cartao.ts` cobra o cartão salvo por `creditCardToken`,
+sem redirecionar, e a troca de cartão da assinatura também é feita na nossa
+tela. O token nasce do primeiro pagamento na página deles. Então o único
+pagamento que sai do domínio é **o primeiro** de cada cliente — e é ele que
+custaria a saída do SAQ A.
+
+### Pix embutido não tem esse custo
+
+Decidido com o Andre em 27/11/2026. QR Code e copia-e-cola não têm PAN, então
+exibir cobrança Pix dentro do app não move escopo de PCI nenhum:
+`GET /v3/payments/{id}/pixQrCode` devolve `encodedImage`, `payload` e
+`expirationDate`. É o caminho para "sem sair do app" que não cobra o preço
+acima, e vale para adicional, upgrade e diferença.
+
+**Plano mensal em Pix é outra coisa.** Assinatura com `billingType: PIX` **não**
+é débito recorrente — a documentação deles é explícita que isso não equivale ao
+**Pix Automático**, que é produto separado (`POST /v3/pix/automatic/authorizations`),
+exige autorização do pagador confirmada **pela instituição dele** e só então fica
+`ACTIVE`. Recorrência por cartão segue sendo o caminho sem etapa extra.
 
 ### Por que o webhook grava antes de pensar
 
