@@ -134,6 +134,7 @@
         "test:concordancia": "tsx scripts/test-concordancia.ts",
         "lint:vocabulario": "node scripts/lint-vocabulario.mjs",
         "lint:select-group": "node scripts/lint-select-group.mjs",
+        "test:limpeza": "node scripts/test-limpeza.mjs",
         "test:ferramentas": "tsx scripts/test-ferramentas.ts",
         "test:redirects": "tsx scripts/test-redirects.mts",
         "test:armazenamento": "tsx scripts/test-armazenamento.ts",
