@@ -71,15 +71,56 @@ export function FaixaDeAvaliacao({ avaliacao }: { avaliacao: Avaliacao | null })
 
             <span className="flex-1" />
 
-            <Link
-                href="/gerenciamento/conta?tab=plano"
-                className={cn(
-                    'inline-flex h-7 shrink-0 items-center rounded-lg px-3.5 text-[12.5px] font-bold transition-colors',
-                    botao
-                )}
-            >
-                {encerrada === 'corte' ? 'Reativar assinatura' : 'Assinar agora'}
-            </Link>
+            {/*
+              * O BOTÃO LEVA AO CARTÃO, NÃO A UMA ABA.
+              *
+              * Era um `<Link>` para `?tab=plano`, e dali ainda faltavam quatro
+              * gestos até a página de pagamento — o último deles desabilitado,
+              * porque a tela tratava o plano escolhido no cadastro como "plano
+              * atual". O botão prometia assinar e entregava uma aba.
+              *
+              * Agora é um `<form method="post">`: `/pagamento/assinar` lê o
+              * plano e o ciclo que o onboarding gravou, cria o checkout e manda
+              * a pessoa para a página segura do Asaas, que já mostra o nome do
+              * plano, o valor e o formulário do cartão. Qualquer desvio —
+              * atendente sem permissão, dado de cobrança faltando, conta isenta,
+              * gateway recusando — volta para a guia com o diálogo **aberto**.
+              *
+              * Formulário e não `<Link>` por duas razões, nesta ordem: criar
+              * cobrança é efeito colateral, e um GET aqui seria disparado pelo
+              * prefetch do `<Link>` ao passar o mouse; e esta faixa é
+              * componente de servidor presente em toda tela do painel — torná-la
+              * cliente para fazer `fetch` + `window.open` espalharia a dança do
+              * bloqueador de pop-up pelo sistema inteiro.
+              *
+              * **O corte segue para a aba.** Assinatura cancelada com período
+              * pago correndo se resolve desfazendo o cancelamento, e lá está o
+              * botão que faz isso; abrir checkout novo criaria uma segunda
+              * assinatura no Asaas.
+              */}
+            {encerrada === 'corte' ? (
+                <Link
+                    href="/gerenciamento/conta?tab=plano"
+                    className={cn(
+                        'inline-flex h-7 shrink-0 items-center rounded-lg px-3.5 text-[12.5px] font-bold transition-colors',
+                        botao
+                    )}
+                >
+                    Reativar assinatura
+                </Link>
+            ) : (
+                <form action="/pagamento/assinar" method="post" className="shrink-0">
+                    <button
+                        type="submit"
+                        className={cn(
+                            'inline-flex h-7 shrink-0 items-center rounded-lg px-3.5 text-[12.5px] font-bold transition-colors',
+                            botao
+                        )}
+                    >
+                        Assinar agora
+                    </button>
+                </form>
+            )}
         </div>
     )
 }
