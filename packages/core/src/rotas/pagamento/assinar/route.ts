@@ -62,10 +62,11 @@ import { cicloDe, isPlanId } from '@venn/core/lib/plan-limits'
  * layout do painel. Não há nada de um app aqui.
  *
  * Do gateway, há: a chamada final é a do Asaas. A chave dele é da plataforma e
- * **homologação não tem nenhuma registrada** — e a decisão de 27/11/2026 é que
- * o gateway de lá será o Stripe. Por isso a rota pergunta se há gateway antes
- * de tentar, e cai na guia quando não há, em vez de quebrar. O ponto exato onde
- * o Stripe entra está marcado no corpo, junto dessa pergunta.
+ * cada ambiente guarda a sua — **homologação a de sandbox (`$aact_hmlg_`),
+ * produção a de produção (`$aact_prod_`)** —, então este caminho se exercita em
+ * homologação de ponta a ponta, com cobrança de sandbox. O Stripe é decisão
+ * tomada em 27/11/2026 para um gateway futuro, e ainda não existe em ambiente
+ * nenhum; o ponto onde ele entra está marcado no corpo.
  */
 
 /** A guia, com o diálogo de planos já aberto. O destino de todo desvio. */
@@ -164,25 +165,25 @@ export async function POST(request: NextRequest) {
     if (!regime.precisaPagar) return paraAGuia(request)
 
     /**
-     * SEM GATEWAY CONFIGURADO, o atalho não existe — e isso não é hipótese.
+     * SEM GATEWAY CONFIGURADO, o atalho cai na guia em vez de quebrar.
      *
-     * A chave do Asaas é da **plataforma**, guardada no cofre, e a mesma serve
-     * aos três apps no mesmo ambiente (ver `asaas/client.ts`). Em **homologação
-     * ela não está registrada**, então `asaasConfig()` devolve `null` e qualquer
+     * A chave do Asaas é da **plataforma**, guardada no cofre, e cada ambiente
+     * guarda a sua: homologação a de sandbox, produção a de produção — o prefixo
+     * é que carrega o ambiente (ver `asaas/client.ts`). Nos dois há chave, então
+     * em operação normal esta pergunta passa; ela existe para o ambiente novo, o
+     * cofre vazio e a chave revogada, onde `asaasConfig()` devolve `null` e toda
      * chamada morre com `AsaasError(0, 'Asaas não configurado')`.
      *
      * Conferir aqui, antes, e não só no `catch`: `criarCheckoutDePlano` **grava
      * a linha de tentativa primeiro** e só então chama o gateway — de propósito,
-     * para nunca haver checkout pago sem dono. Num ambiente sem chave, cada
-     * clique no botão deixaria uma tentativa `CANCELED` no banco. Uma pergunta
-     * barata evita uma tabela de lixo em staging.
+     * para nunca haver checkout pago sem dono. Sem chave, cada clique no botão
+     * deixaria uma tentativa `CANCELED` no banco. Uma pergunta barata evita uma
+     * tabela de lixo.
      *
      * **E é aqui que o Stripe entra**, quando entrar: esta pergunta passa a ser
      * "qual gateway esta conta usa, e ele está configurado?", e a chamada abaixo
      * passa a ser a daquele gateway. O resto desta rota — quem pode, qual plano,
-     * qual ciclo, para onde desviar — não muda, porque nada disso é do Asaas. O
-     * que **não** se deve fazer é deixar o atalho quebrar no app sem gateway:
-     * ele cai na guia, que é o caminho que sempre funcionou.
+     * qual ciclo, para onde desviar — não muda, porque nada disso é do Asaas.
      */
     if (!(await asaasConfig())) {
         console.warn(
