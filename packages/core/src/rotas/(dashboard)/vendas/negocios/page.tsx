@@ -196,6 +196,10 @@ interface Stage {
     _count?: { deals: number }
     /** Dias sem retorno marcado até o follow-up cobrar. `null` = não cobra. */
     followUpDays?: number | null
+    /** A etapa de ganho: para onde o aceite de uma proposta move o negócio. */
+    isWon?: boolean
+    /** A etapa de proposta enviada: para onde o envio move o negócio. */
+    isProposalSent?: boolean
 }
 
 interface DealActivity {
@@ -679,6 +683,7 @@ function NegociosPageInner() {
     // Delete dialog
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
     const [dealToDelete, setDealToDelete] = useState<Deal | null>(null)
+    /** O negócio para o qual se vai criar um documento. Nulo = diálogo fechado. */
 
     // Loss reason dialog
     const [outcomeOpen, setOutcomeOpen] = useState(false)
@@ -956,6 +961,13 @@ function NegociosPageInner() {
             onStageChange: (stageId: string) => setFocusStageId(stageId),
             onClose: () => setSelectedDealId(null),
             onOutcome: (side: 'won' | 'lost') => { setDealToLose(selectedDeal); setOutcomeSide(side); setOutcomeOpen(true) },
+            /**
+             * O diálogo de nova proposta é da TELA, não do painel.
+             *
+             * O painel tem 380px e vive sobreposto; abrir um diálogo de dentro
+             * dele empilharia duas camadas. Então ele avisa e quem monta é aqui,
+             * no mesmo lugar dos outros diálogos desta tela.
+             */
             onDelete: (deal: Deal) => { setDealToDelete(deal); setDeleteDialogOpen(true) },
         }
         : null
@@ -1860,6 +1872,13 @@ function NegociosPageInner() {
 
             {/* O desfecho pela bandeira da ficha: ganho e perdido sempre
                 passam pelo motivo. */}
+            {/*
+              * Criar documento a partir do negócio.
+              *
+              * O negócio já vem escolhido — é o caminho natural, e era o que
+              * faltava: sem isto só se chegava a uma proposta pelo menu, e quem
+              * está olhando o negócio teria de sair e voltar.
+              */}
             <OutcomeDialog
                 key={`${dealToLose?.id ?? ''}:${outcomeSide}`}
                 open={outcomeOpen}

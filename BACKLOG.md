@@ -78,4 +78,67 @@ unidades.
 
 ---
 
-Itens 4 a 10: a receber.
+## 4. Módulo de documentos: propostas, orçamentos e contratos
+
+**Onde:** Vendas → Propostas, ficha do negócio, catálogo, página pública `/p/`.
+
+**Estado: entregue em 21/11/2026.** Regra em [`PRODUCT.md` §19](PRODUCT.md),
+migração em `packages/db/prisma/migrations/20261121100000_modulo_de_documentos`.
+
+Desenho saído da engenharia reversa do Ploomes (`docs/ploomes/`, não commitada).
+Seis tabelas novas, duas de apoio, quatro colunas em `products_services`.
+Revisão em vez de edição; total calculado no servidor com `Decimal(18,4)` e
+`CHECK`; link público com validade obrigatória, revogação, rate limit nos dois
+eixos e trilha de aceite com hash do conteúdo; envio por e-mail e por WhatsApp
+na conversa aberta; aceite move o negócio no funil. A IA sugere itens do
+catálogo e **não** escreve preço nem desconto.
+
+Provado por `pnpm check:propostas` (77 asserções) e
+`pnpm check:proposta-publica` (os sete requisitos da rota pública, incluindo a
+projeção mínima por varredura do fonte). **Fila, e-mail e cron só se provam em
+staging** — o workerd não roda nesta máquina.
+
+**Decidido e não implementado:** PDF arquivado (Browser Rendering, partindo do
+mesmo HTML), assinatura com certificadora, alçada de desconto (os três estados
+existem no domínio, sem tela), e preço por cliente e composição de item com piso
+de preço.
+
+O follow-up de proposta sem resposta **entrou** como rotina diária, avisando o
+vendedor (nunca o cliente) e com o texto mudando conforme o cliente abriu ou não
+o link. Virou cron em vez do Workflow que o plano previa — a razão está no
+cabeçalho de `propostas-sem-resposta.ts`.
+
+## 5. Relatórios
+
+**Onde:** Relatórios (ao lado do Dashboard), `/relatorios`.
+
+**Estado: entregue em 21/11/2026.** Regra em [`PRODUCT.md` §20](PRODUCT.md).
+**Sem migração** — vive inteiro sobre os ganchos que o item 4 deixou no banco.
+
+Três relatórios, nenhum salvo e nenhum agendado: **Propostas** (engajamento,
+taxa de aceite, dias e versões até o aceite), **Produtos** (o que vende — o
+primeiro relatório por produto que o produto pode ter) e **Funil** (tempo por
+etapa e onde ele vaza). Componente de servidor com o recorte na URL, como o
+painel, e exportação em CSV das três.
+
+O estudo do Ploomes **não tinha** módulo de relatórios para copiar — F-038 é
+literalmente "endpoints: nenhum", com evidência só de marketing. Então aqui foi
+projeto, não paridade.
+
+As três decisões que as contas carregam, provadas em `pnpm check:relatorios`
+(70 asserções): **denominador vazio devolve `null`, não zero** (é o
+"dashboard que mostra zeros" de que o estudo avisa, e a tela mostra travessão);
+**a taxa de aceite exclui o que ainda está em jogo** (senão ela cai quando o
+vendedor trabalha mais); e **nunca se soma entre moedas**.
+
+As duas armadilhas documentadas foram honradas: não há `COUNT(*)` — as linhas
+do período são contadas em memória —, e todo total é uma lista por moeda.
+
+**Decidido e não implementado:** relatório salvo (pede um editor de consulta),
+agendamento por e-mail (pede cron por unidade e destinatário configurável), e
+gráfico — os três relatórios são números e tabelas. O link na URL já cobre
+"quero este recorte de novo amanhã".
+
+---
+
+Itens 6 a 10: a receber.

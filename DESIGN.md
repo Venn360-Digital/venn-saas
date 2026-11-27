@@ -1383,3 +1383,30 @@ tom claro reprovaria (3,49:1) — é a mesma armadilha do `--primary-foreground`
 | `src/app/api/scheduling/targets/` | onde um agendamento deve cair (Google Calendar, Clinicorp). O compositor pergunta em vez de supor |
 | `src/components/brand/` | `Logo` — ponto único dos assets de marca |
 | `src/lib/nav.ts` | árvore de rotas e mapa de rótulos pt-BR |
+
+### Valor que a tela precisa não nasce em módulo `server-only`
+
+Uma tela `'use client'` que importe **qualquer valor** de um módulo com
+`import 'server-only'` arrasta o módulo inteiro para o bundle do navegador — e
+com ele o Prisma, o driver de banco e o que mais ele importar. O `next build`
+reprova, mas acusando o fim da cadeia:
+
+```
+Module not found: Can't resolve 'pg'
+  ./packages/core/src/lib/propostas/ia.ts [Client Component Browser]
+  ./rotas/(dashboard)/vendas/propostas/[id]/PropostaClient.tsx [Client Component Browser]
+```
+
+A causa — um módulo de servidor alcançado pelo cliente — não aparece na
+mensagem, e ela só chega depois de quatro minutos de build.
+
+**A saída é um módulo neutro no meio**, que os dois lados importam: a constante,
+o tipo e o rótulo nascem nele, e o módulo de servidor importa dele também.
+Precedentes no repositório: `lib/propostas/pedidos.ts`,
+`lib/propostas/validade.ts`, `lib/relatorios/tipos.ts` e o `dados.ts` de cada
+tela de índice — este último com a explicação mais longa, porque lá o sintoma é
+outro (`Invalid value for argument 'take': [object Function]`).
+
+A regra 7 de `scripts/check-marca.mjs` passou a cobrar isso em segundos, com o
+arquivo e por quem foi alcançado. **Import de tipo não conta** — ele é apagado
+na compilação.

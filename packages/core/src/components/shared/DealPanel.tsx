@@ -4,6 +4,7 @@ import { useCallback, useState } from 'react'
 import {
     CalendarPlus,
     Check,
+    FileText,
     Flag,
     ListTodo,
     Route,
@@ -18,6 +19,7 @@ import { toast } from 'sonner'
 import { ActivityForm } from './ActivityForm'
 import { ActivityList } from './ActivityList'
 import { DealJourney } from './DealJourney'
+import { DealProposals } from './DealProposals'
 import { InlineField } from './InlineField'
 import { PickField, type PickOption } from './PickField'
 import { RecordPanel } from './RecordPanel'
@@ -87,7 +89,7 @@ export interface PanelDeal extends DealLike {
     closedAt?: string | null
 }
 
-type Mode = 'ficha' | 'schedule' | 'activities' | 'notes'
+type Mode = 'ficha' | 'schedule' | 'activities' | 'notes' | 'propostas'
 
 /**
  * A ficha do negócio: um painel que lê, edita e age.
@@ -119,6 +121,7 @@ export function DealPanel<T extends PanelDeal>({
     onPrev,
     onNext,
     onOutcome,
+    onNovaProposta,
     onDelete,
 }: {
     deal: T
@@ -143,6 +146,18 @@ export function DealPanel<T extends PanelDeal>({
     onNext?: () => void
     /** A bandeira do rodapé: abre o diálogo de desfecho da tela. */
     onOutcome?: (side: 'won' | 'lost') => void
+    /**
+     * Criar documento para este negócio.
+     *
+     * O painel não abre o diálogo por conta própria, e é deliberado: ele vive
+     * dentro de duas telas (o quadro e a lista de Negócios), e um diálogo aberto
+     * de dentro de um painel de 380px empilharia duas camadas de sobreposição.
+     * Quem tem o diálogo é a tela; o painel só avisa.
+     *
+     * Ausente, o botão não aparece — então uma tela que use o painel sem
+     * oferecer isto não mostra um gesto que não funciona.
+     */
+    onNovaProposta?: () => void
     onDelete: (deal: T) => void
 }) {
     const v = useVocab()
@@ -228,6 +243,19 @@ export function DealPanel<T extends PanelDeal>({
     const modes = [
         { id: 'ficha', label: 'Ficha do negócio', icon: Route },
         { id: 'schedule', label: closed ? 'Negócio finalizado — nada a agendar' : 'Agendar atividade', icon: CalendarPlus, disabled: closed || !deal.contact?.id },
+        /**
+         * Propostas depois de agendar e antes de atividades.
+         *
+         * A ordem segue o que se faz com um negócio aberto, na frequência em que
+         * se faz: marca-se um compromisso, manda-se um documento, acompanha-se a
+         * tarefa, anota-se. O documento **não** fica no fim porque é a ação que
+         * move o valor.
+         *
+         * Nunca desabilitado, nem em negócio fechado: a proposta aceita é a
+         * explicação do valor que fechou, e é justamente ali que alguém vai
+         * procurá-la.
+         */
+        { id: 'propostas', label: 'Propostas do negócio', icon: FileText },
         { id: 'activities', label: 'Atividades', icon: ListTodo },
         { id: 'notes', label: 'Notas do negócio', icon: StickyNote },
     ]
@@ -478,6 +506,20 @@ export function DealPanel<T extends PanelDeal>({
                         dealId={deal.id}
                         refreshToken={activitiesToken}
                         onChanged={onChanged}
+                    />
+                ) : null}
+
+                {mode === 'propostas' ? (
+                    <DealProposals
+                        key={deal.id}
+                        dealId={deal.id}
+                        /**
+                         * Negócio fechado não ganha documento novo: o que fechou
+                         * está explicado pelo que já existe. Reabrir é o caminho
+                         * para voltar a propor.
+                         */
+                        podeCriar={!closed}
+                        titulo={deal.title}
                     />
                 ) : null}
 
