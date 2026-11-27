@@ -35,7 +35,7 @@ import { DndContext, PointerSensor, KeyboardSensor, closestCenter, useSensor, us
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { usePermissions } from '@venn/core/hooks/usePermissions'
 import { useVocab } from '@venn/core/hooks/useVocab'
-import { cssDoDocumento } from '@venn/core/lib/propostas/estilo'
+import { FolhaDoDocumento, type CabecalhoDaFolha } from '@venn/core/components/propostas/FolhaDoDocumento'
 import {
     aceitaEdicaoDeItens,
     aceitaNovaRevisao,
@@ -213,6 +213,9 @@ export function PropostaClient({
     const [corDaPrevia, setCorDaPrevia] = useState<string | null>(null)
     /** O tema do modelo, cru — a prévia pinta com ele, como a página do cliente. */
     const [temaDaPrevia, setTemaDaPrevia] = useState<unknown>(null)
+    /** A folha do cliente: logo, rótulo, número, organização e total. */
+    const [cabecalhoDaPrevia, setCabecalhoDaPrevia] = useState<CabecalhoDaFolha | null>(null)
+    const [chromeDaPrevia, setChromeDaPrevia] = useState<string>('')
     const [carregandoPrevia, setCarregandoPrevia] = useState(false)
     const [salvando, setSalvando] = useState(false)
     const [gravado, setGravado] = useState<'ok' | 'pendente' | null>(null)
@@ -342,7 +345,7 @@ export function PropostaClient({
                 await Promise.all([gravarSecoes(secoes), gravarItens(itens, validade, observacao)])
             }
             const r = await fetch(`/api/propostas/${proposta.id}/revisoes/${vigente.version}/previa`)
-            const corpo = (await r.json().catch(() => ({}))) as { html?: string; cor?: string | null; error?: string ; tema?: unknown }
+            const corpo = (await r.json().catch(() => ({}))) as { html?: string; cor?: string | null; error?: string ; tema?: unknown ; cabecalho?: CabecalhoDaFolha; chrome?: string }
             if (!r.ok || !corpo.html) {
                 setAviso(corpo.error ?? 'Não foi possível montar a prévia.')
                 return
@@ -350,6 +353,8 @@ export function PropostaClient({
             setPrevia(corpo.html)
             setCorDaPrevia(corpo.cor ?? null)
             setTemaDaPrevia(corpo.tema ?? null)
+            setCabecalhoDaPrevia(corpo.cabecalho ?? null)
+            setChromeDaPrevia(corpo.chrome ?? '')
         } finally {
             setCarregandoPrevia(false)
         }
@@ -679,20 +684,44 @@ export function PropostaClient({
                 {/* ── o documento ──────────────────────────────────────── */}
                 <main className="min-w-0">
                     {modo === 'visualizar' ? (
-                        <div className="rounded-lg border border-border bg-card p-8 shadow-sm">
+                        /*
+                         * **A folha do cliente, não o miolo.** Era um cartão com
+                         * o HTML solto dentro; o cliente recebe logotipo, rótulo
+                         * e número, organização, total e a largura de leitura.
+                         * Quem desenha é o MESMO componente da página do link,
+                         * para os dois não divergirem — ver `FolhaDoDocumento`.
+                         */
+                        <div className="rounded-lg bg-muted/30 p-4 sm:p-6">
                             {carregandoPrevia && !previa ? (
-                                <div className="space-y-3" aria-busy>
+                                <div className="mx-auto max-w-3xl space-y-3 rounded-xl border border-border/60 bg-card p-6 sm:p-10" aria-busy>
                                     <div className="h-6 w-2/3 animate-pulse rounded bg-muted" />
                                     <div className="h-4 w-full animate-pulse rounded bg-muted" />
                                     <div className="h-4 w-5/6 animate-pulse rounded bg-muted" />
                                 </div>
-                            ) : (
-                                <>
-                                    <style>{cssDoDocumento('.documento-previa', temaDaPrevia ?? corDaPrevia)}</style>
-                                    {/* HTML nosso: `renderDocumento` escapa tudo que vem de fora. */}
-                                    <div className="documento-previa" dangerouslySetInnerHTML={{ __html: previa ?? '' }} />
-                                </>
-                            )}
+                            ) : cabecalhoDaPrevia ? (
+                                <FolhaDoDocumento
+                                    escopo=".documento-previa"
+                                    cabecalho={cabecalhoDaPrevia}
+                                    tema={temaDaPrevia ?? corDaPrevia}
+                                    html={previa ?? ''}
+                                    chrome={chromeDaPrevia}
+                                    rodape={
+                                        /*
+                                         * O bloco de aceite, como ilustração: o
+                                         * cliente vê um formulário de verdade
+                                         * aqui. Mostrá-lo desativado é o que
+                                         * torna a prévia honesta sobre o que ele
+                                         * recebe, sem deixar ninguém aceitar a
+                                         * própria proposta pelo editor.
+                                         */
+                                        <footer className="mt-10 border-t border-border/60 pt-6">
+                                            <p className="text-sm text-muted-foreground">
+                                                O cliente vê aqui o botão de aceite, com o campo de nome.
+                                            </p>
+                                        </footer>
+                                    }
+                                />
+                            ) : null}
                         </div>
                     ) : (
                         <DndContext sensors={sensores} collisionDetection={closestCenter} onDragEnd={aoSoltar}>

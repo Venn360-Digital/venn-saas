@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { cssDoDocumento } from '@venn/core/lib/propostas/estilo'
+import { FolhaDoDocumento } from '@venn/core/components/propostas/FolhaDoDocumento'
 
 /**
  * O documento como o cliente o lê, e o aceite.
@@ -109,12 +109,23 @@ export function DocumentoPublicoCliente({
 
     return (
         <main className="min-h-dvh bg-muted/30 px-4 py-10 print:p-0">
-            <div className="mx-auto w-full max-w-3xl">
-                {/* "Baixar PDF" só existe AQUI, na visualização do link — decisão
-                    do André em 22/11/2026: o editor visualiza e envia o link; o
-                    arquivo é do cliente. É a impressão do navegador com o CSS de
-                    `estilo.ts`: sem Browser Rendering, sem binding novo. */}
-                <div className="mb-3 flex justify-end print:hidden">
+            <FolhaDoDocumento
+                escopo=".documento-publico"
+                cabecalho={{
+                    logo: documento.logo,
+                    rotulo: documento.rotulo,
+                    numero: documento.numero,
+                    organizacao: documento.organizacao,
+                    totalEmTexto: documento.totalEmTexto,
+                }}
+                tema={documento.tema ?? documento.cor}
+                html={documento.html}
+                chrome={documento.chrome}
+                acao={
+                    /* "Baixar PDF" só existe AQUI, na visualização do link —
+                       decisão do André em 22/11/2026: o editor visualiza e envia
+                       o link; o arquivo é do cliente. É a impressão do navegador
+                       com o CSS de `estilo.ts`. */
                     <button
                         type="button"
                         onClick={() => window.print()}
@@ -123,51 +134,8 @@ export function DocumentoPublicoCliente({
                         <svg aria-hidden viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v12" /><path d="m7 10 5 5 5-5" /><path d="M5 21h14" /></svg>
                         Baixar PDF
                     </button>
-                </div>
-
-                <article className="documento-publico-moldura rounded-xl border border-border/60 bg-card p-6 shadow-sm sm:p-10 print:rounded-none print:border-0 print:p-0 print:shadow-none">
-                    <header className="mb-8 flex flex-wrap items-center justify-between gap-3 border-b border-border/60 pb-5">
-                        <div className="flex items-center gap-3">
-                            {/* A identidade do modelo: o logotipo da organização. `alt` com o
-                                nome, porque o leitor de tela lê o nome e não a imagem. */}
-                            {documento.logo && (
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img src={documento.logo} alt={documento.organizacao} className="h-10 w-auto max-w-[9rem] object-contain" />
-                            )}
-                            <div>
-                                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                                    {documento.rotulo} {documento.numero}
-                                </p>
-                                <p className="mt-1 text-base font-semibold text-foreground">
-                                    {documento.organizacao}
-                                </p>
-                            </div>
-                        </div>
-                        <p className="text-lg font-semibold tabular-nums text-foreground">
-                            {documento.totalEmTexto}
-                        </p>
-                    </header>
-
-                    {/* O HTML é o que o servidor montou e escapou. Ver o cabeçalho. */}
-                    <div className="documento-publico">
-                        {/*
-                         * A moldura de impressão vem ANTES e FORA do html, e as
-                         * duas coisas importam. Fora, porque o `html` é o que o
-                         * aceite hasheia e a marca da conta muda sozinha. Dentro
-                         * deste mesmo `div`, porque é o escopo que o CSS do
-                         * documento conhece: posta fora dele, ela não receberia
-                         * regra nenhuma.
-                         *
-                         * Na tela ela não aparece — o CSS a esconde e esta
-                         * página já tem o próprio cabeçalho. Ela existe para a
-                         * folha impressa, onde se repete a cada página.
-                         */}
-                        {documento.chrome ? (
-                            <div dangerouslySetInnerHTML={{ __html: documento.chrome }} />
-                        ) : null}
-                        <div dangerouslySetInnerHTML={{ __html: documento.html }} />
-                    </div>
-
+                }
+                rodape={
                     <footer className="mt-10 border-t border-border/60 pt-6">
                         {aceitoEm ? (
                             <div className="rounded-lg bg-muted/60 p-4 text-sm print:bg-transparent print:p-0">
@@ -235,24 +203,15 @@ export function DocumentoPublicoCliente({
                             </div>
                         )}
                     </footer>
-                </article>
+                }
+            />
 
-                <p className="mt-6 text-center text-xs text-muted-foreground/70 print:hidden">
-                    {marca}
-                </p>
-            </div>
+            <p className="mx-auto mt-6 max-w-3xl text-center text-xs text-muted-foreground/70 print:hidden">
+                {marca}
+            </p>
 
-            {/*
-             * O estilo do documento mora aqui, junto da única tela que o usa.
-             *
-             * A folha global não o conhece — e não deve: `documento-publico` é
-             * o único lugar do produto que recebe HTML montado no servidor, e
-             * manter as regras ao lado dele é o que impede que um ajuste no
-             * tema mude a cara de um documento que já foi aceito.
-             */}
-            {/* O CSS é o mesmo do modo Visualizar do editor — `lib/propostas/estilo.ts`.
-                Dois CSS fariam o vendedor ver uma coisa e o cliente outra. */}
-            <style>{cssDoDocumento('.documento-publico', documento.tema ?? documento.cor)}</style>
+            {/* O CSS do documento agora é emitido por `FolhaDoDocumento`, junto
+                com a moldura, para a prévia do editor receber exatamente o mesmo. */}
         </main>
     )
 }

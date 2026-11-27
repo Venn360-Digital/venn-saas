@@ -5,7 +5,9 @@ import { currentMembership } from '@venn/core/lib/auth/workspace'
 import { propostaVisivel, revisaoVisivel } from '@venn/core/lib/propostas/acesso'
 import { contextoDeMapa, contextoDeVariaveis } from '@venn/core/lib/propostas/contexto'
 import { urlDaCapaDe } from '@venn/core/lib/propostas/capa'
-import { renderDocumento } from '@venn/core/lib/propostas/render'
+import { chromeDoDocumento, renderDocumento } from '@venn/core/lib/propostas/render'
+import { dinheiroEmTexto } from '@venn/core/lib/propostas/calculo'
+import { ROTULO_DO_TIPO, type TipoDeDocumento } from '@venn/core/lib/propostas/estados'
 import { converterCorpoEmSecoes, secoesPadrao, secoesSchema } from '@venn/core/lib/propostas/secoes'
 
 /**
@@ -78,7 +80,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
                         createdAt: true,
                         template: { select: { body: true, sections: true, theme: true } },
                         createdBy: { select: { name: true, email: true, phone: true } },
-                        workspace: { select: { name: true, cnpj: true, address: true, phone: true } },
+                        workspace: { select: { name: true, cnpj: true, address: true, phone: true, logo: true } },
                         deal: {
                             select: {
                                 title: true,
@@ -156,6 +158,33 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
         return NextResponse.json({
             html,
             congelada: congeladas.success && congeladas.data.length > 0,
+            /**
+             * **A folha do cliente, e não só o miolo.**
+             *
+             * O editor mostrava apenas o HTML do documento, solto no painel. O
+             * cliente recebe isso dentro de uma folha: logo da organização,
+             * rótulo e número, nome da organização, total, e a largura de
+             * leitura. Sem esses dados o "Visualizar" não era o que o André
+             * pediu — ele via o miolo e o cliente via a página.
+             *
+             * Quem desenha é `FolhaDoDocumento`, o **mesmo** componente da
+             * página pública. Dois desenhos divergiriam, que é o argumento que
+             * este módulo já faz para o render.
+             */
+            cabecalho: {
+                logo: p.workspace.logo ?? null,
+                rotulo: ROTULO_DO_TIPO[p.kind as TipoDeDocumento],
+                numero: p.number,
+                organizacao: p.workspace.name,
+                totalEmTexto: dinheiroEmTexto(r.total, p.currency),
+            },
+            /** Cabeçalho e rodapé de impressão. Fora do `html`, como na página. */
+            chrome: chromeDoDocumento({
+                logo: p.workspace.logo ?? null,
+                tema: p.template?.theme ?? null,
+                rotuloCorrido: `${ROTULO_DO_TIPO[p.kind as TipoDeDocumento]} · ${p.deal?.contact?.name ?? p.workspace.name}`,
+                rodapeCorrido: p.workspace.name,
+            }),
             /**
              * **O tema inteiro, não a cor.** O editor tem de pintar a prévia
              * exatamente como a página do cliente pinta, e desde 27/11/2026 a
