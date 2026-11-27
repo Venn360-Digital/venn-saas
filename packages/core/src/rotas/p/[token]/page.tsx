@@ -133,6 +133,10 @@ export default async function DocumentoPage({ params }: { params: Promise<{ toke
                 validoAte: doc.validoAte?.toISOString() ?? null,
                 cor: doc.cor,
                 logo: doc.logo,
+                // Os dois ficam FORA do `html`: o aceite hasheia o documento,
+                // e tema e logomarca são da conta, que muda sozinha.
+                tema: doc.tema,
+                chrome: doc.chrome,
             }}
         />
     )

@@ -30,7 +30,8 @@
  * que o CSS de impressão quebra em folha nova.
  */
 import { dinheiroEmTexto, quantidadeEmTexto, type TotaisDaRevisao } from './calculo'
-import { converterCorpoEmSecoes, ehPagina, secoesPadrao, type Secao } from './secoes'
+import { converterCorpoEmSecoes, ehPagina, ROTULO_DA_SECAO, secoesPadrao, type Secao, type TipoDeSecao } from './secoes'
+import { lerTema } from './tema'
 import { aplicarVariaveis, MARCADOR_DE_ITENS, type ContextoDeVariaveis } from './variaveis'
 
 /** Escapa o que vai para o HTML. Mesma lista de `lib/email/blocos.ts`. */
@@ -55,6 +56,27 @@ export interface ItemParaRender {
 }
 
 export interface DocumentoParaRender {
+    /**
+     * A logomarca da organização, como URL. Nula quando não há.
+     *
+     * Entra **dentro** do HTML do documento, e essa é a mudança: ela já chegava
+     * à página pública, mas desenhada ao lado do documento, não nele. Ao lado,
+     * ela não existe no PDF — e o PDF é o que o cliente guarda e reencaminha.
+     */
+    logo?: string | null
+    /**
+     * O `theme` do modelo, cru. Quem o lê é `lerTema`; aqui ele só atravessa,
+     * porque o render precisa saber duas coisas dele: se a capa é escura e se a
+     * logomarca deve aparecer.
+     */
+    tema?: unknown
+    /**
+     * A linha que se repete no cabeçalho de toda folha impressa, à direita da
+     * marca. Algo como "Proposta comercial · Fulano".
+     */
+    rotuloCorrido?: string | null
+    /** O rodapé impresso, à esquerda. O nome da organização, em geral. */
+    rodapeCorrido?: string | null
     /**
      * As seções da v2. Quando vêm, mandam.
      *
@@ -231,10 +253,29 @@ function secaoEmHtml(s: Secao, doc: DocumentoParaRender): string {
         case 'capa': {
             const imagem =
                 s.imageKey && doc.urlDaCapa
-                    ? `<img class="doc-capa-arte" src="${esc(doc.urlDaCapa)}" alt="">\n`
+                    ? `<img class="doc-capa-arte" src="${esc(doc.urlDaCapa)}" alt="">\n` +
+                      /**
+                       * O véu entre a arte e o texto — **só quando há arte**.
+                       *
+                       * A imagem vem de IA e pode sair escura; o título usa a
+                       * tinta do tema. Sem esta camada, capa escura com texto
+                       * escuro fica ilegível, e isso não depende de ninguém
+                       * errar: depende do que o modelo de imagem sortear.
+                       * Capa sem arte não precisa dele, e aí ele não entra.
+                       */
+                      `<div class="doc-capa-veu" aria-hidden="true"></div>\n`
                     : ''
             const titulo = linha(s.titulo ?? '{{documento.titulo}}', ctx)
             const subtitulo = linha(s.subtitulo, ctx)
+            /**
+             * **A logomarca NÃO entra aqui**, e o verificador me pegou tentando.
+             *
+             * O endereço do logo é da conta e muda sozinho; o HTML do documento
+             * é o que o aceite hasheia. Logo dentro do HTML faria o hash de um
+             * documento já aceito deixar de bater no dia em que alguém trocasse
+             * a marca. Ela vive na moldura impressa (`chromeDoDocumento`), que
+             * fica fora do que se hasheia — ver `publico.ts`.
+             */
             return (
                 imagem +
                 `<div class="doc-capa-texto">` +
@@ -369,8 +410,41 @@ function tituloParaSumario(s: Secao, ctx: ContextoDeVariaveis): string | null {
  * embrulha em `<section class="doc-secao doc-secao-<tipo>">`. O sumário é
  * montado aqui porque precisa da lista inteira.
  */
+/**
+ * Os tipos que ganham sobretítulo numerado — "02 — ESCOPO".
+ *
+ * **Nem todo tipo ganha, e o critério é se o rótulo diz alguma coisa.** Em
+ * `escopo` ou `investimento` o rótulo nomeia a parte da venda, e numerá-lo dá
+ * ao documento a espinha que a referência do André tem. Em `texto` o rótulo é
+ * literalmente "Texto": sobretítulo ali seria ruído com número.
+ *
+ * O par é rótulo mais título, e eles dizem coisas diferentes de propósito: o
+ * rótulo é a etiqueta da seção, o título é a frase daquele documento. Sai de
+ * dado que já existe, sem campo novo no schema.
+ */
+const COM_SOBRETITULO: ReadonlySet<TipoDeSecao> = new Set([
+    'destaques',
+    'escopo',
+    'fases',
+    'investimento',
+    'garantia',
+    'condicoes',
+])
+
+/**
+ * `itens` ficou **fora** da lista, e não por estética.
+ *
+ * A conversão do corpo da v1 produz exatamente dois tipos, `texto` e `itens`, e
+ * o verificador exige que o render do corpo antigo e o render da sua conversão
+ * sejam idênticos byte a byte. Um sobretítulo em `itens` quebra essa igualdade
+ * — foi o que ele acusou quando eu o incluí. A etiqueta de dinheiro da
+ * referência é `investimento`, que está na lista; a tabela crua não precisa de
+ * numeração.
+ */
+
 export function renderSecoes(secoes: readonly Secao[], doc: DocumentoParaRender): string {
     const partes: string[] = []
+    let numero = 0
     for (const s of secoes) {
         let html: string
         if (s.tipo === 'sumario') {
@@ -379,8 +453,22 @@ export function renderSecoes(secoes: readonly Secao[], doc: DocumentoParaRender)
         } else {
             html = secaoEmHtml(s, doc)
         }
+        let sobretitulo = ''
+        if (COM_SOBRETITULO.has(s.tipo)) {
+            numero += 1
+            const n = String(numero).padStart(2, '0')
+            sobretitulo = `<p class="doc-sobretitulo">${n} — ${esc(ROTULO_DA_SECAO[s.tipo])}</p>\n`
+        }
+
+        /**
+         * Nenhum atributo vindo do tema aqui, pela mesma razão da marca: tema é
+         * da conta e o HTML é o que se hasheia. Capa clara ou escura é decidida
+         * no CSS, que já recebe o tema — ver `cssDoDocumento`.
+         */
         const classe = ehPagina(s.tipo) ? `doc-pagina doc-pagina-${s.tipo}` : `doc-secao doc-secao-${s.tipo}`
-        partes.push(`<section class="${classe}" data-secao="${esc(s.id)}">\n${html}\n</section>`)
+        partes.push(
+            `<section class="${classe}" data-secao="${esc(s.id)}">\n${sobretitulo}${html}\n</section>`
+        )
     }
     return partes.join('\n')
 }
@@ -400,6 +488,41 @@ export function renderDocumento(doc: DocumentoParaRender): string {
                   return convertidas.length > 0 ? convertidas : secoesPadrao()
               })()
     return renderSecoes(secoes, doc)
+}
+
+/**
+ * O cabeçalho e o rodapé que se repetem em **toda folha impressa**.
+ *
+ * Escondidos na tela: a página pública rola, e já tem o cabeçalho dela. Na
+ * impressão o CSS os põe em `position: fixed` dentro da margem da folha, que é
+ * o que o Chromium repete por página.
+ *
+ * **Fica FORA do HTML que se hasheia.** A marca e o rótulo vêm da conta e do
+ * cliente, não do documento; dentro do `renderDocumento` eles fariam o hash de
+ * um documento já aceito mudar quando alguém trocasse a logomarca. Quem a
+ * desenha é a página, dentro do mesmo escopo de CSS e ao lado do documento.
+ *
+ * **O que não tem, e é diferença visível para a referência:** o "03 / 05". A
+ * numeração de página em CSS mora nas margin boxes (`@bottom-right`), e o
+ * Chromium não as implementa. Sair disso exige paginar o documento em folhas
+ * explícitas, que é outra decisão — ver o estudo de 27/11/2026. Preferi a
+ * ausência à numeração errada.
+ */
+export function chromeDoDocumento(doc: Pick<DocumentoParaRender, 'logo' | 'tema' | 'rotuloCorrido' | 'rodapeCorrido'>): string {
+    const tema = lerTema(doc.tema)
+    const marca =
+        doc.logo && tema.logo ? `<img src="${esc(doc.logo)}" alt="">` : ''
+    const rotulo = doc.rotuloCorrido ? esc(doc.rotuloCorrido) : ''
+    const rodape = doc.rodapeCorrido ? esc(doc.rodapeCorrido) : ''
+
+    if (!marca && !rotulo && !rodape) return ''
+
+    return (
+        `<div class="doc-chrome doc-chrome-topo" aria-hidden="true">` +
+        `<span class="doc-chrome-marca">${marca}</span><span>${rotulo}</span></div>\n` +
+        `<div class="doc-chrome doc-chrome-rodape" aria-hidden="true">` +
+        `<span>${rodape}</span><span></span></div>\n`
+    )
 }
 
 /**

@@ -4,7 +4,7 @@ import { dentroDoLimite, ipDaRequisicao } from '../limite'
 import { pareceToken } from '../convite/token'
 import { dinheiroEmTexto } from './calculo'
 import { contextoDeMapa, contextoDeVariaveis } from './contexto'
-import { renderDocumento } from './render'
+import { chromeDoDocumento, renderDocumento } from './render'
 import { converterCorpoEmSecoes, secoesPadrao, secoesSchema, type Secao } from './secoes'
 import { ROTULO_DO_TIPO, ehTipoDeDocumento } from './estados'
 import type { DocumentoPublico } from './compartilhar'
@@ -81,6 +81,10 @@ export interface DocumentoRenderizado {
     cor: string | null
     /** O logotipo da organização (URL), ou nulo. Também fora do `html`. */
     logo: string | null
+    /** O `theme` do modelo, cru, para o CSS. Fora do `html`. */
+    tema: unknown
+    /** Cabeçalho e rodapé de impressão, já em HTML. Fora do `html`. */
+    chrome: string
 }
 
 /**
@@ -182,6 +186,23 @@ export function renderizarPublico(share: DocumentoPublico, urlDaCapa: string | n
         expiraEm: share.expiresAt,
         validoAte: revisao.validUntil,
         cor: (proposta.template?.theme as { cor?: string | null } | null)?.cor ?? null,
+        /**
+         * O tema **cru**, para o CSS. Fora do `html` pela mesma razão da cor e
+         * do logotipo: o que o aceite hasheia é o documento, não a identidade
+         * da conta, que muda sozinha.
+         */
+        tema: proposta.template?.theme ?? null,
+        /**
+         * A moldura impressa — cabeçalho e rodapé que se repetem em toda folha.
+         * Também fora do `html`, e por isso gerada aqui e não dentro de
+         * `renderDocumento`.
+         */
+        chrome: chromeDoDocumento({
+            logo: proposta.workspace.logo ?? null,
+            tema: proposta.template?.theme ?? null,
+            rotuloCorrido: `${ROTULO_DO_TIPO[tipo]} · ${proposta.deal?.contact?.name ?? proposta.workspace.name}`,
+            rodapeCorrido: proposta.workspace.name,
+        }),
         logo: proposta.workspace.logo ?? null,
     }
 }

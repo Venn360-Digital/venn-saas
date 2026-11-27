@@ -639,9 +639,24 @@ const base: FatosDaProposta = {
     const v = vocab()
     const modelos = modelosSemente(v, 'ws-de-teste')
 
-    ok('são três modelos, um por tipo', modelos.length === TIPOS_DE_DOCUMENTO.length)
+    /**
+     * Deixaram de ser três em 27/11/2026: a **proposta** passou a vir nos cinco
+     * modelos de `modelos-prontos.ts`, do mais simples ao mais apresentável, e
+     * orçamento e contrato seguem com um cada. A afirmação que importa não é a
+     * contagem, é a cobertura: todo tipo de documento tem ao menos um modelo, e
+     * nenhum nome se repete dentro da unidade.
+     */
     ok(
-        'um por tipo, sem repetir',
+        'todo tipo de documento tem ao menos um modelo',
+        TIPOS_DE_DOCUMENTO.every((t) => modelos.some((m) => m.kind === t))
+    )
+    ok('a proposta vem na escada de cinco', modelos.filter((m) => m.kind === 'proposta').length === 5)
+    ok(
+        'e exatamente um modelo por tipo nasce como padrão',
+        TIPOS_DE_DOCUMENTO.every((t) => modelos.filter((m) => m.kind === t && m.isDefault).length === 1)
+    )
+    ok(
+        'todos os tipos aparecem, sem tipo inventado',
         new Set(modelos.map((m) => m.kind)).size === TIPOS_DE_DOCUMENTO.length
     )
     ok(
@@ -668,15 +683,15 @@ const base: FatosDaProposta = {
         for (const vazamento of [' por a ', ' por o ', ' de a ', ' de o ', ' em a ', ' em o ']) {
             // Sem `extra`: o helper imprime o detalhe mesmo quando passa, e
             // dezoito corpos de documento na saída esconderiam a única falha.
-            ok(`${m.kind}: sem "${vazamento.trim()}" — contração esquecida`, !m.body.includes(vazamento))
+            ok(`${m.kind}: sem "${vazamento.trim()}" — contração esquecida`, !(m.body ?? '').includes(vazamento))
         }
-        ok(`${m.kind}: expande os itens`, m.body.includes(`{{${MARCADOR_DE_ITENS}}}`))
+        ok(`${m.kind}: expande os itens`, (m.body ?? '').includes(`{{${MARCADOR_DE_ITENS}}}`))
 
         // O que o modelo NÃO promete. Texto escrito por nós sairia no nome da
         // organização prometendo o que não sabemos — a regra está no cabeçalho
         // de `semente.ts`, e sem asserção ela se perde na primeira edição.
         for (const promessa of ['garantia', 'prazo de', 'parcel', 'desconto de']) {
-            ok(`${m.kind}: não promete "${promessa}"`, !m.body.toLowerCase().includes(promessa))
+            ok(`${m.kind}: não promete "${promessa}"`, !(m.body ?? '').toLowerCase().includes(promessa))
         }
     }
 }
@@ -1149,14 +1164,36 @@ const base: FatosDaProposta = {
     console.log('\n── F4: o link público ──')
     const publica = readFileSync(join(CORE, 'rotas/p/[token]/DocumentoPublicoCliente.tsx'), 'utf8')
     ok('a página do link tem "Baixar PDF" pela impressão do navegador', publica.includes('Baixar PDF') && publica.includes('window.print()'))
-    ok('a página do link pinta com a cor do modelo', publica.includes("cssDoDocumento('.documento-publico', documento.cor)"))
+    /**
+     * Em 27/11/2026 a identidade deixou de ser uma cor e virou tema (paleta,
+     * fonte, capa, logomarca), então a página passa a entregar o tema ao CSS e
+     * a cor vira apenas a queda para o que está gravado na forma antiga. A
+     * afirmação é a mesma: a página do link pinta com a identidade do modelo.
+     */
+    ok(
+        'a página do link pinta com a identidade do modelo',
+        publica.includes("cssDoDocumento('.documento-publico', documento.tema ?? documento.cor)")
+    )
+    ok(
+        'e a moldura de impressão fica FORA do html (o hash não muda)',
+        publica.includes('documento.chrome') && !publica.includes('chromeDoDocumento')
+    )
     ok('a página do link mostra o logotipo quando há', publica.includes('documento.logo &&'))
     for (const arquivo of ['rotas/(dashboard)/vendas/propostas/[id]/PropostaClient.tsx', 'rotas/(dashboard)/vendas/propostas/modelos/ModelosClient.tsx']) {
         const fonte = readFileSync(join(CORE, arquivo), 'utf8')
         ok(`${arquivo.split('/').pop()} NÃO oferece PDF`, !fonte.includes('window.print') && !fonte.includes('PDF'))
     }
     const estilo = readFileSync(join(CORE, 'lib/propostas/estilo.ts'), 'utf8')
-    ok('a cor do modelo é validada por forma antes de virar CSS', /COR_HEX\.test\(cor\)/.test(estilo))
+    /**
+     * A validação por forma mudou de arquivo em 27/11/2026, quando o tema
+     * deixou de ser uma cor e virou paleta: ela mora em `tema.ts`, no
+     * `lerTema`, que é por onde TODA cor passa antes de virar CSS. A asserção
+     * continua sendo a mesma — nada gravado vira CSS sem casar com `#rrggbb` —,
+     * só mudou onde se prova.
+     */
+    const tema = readFileSync(join(CORE, 'lib/propostas/tema.ts'), 'utf8')
+    ok('a cor do modelo é validada por forma antes de virar CSS', /COR_HEX\.test\(/.test(tema))
+    ok('e o CSS não valida por conta própria: ele recebe o tema já lido', estilo.includes('lerTema(temaBruto)'))
     ok('a cor entra por variáveis, e o CSS não lê --primary direto fora delas', (estilo.split('export function cssDoDocumento')[1].match(/var\(--primary\)/g) ?? []).length === 0)
     ok('a impressão quebra página por seção de página', estilo.includes('break-before: page'))
     const publico = readFileSync(join(CORE, 'lib/propostas/publico.ts'), 'utf8')
