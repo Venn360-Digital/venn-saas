@@ -156,7 +156,19 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
         return NextResponse.json({
             html,
             congelada: congeladas.success && congeladas.data.length > 0,
-            // A cor do modelo: o editor pinta a prévia como a página pública pinta.
+            /**
+             * **O tema inteiro, não a cor.** O editor tem de pintar a prévia
+             * exatamente como a página do cliente pinta, e desde 27/11/2026 a
+             * identidade é paleta, fonte e capa — não um campo `cor`.
+             *
+             * Enquanto isto devolvia só `theme.cor`, o modelo Estúdio (que
+             * guarda `acentos`) chegava ao editor como **nulo**: a prévia caía
+             * no tema do app, sem acento, sem fonte e sem capa escura, enquanto
+             * o cliente via o documento desenhado. Era a divergência que a v2
+             * existe para fechar, e ela voltou pela porta dos fundos.
+             */
+            tema: p.template?.theme ?? null,
+            // Mantida para quem ainda leia o campo antigo.
             cor: (p.template?.theme as { cor?: string | null } | null)?.cor ?? null,
         })
     } catch (error) {

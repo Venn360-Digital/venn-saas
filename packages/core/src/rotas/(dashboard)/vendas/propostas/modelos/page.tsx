@@ -61,6 +61,7 @@ export default async function ModelosDeDocumentoPage() {
         secoes: (() => { const p = secoesSchema.safeParse(m.sections); return p.success ? p.data : converterCorpoEmSecoes(m.body) })(),
         origem: (m.source as { origem?: string } | null)?.origem ?? null,
         cor: (m.theme as { cor?: string | null } | null)?.cor ?? null,
+        tema: m.theme ?? null,
         isDefault: m.isDefault,
         isActive: m.isActive,
         emUso: m._count.proposals,

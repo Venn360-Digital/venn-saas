@@ -16,6 +16,7 @@ import {
     Sparkles,
     ThumbsDown,
     ThumbsUp,
+    Undo2,
     Trash2,
 } from 'lucide-react'
 
@@ -210,6 +211,8 @@ export function PropostaClient({
     // A cor do modelo, para a prévia pintar como a página pública.
 
     const [corDaPrevia, setCorDaPrevia] = useState<string | null>(null)
+    /** O tema do modelo, cru — a prévia pinta com ele, como a página do cliente. */
+    const [temaDaPrevia, setTemaDaPrevia] = useState<unknown>(null)
     const [carregandoPrevia, setCarregandoPrevia] = useState(false)
     const [salvando, setSalvando] = useState(false)
     const [gravado, setGravado] = useState<'ok' | 'pendente' | null>(null)
@@ -339,13 +342,14 @@ export function PropostaClient({
                 await Promise.all([gravarSecoes(secoes), gravarItens(itens, validade, observacao)])
             }
             const r = await fetch(`/api/propostas/${proposta.id}/revisoes/${vigente.version}/previa`)
-            const corpo = (await r.json().catch(() => ({}))) as { html?: string; cor?: string | null; error?: string }
+            const corpo = (await r.json().catch(() => ({}))) as { html?: string; cor?: string | null; error?: string ; tema?: unknown }
             if (!r.ok || !corpo.html) {
                 setAviso(corpo.error ?? 'Não foi possível montar a prévia.')
                 return
             }
             setPrevia(corpo.html)
             setCorDaPrevia(corpo.cor ?? null)
+            setTemaDaPrevia(corpo.tema ?? null)
         } finally {
             setCarregandoPrevia(false)
         }
@@ -532,7 +536,7 @@ export function PropostaClient({
         }
     }
 
-    async function gesto(qual: 'pedir' | 'aprovar' | 'reprovar', motivo?: string) {
+    async function gesto(qual: 'pedir' | 'aprovar' | 'reprovar' | 'cancelar', motivo?: string) {
         if (!vigente) return
         setSalvando(true)
         setAviso(null)
@@ -684,7 +688,7 @@ export function PropostaClient({
                                 </div>
                             ) : (
                                 <>
-                                    <style>{cssDoDocumento('.documento-previa', corDaPrevia)}</style>
+                                    <style>{cssDoDocumento('.documento-previa', temaDaPrevia ?? corDaPrevia)}</style>
                                     {/* HTML nosso: `renderDocumento` escapa tudo que vem de fora. */}
                                     <div className="documento-previa" dangerouslySetInnerHTML={{ __html: previa ?? '' }} />
                                 </>
@@ -828,16 +832,37 @@ export function PropostaClient({
                             Enviar para aprovação
                         </Button>
                     )}
-                    {canSeeEveryone && vigente.status === 'em_aprovacao' && (
-                        <div className="flex gap-2">
-                            <Button type="button" variant="outline" className="flex-1" onClick={() => setReprovando(true)} disabled={salvando}>
-                                <ThumbsDown className="size-4" aria-hidden />
-                                Reprovar
-                            </Button>
-                            <Button type="button" className="flex-1" onClick={() => void gesto('aprovar')} disabled={salvando}>
-                                <ThumbsUp className="size-4" aria-hidden />
-                                Aprovar
-                            </Button>
+                    {vigente.status === 'em_aprovacao' && (
+                        <div className="space-y-2">
+                            {canSeeEveryone && (
+                                <div className="flex gap-2">
+                                    <Button type="button" variant="outline" className="flex-1" onClick={() => setReprovando(true)} disabled={salvando}>
+                                        <ThumbsDown className="size-4" aria-hidden />
+                                        Reprovar
+                                    </Button>
+                                    <Button type="button" className="flex-1" onClick={() => void gesto('aprovar')} disabled={salvando}>
+                                        <ThumbsUp className="size-4" aria-hidden />
+                                        Aprovar
+                                    </Button>
+                                </div>
+                            )}
+                            {/*
+                             * **A saída do beco.** Antes, pedir aprovação era porta
+                             * de mão única: aprovar e reprovar são de alçada, quem
+                             * pediu não decide nenhum dos dois, e não havia volta
+                             * para rascunho. Numa unidade de uma pessoa só — que
+                             * este produto atende — o documento ficava preso, sem
+                             * aprovar, sem enviar e sem editar.
+                             *
+                             * Fica visível a quem pode editar, e a rota confere
+                             * quem de fato pode: quem pediu, ou a gestão.
+                             */}
+                            {canEdit && (
+                                <Button type="button" variant="outline" className="w-full" onClick={() => void gesto('cancelar')} disabled={salvando}>
+                                    <Undo2 className="size-4" aria-hidden />
+                                    Cancelar o pedido e voltar a editar
+                                </Button>
+                            )}
                         </div>
                     )}
 

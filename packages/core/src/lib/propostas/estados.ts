@@ -50,7 +50,26 @@ export type EstadoDaRevisao = (typeof ESTADOS)[number]
 const TRANSICOES: Record<EstadoDaRevisao, readonly EstadoDaRevisao[]> = {
     // Enviar direto é o caminho de hoje; submeter existe para quando houver alçada.
     rascunho: ['em_aprovacao', 'enviada'],
-    em_aprovacao: ['aprovada', 'reprovada'],
+    /**
+     * `rascunho` é a **volta**, e ela não é enfeite.
+     *
+     * Sem ela, pedir aprovação é porta de mão única: a revisão só sai daqui
+     * aprovada ou reprovada, e as duas são de alçada. Numa unidade onde quem
+     * pediu é a única pessoa com alçada — a clínica de uma pessoa só, que este
+     * produto atende —, o documento fica **preso para sempre**: não dá para
+     * aprovar (quem pediu não decide), não dá para reprovar (mesma regra), não
+     * dá para enviar e não dá para editar.
+     *
+     * Aconteceu na homologação do André em 27/11/2026, no primeiro documento
+     * que ele montou. Ele descreveu como "não consigo aprovar, não consigo
+     * enviar, preciso voltar pelo navegador para achar o editar" — os três
+     * sintomas do mesmo beco.
+     *
+     * Cancelar o próprio pedido **não é auto-aprovação**: não produz registro
+     * de aprovação nenhum, devolve a revisão para edição, e quem o faz é quem
+     * pediu. Ver `avaliarGesto`.
+     */
+    em_aprovacao: ['aprovada', 'reprovada', 'rascunho'],
     aprovada: ['enviada'],
     // Terminais. A saída é revisão nova, não transição — ver o cabeçalho.
     reprovada: [],

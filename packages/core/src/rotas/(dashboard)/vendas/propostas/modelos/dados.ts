@@ -22,6 +22,15 @@ export interface ModeloItem {
     origem: string | null
     /** Cor principal do tema (`#rrggbb`); nula = a cor da organização. */
     cor: string | null
+    /**
+     * O tema cru, como está no banco.
+     *
+     * A tela edita **só a cor principal**, mas o tema guarda também fonte,
+     * estilo de capa e logomarca desde 27/11/2026. Sem carregar o objeto
+     * inteiro, a gravação automática reescrevia o tema com `{ cor }` e apagava
+     * os outros três campos — bastava abrir um modelo e mexer numa seção.
+     */
+    tema: unknown
     isDefault: boolean
     isActive: boolean
     /** Quantos documentos já usam este modelo — é o que torna apagar perigoso. */
