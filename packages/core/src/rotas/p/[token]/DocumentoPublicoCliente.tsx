@@ -36,6 +36,10 @@ export interface DocumentoParaCliente {
     cor: string | null
     /** O logotipo da organização (URL), ou nulo. */
     logo: string | null
+    /** O `theme` do modelo, cru. Fora do `html`: não entra no hash do aceite. */
+    tema: unknown
+    /** Cabeçalho e rodapé de impressão, em HTML. Também fora do `html`. */
+    chrome: string
 }
 
 export function DocumentoPublicoCliente({
@@ -145,10 +149,24 @@ export function DocumentoPublicoCliente({
                     </header>
 
                     {/* O HTML é o que o servidor montou e escapou. Ver o cabeçalho. */}
-                    <div
-                        className="documento-publico"
-                        dangerouslySetInnerHTML={{ __html: documento.html }}
-                    />
+                    <div className="documento-publico">
+                        {/*
+                         * A moldura de impressão vem ANTES e FORA do html, e as
+                         * duas coisas importam. Fora, porque o `html` é o que o
+                         * aceite hasheia e a marca da conta muda sozinha. Dentro
+                         * deste mesmo `div`, porque é o escopo que o CSS do
+                         * documento conhece: posta fora dele, ela não receberia
+                         * regra nenhuma.
+                         *
+                         * Na tela ela não aparece — o CSS a esconde e esta
+                         * página já tem o próprio cabeçalho. Ela existe para a
+                         * folha impressa, onde se repete a cada página.
+                         */}
+                        {documento.chrome ? (
+                            <div dangerouslySetInnerHTML={{ __html: documento.chrome }} />
+                        ) : null}
+                        <div dangerouslySetInnerHTML={{ __html: documento.html }} />
+                    </div>
 
                     <footer className="mt-10 border-t border-border/60 pt-6">
                         {aceitoEm ? (
@@ -234,7 +252,7 @@ export function DocumentoPublicoCliente({
              */}
             {/* O CSS é o mesmo do modo Visualizar do editor — `lib/propostas/estilo.ts`.
                 Dois CSS fariam o vendedor ver uma coisa e o cliente outra. */}
-            <style>{cssDoDocumento('.documento-publico', documento.cor)}</style>
+            <style>{cssDoDocumento('.documento-publico', documento.tema ?? documento.cor)}</style>
         </main>
     )
 }

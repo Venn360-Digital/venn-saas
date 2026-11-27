@@ -117,6 +117,7 @@
         "test:fusao": "tsx scripts/test-fusao.ts",
         "test:escalada": "tsx scripts/test-escalada.ts",
         "test:distribuicao": "tsx scripts/test-distribuicao.ts",
+        "test:modelos": "tsx --conditions=react-server scripts/test-modelos-prontos.ts",
         "test:juiz": "tsx scripts/test-juiz.ts",
         "test:versao": "tsx scripts/test-versao.ts",
         "test:agrupar": "tsx scripts/test-agrupar.ts",

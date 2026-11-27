@@ -4,6 +4,8 @@ import type { Prisma } from '@venn/db'
 
 import { comArtigo } from '../concordancia'
 import type { Vocabulario } from '../vocabulario'
+import { modelosProntos } from './modelos-prontos'
+import { temaParaJson } from './tema'
 import { MARCADOR_DE_ITENS } from './variaveis'
 import { ROTULO_DO_TIPO, TIPOS_DE_DOCUMENTO, type TipoDeDocumento } from './estados'
 
@@ -109,25 +111,64 @@ export function corpoDoModelo(v: Vocabulario, tipo: TipoDeDocumento): string {
 }
 
 /**
- * Os três modelos, prontos para `createMany`.
+ * Os modelos que a unidade recebe prontos, para `createMany`.
  *
- * Exportado separado da gravação para o verificador poder conferir o texto sem
- * banco — é o que prova que nenhuma palavra de nicho foi escrita literal.
+ * ## Mudou em 27/11/2026, e a razão é o que o André viu homologando
+ *
+ * Antes eram três, um por tipo de documento, e **cada um era corpo de texto da
+ * v1** — menos de 400 caracteres, sem seção e sem tema. A máquina de seções
+ * existia inteira e nada a alimentava, então a primeira impressão do módulo era
+ * um documento de texto corrido. A conclusão dele foi "apenas texto", e estava
+ * certa sobre o que a semente entregava.
+ *
+ * Agora a **proposta** vem nos cinco modelos de `modelos-prontos.ts`, do mais
+ * simples ao mais apresentável, cada um com seções tipadas e identidade
+ * própria. Orçamento e contrato seguem em corpo da v1 por escolha de foco: o
+ * André pediu para concentrar a rodada em proposta.
+ *
+ * Exportado separado da gravação para o verificador poder conferir sem banco —
+ * é o que prova que nenhuma palavra de nicho foi escrita literal e que nenhum
+ * compromisso vem preenchido.
  */
 export function modelosSemente(
     v: Vocabulario,
     workspaceId: string
-): { workspaceId: string; name: string; kind: TipoDeDocumento; body: string; isDefault: boolean }[] {
-    return TIPOS_DE_DOCUMENTO.map((tipo) => ({
+): Prisma.ProposalTemplateCreateManyInput[] {
+    const propostas = modelosProntos(v).map((m, i) => ({
         workspaceId,
-        // "Proposta padrão", "Orçamento padrão", "Contrato padrão". O nome entra
-        // no `@@unique([workspaceId, name])`, então precisa ser distinto entre os
-        // três — e legível, porque é o que aparece no seletor.
+        // O nome entra no `@@unique([workspaceId, name])`, então é distinto e
+        // legível: é o que aparece no seletor de documento.
+        name: m.nome,
+        kind: 'proposta' as TipoDeDocumento,
+        /**
+         * O corpo da v1 continua sendo gravado, e **não é redundância**: ele é
+         * a queda de qualquer caminho que ainda leia `body`, e o render usa as
+         * seções quando elas vêm. Um modelo de seções com `body` vazio ficaria
+         * em branco em qualquer leitor antigo.
+         */
+        body: corpoComercial(v, 'proposta'),
+        /**
+         * O `as` é a travessia para coluna Json: o Prisma tipa o campo como
+         * `InputJsonValue`, e `Secao[]` é mais específico que isso. A garantia
+         * de forma não vem do TypeScript aqui, vem de `test:modelos`, que passa
+         * os cinco pelo `secoesSchema`.
+         */
+        sections: m.secoes as unknown as Prisma.InputJsonValue,
+        theme: temaParaJson(m.tema) as Prisma.InputJsonValue,
+        // O primeiro da escada é o padrão: é o que serve a quem só quer mandar
+        // o preço. Quem quiser o apresentável escolhe no seletor.
+        isDefault: i === 0,
+    }))
+
+    const outros = TIPOS_DE_DOCUMENTO.filter((t) => t !== 'proposta').map((tipo) => ({
+        workspaceId,
         name: `${ROTULO_DO_TIPO[tipo]} padrão`,
         kind: tipo,
         body: corpoDoModelo(v, tipo),
         isDefault: true,
     }))
+
+    return [...propostas, ...outros]
 }
 
 /**
