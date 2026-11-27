@@ -1211,15 +1211,32 @@ const base: FatosDaProposta = {
      * a cor vira apenas a queda para o que está gravado na forma antiga. A
      * afirmação é a mesma: a página do link pinta com a identidade do modelo.
      */
+    /**
+     * Em 27/11/2026 a moldura do cliente — logotipo, rótulo e número,
+     * organização, total e a largura de leitura — saiu desta página para
+     * `FolhaDoDocumento`, porque a **prévia do editor** precisa desenhar a
+     * mesma coisa. Era a reclamação do André: ele via o miolo e o cliente via a
+     * página.
+     *
+     * A afirmação que passa a valer é mais forte do que as que ela substitui:
+     * as duas telas desenham pelo MESMO componente, então não há como uma
+     * ganhar um detalhe que a outra não tem.
+     */
+    const folha = readFileSync(join(CORE, 'components/propostas/FolhaDoDocumento.tsx'), 'utf8')
+    const editor = readFileSync(join(CORE, 'rotas/(dashboard)/vendas/propostas/[id]/PropostaClient.tsx'), 'utf8')
+
+    ok('a folha pinta com a identidade do modelo', folha.includes('cssDoDocumento(escopo, tema)'))
+    ok('a folha mostra o logotipo quando há', folha.includes('cabecalho.logo &&'))
     ok(
-        'a página do link pinta com a identidade do modelo',
-        publica.includes("cssDoDocumento('.documento-publico', documento.tema ?? documento.cor)")
+        'a moldura de impressão fica FORA do html (o hash não muda)',
+        folha.includes('chrome ?') && !folha.includes('chromeDoDocumento')
     )
+    ok('a página do link desenha pela folha', publica.includes('<FolhaDoDocumento'))
+    ok('e a prévia do editor desenha pela MESMA folha', editor.includes('<FolhaDoDocumento'))
     ok(
-        'e a moldura de impressão fica FORA do html (o hash não muda)',
-        publica.includes('documento.chrome') && !publica.includes('chromeDoDocumento')
+        'nenhuma das duas pinta por conta própria',
+        !publica.includes('cssDoDocumento(') && !editor.includes('cssDoDocumento(')
     )
-    ok('a página do link mostra o logotipo quando há', publica.includes('documento.logo &&'))
     for (const arquivo of ['rotas/(dashboard)/vendas/propostas/[id]/PropostaClient.tsx', 'rotas/(dashboard)/vendas/propostas/modelos/ModelosClient.tsx']) {
         const fonte = readFileSync(join(CORE, arquivo), 'utf8')
         ok(`${arquivo.split('/').pop()} NÃO oferece PDF`, !fonte.includes('window.print') && !fonte.includes('PDF'))
