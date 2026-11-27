@@ -29,7 +29,7 @@ import { podeTransicionar, type EstadoDaRevisao } from './estados'
  */
 
 /** O que se pede a esta rota. Não é o estado final: é o gesto. */
-export const GESTOS = ['pedir', 'aprovar', 'reprovar'] as const
+export const GESTOS = ['pedir', 'aprovar', 'reprovar', 'cancelar'] as const
 export type Gesto = (typeof GESTOS)[number]
 
 /** Para onde cada gesto leva a revisão. */
@@ -37,6 +37,8 @@ export const ESTADO_DO_GESTO: Record<Gesto, EstadoDaRevisao> = {
     pedir: 'em_aprovacao',
     aprovar: 'aprovada',
     reprovar: 'reprovada',
+    /** Desfaz o próprio pedido e devolve a revisão para edição. */
+    cancelar: 'rascunho',
 }
 
 /** Rótulo do gesto, para a tela e para a notificação. */
@@ -44,6 +46,7 @@ export const ROTULO_DO_GESTO: Record<Gesto, string> = {
     pedir: 'Enviar para aprovação',
     aprovar: 'Aprovar',
     reprovar: 'Reprovar',
+    cancelar: 'Cancelar o pedido',
 }
 
 export function ehGesto(valor: string): valor is Gesto {
@@ -58,7 +61,22 @@ export function ehGesto(valor: string): valor is Gesto {
  * de papel divergem, e divergem caladas.
  */
 export function gestoEhDeAlcada(gesto: Gesto): boolean {
-    return gesto !== 'pedir'
+    return gesto === 'aprovar' || gesto === 'reprovar'
+}
+
+/**
+ * Quem pode cancelar um pedido de aprovação: **quem pediu, ou a gestão.**
+ *
+ * Quem pediu, porque desfazer o próprio pedido é retirar uma solicitação, não
+ * decidir sobre ela — não há registro de aprovação sendo forjado. É o que tira
+ * do beco a unidade onde a única pessoa com alçada é quem pediu.
+ *
+ * A gestão, porque alguém precisa poder destravar o pedido de quem saiu de
+ * férias sem reprovar o documento — reprovar carimba a revisão de vermelho, e
+ * destravar não devia exigir isso.
+ */
+export function podeCancelar(quemPediu: string | null, quemAge: string, temAlcada: boolean): boolean {
+    return temAlcada || (quemPediu !== null && quemPediu === quemAge)
 }
 
 /**
@@ -99,6 +117,17 @@ export function avaliarGesto(entrada: {
             ok: false,
             status: 403,
             motivo: 'Aprovar ou reprovar é da gestão da unidade.',
+        }
+    }
+
+    if (
+        entrada.gesto === 'cancelar' &&
+        !podeCancelar(entrada.quemPediu, entrada.quemDecide, entrada.temAlcada)
+    ) {
+        return {
+            ok: false,
+            status: 403,
+            motivo: 'Só quem pediu a aprovação, ou a gestão, pode cancelar o pedido.',
         }
     }
 

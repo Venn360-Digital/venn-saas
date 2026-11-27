@@ -259,7 +259,16 @@ ok('rascunho não pula para aceita', !podeTransicionar('rascunho', 'aceita'))
     ok('todo alvo de transição é um estado válido', !alvoInvalido)
 
     const total = ESTADOS.reduce((n, e) => n + transicoesDe(e).length, 0)
-    ok('o grafo tem exatamente 8 arestas', total === 8, `${total}`)
+    /**
+     * Nove desde 27/11/2026: `em_aprovacao → rascunho` entrou para o pedido de
+     * aprovação poder ser **cancelado por quem pediu**. Sem ela, numa unidade
+     * em que quem pede é a única pessoa com alçada o documento ficava preso
+     * para sempre — aconteceu na homologação, no primeiro documento montado.
+     *
+     * A contagem exata continua valendo como portão: aresta nova entra por
+     * decisão, nunca por acidente, e mexer neste número obriga a dizer qual.
+     */
+    ok('o grafo tem exatamente 9 arestas', total === 9, `${total}`)
 }
 
 ok('estado desconhecido não transiciona', !podeTransicionar('inventado', 'enviada'))
@@ -821,7 +830,39 @@ const base: FatosDaProposta = {
  *     diz que houve aprovação.
  */
 {
-    ok('três gestos', GESTOS.length === 3)
+    // Quatro desde 27/11/2026: `cancelar` entrou com a aresta de volta.
+    ok('quatro gestos', GESTOS.length === 4)
+    /**
+     * A assimetria que importa: decidir é de alçada, pedir e cancelar não.
+     * Cancelar o próprio pedido não forja registro de aprovação nenhum.
+     */
+    ok(
+        'só aprovar e reprovar são de alçada',
+        gestoEhDeAlcada('aprovar') && gestoEhDeAlcada('reprovar') &&
+            !gestoEhDeAlcada('pedir') && !gestoEhDeAlcada('cancelar')
+    )
+    ok(
+        'quem pediu pode cancelar o próprio pedido, mesmo sem alçada',
+        avaliarGesto({ gesto: 'cancelar', estadoAtual: 'em_aprovacao', temAlcada: false, quemPediu: 'u1', quemDecide: 'u1' }).ok
+    )
+    ok(
+        'mas um terceiro sem alçada não cancela o pedido alheio',
+        !avaliarGesto({ gesto: 'cancelar', estadoAtual: 'em_aprovacao', temAlcada: false, quemPediu: 'u1', quemDecide: 'u2' }).ok
+    )
+    ok(
+        'e a gestão destrava o pedido de outra pessoa sem reprovar',
+        avaliarGesto({ gesto: 'cancelar', estadoAtual: 'em_aprovacao', temAlcada: true, quemPediu: 'u1', quemDecide: 'u2' }).ok
+    )
+    /**
+     * O beco que isto tira: antes, numa unidade de uma pessoa só, pedir
+     * aprovação prendia o documento — aprovar e reprovar são de alçada e quem
+     * pediu não decide nenhum dos dois.
+     */
+    ok(
+        'quem pediu segue sem poder aprovar nem reprovar o próprio documento',
+        !avaliarGesto({ gesto: 'aprovar', estadoAtual: 'em_aprovacao', temAlcada: true, quemPediu: 'u1', quemDecide: 'u1' }).ok &&
+            !avaliarGesto({ gesto: 'reprovar', estadoAtual: 'em_aprovacao', temAlcada: true, quemPediu: 'u1', quemDecide: 'u1' }).ok
+    )
     ok('todo gesto tem destino', GESTOS.every((g) => ESTADOS.includes(ESTADO_DO_GESTO[g])))
     ok('todo gesto tem rótulo', GESTOS.every((g) => (ROTULO_DO_GESTO[g] ?? '').length > 0))
     ok('ehGesto recusa o que não é', !ehGesto('aceitar') && !ehGesto('enviar') && ehGesto('aprovar'))

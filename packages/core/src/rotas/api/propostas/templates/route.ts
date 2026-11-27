@@ -82,7 +82,9 @@ export async function POST(request: NextRequest) {
         const corpo = await request.json().catch(() => ({}))
 
         /**
-         * `{ semear: true }` restaura os três modelos padrão.
+         * `{ semear: true }` restaura os modelos padrão da unidade: a escada
+         * de cinco propostas (`modelos-prontos.ts`), mais um orçamento e um
+         * contrato. Era três em corpo de texto até 27/11/2026.
          *
          * Mora nesta rota, e não numa própria, porque é a mesma operação de
          * criar — o que muda é quem escreve o texto. `semearModelos` é

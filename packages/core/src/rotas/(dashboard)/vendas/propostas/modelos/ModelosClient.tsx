@@ -28,6 +28,7 @@ import {
 } from '@venn/core/lib/propostas/secoes'
 import { GRUPOS, REGISTRO, ROTULO_DO_GRUPO } from '@venn/core/lib/propostas/variaveis'
 import { CLAUSULAS, secaoDaClausula } from '@venn/core/lib/propostas/clausulas'
+import { lerTema, temaParaJson } from '@venn/core/lib/propostas/tema'
 import { CREDITOS_POR_CAPA_NA_TELA, VARIACOES_DE_CAPA } from './dados'
 import { BRAND_HEX } from '@venn/core/lib/palette'
 
@@ -141,6 +142,8 @@ export function ModelosClient({ inicial }: { inicial: ModeloItem[] }) {
     const [nome, setNome] = useState('')
     const [secoes, setSecoes] = useState<Secao[]>([])
     const [cor, setCor] = useState('')
+    /** O tema do modelo aberto, cru. A tela edita a cor; o resto é preservado. */
+    const [temaCarregado, setTemaCarregado] = useState<unknown>(null)
     const [sugestoes, setSugestoes] = useState<SugestaoDeVariavel[]>([])
     const [modo, setModo] = useState<'editar' | 'visualizar'>('editar')
     const [previa, setPrevia] = useState<string | null>(null)
@@ -179,6 +182,7 @@ export function ModelosClient({ inicial }: { inicial: ModeloItem[] }) {
         setNome(m.name)
         setSecoes(m.secoes)
         setCor(m.cor ?? '')
+        setTemaCarregado(m.tema ?? null)
         setSugestoes(sugestoesIniciais)
         setModo('editar')
         setPrevia(null)
@@ -194,15 +198,29 @@ export function ModelosClient({ inicial }: { inicial: ModeloItem[] }) {
 
     // ── gravação automática do modelo em edição ──
     const temporizador = useRef<ReturnType<typeof setTimeout> | null>(null)
-    const gravar = useCallback(async (id: string, lista: Secao[], nomeAtual: string, corAtual: string) => {
+    const gravar = useCallback(async (id: string, lista: Secao[], nomeAtual: string, corAtual: string, temaBase: unknown) => {
+        /**
+         * **Preserva o que esta tela não edita.**
+         *
+         * Ela mexe na cor principal e em mais nada, mas o tema guarda também
+         * fonte, estilo de capa e logomarca. Enquanto isto gravava
+         * `{ cor: corAtual }` seco, abrir o modelo Estúdio e mexer numa seção
+         * apagava os três acentos, a fonte técnica e a capa escura — e a
+         * gravação é **automática**, então nem era preciso clicar em salvar.
+         *
+         * Trocar a cor substitui só o **primeiro** acento; os outros ficam.
+         * Esvaziar o campo zera os acentos, que é o que "vazio = cor da
+         * organização" sempre quis dizer.
+         */
+        const base = lerTema(temaBase)
+        const theme = temaParaJson({
+            ...base,
+            acentos: COR_HEX.test(corAtual) ? [corAtual, ...base.acentos.slice(1)] : [],
+        })
         const r = await fetch(`/api/propostas/templates/${id}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                name: nomeAtual.trim() || undefined,
-                sections: lista,
-                theme: COR_HEX.test(corAtual) ? { cor: corAtual } : null,
-            }),
+            body: JSON.stringify({ name: nomeAtual.trim() || undefined, sections: lista, theme }),
         })
         if (!r.ok) {
             const corpo = (await r.json().catch(() => ({}))) as { error?: string }
@@ -223,7 +241,7 @@ export function ModelosClient({ inicial }: { inicial: ModeloItem[] }) {
         }
         setGravado('pendente')
         if (temporizador.current) clearTimeout(temporizador.current)
-        temporizador.current = setTimeout(() => void gravar(emEdicao, secoes, nome, cor), 800)
+        temporizador.current = setTimeout(() => void gravar(emEdicao, secoes, nome, cor, temaCarregado), 800)
         return () => {
             if (temporizador.current) clearTimeout(temporizador.current)
         }
@@ -260,7 +278,8 @@ export function ModelosClient({ inicial }: { inicial: ModeloItem[] }) {
         })
         if (!ok || !corpo.id) return
         // Abre o que nasceu: o passo 3 (revisar) começa já.
-        const novo: ModeloItem = { id: corpo.id, name: corpo.name ?? 'Modelo', kind: tipoNovo, body: null, secoes: corpo.secoes ?? [], cor: null, origem: 'ia', isDefault: false, isActive: false, emUso: 0 }
+        const novo: ModeloItem = { id: corpo.id, name: corpo.name ?? 'Modelo', kind: tipoNovo, body: null,
+                tema: null, secoes: corpo.secoes ?? [], cor: null, origem: 'ia', isDefault: false, isActive: false, emUso: 0 }
         setModelos((a) => [...a, novo])
         setCriando(null)
         setDescricao('')
@@ -277,7 +296,8 @@ export function ModelosClient({ inicial }: { inicial: ModeloItem[] }) {
             body: form,
         })
         if (!ok || !corpo.id) return
-        const novo: ModeloItem = { id: corpo.id, name: corpo.name ?? arquivo.name, kind: tipoNovo, body: null, secoes: corpo.secoes ?? [], cor: null, origem: 'importado', isDefault: false, isActive: false, emUso: 0 }
+        const novo: ModeloItem = { id: corpo.id, name: corpo.name ?? arquivo.name, kind: tipoNovo, body: null,
+                tema: null, secoes: corpo.secoes ?? [], cor: null, origem: 'importado', isDefault: false, isActive: false, emUso: 0 }
         setModelos((a) => [...a, novo])
         setCriando(null)
         setArquivo(null)
@@ -486,7 +506,8 @@ export function ModelosClient({ inicial }: { inicial: ModeloItem[] }) {
                                     </div>
                                 ) : (
                                     <>
-                                        <style>{cssDoDocumento('.documento-previa', COR_HEX.test(cor) ? cor : null)}</style>
+                                        {/* Pinta com o tema inteiro, como a página do cliente — não só com a cor. */}
+                                        <style>{cssDoDocumento('.documento-previa', temaParaJson({ ...lerTema(temaCarregado), acentos: COR_HEX.test(cor) ? [cor, ...lerTema(temaCarregado).acentos.slice(1)] : [] }))}</style>
                                         <div className="documento-previa" dangerouslySetInnerHTML={{ __html: previa }} />
                                     </>
                                 )}

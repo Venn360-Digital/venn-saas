@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { Prisma } from '@venn/db'
+import { lerTema, temaParaJson } from '@venn/core/lib/propostas/tema'
 
 import prisma from '@venn/db/cliente'
 import { requireWritable } from '@venn/core/lib/billing'
@@ -13,8 +15,28 @@ const editarSchema = z.object({
     body: z.string().max(50_000).nullable().optional(),
     /** As seções da v2. Com elas, `body` é ignorado pelo render. */
     sections: secoesSchema.nullable().optional(),
-    /** A cor principal do modelo, em hex. Nulo volta à da organização. */
-    theme: z.object({ cor: z.string().regex(/^#[0-9a-fA-F]{6}$/).nullable().optional() }).nullable().optional(),
+    /**
+     * A identidade do modelo. Nulo volta à do app.
+     *
+     * Aceita a forma nova (`acentos`, `fonte`, `capa`, `logo`) **e** a antiga
+     * (`cor`), porque `lerTema` lê as duas e o banco tem as duas. Enquanto este
+     * schema conhecia só `cor`, o zod descartava as chaves novas em silêncio e
+     * gravar um modelo pela tela apagava a identidade dele.
+     *
+     * `passthrough` não entra aqui: o que vai ao banco é o que **sai** de
+     * `lerTema`, normalizado, e não o que chegou no corpo. É o que impede cor
+     * arbitrária e fonte inventada de virarem CSS.
+     */
+    theme: z
+        .object({
+            cor: z.string().nullable().optional(),
+            acentos: z.array(z.string()).optional(),
+            fonte: z.string().optional(),
+            capa: z.string().optional(),
+            logo: z.boolean().optional(),
+        })
+        .nullable()
+        .optional(),
     isDefault: z.boolean().optional(),
     isActive: z.boolean().optional(),
 })
@@ -73,7 +95,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
                     ...(dados.name !== undefined ? { name: dados.name } : {}),
                     ...(dados.body !== undefined ? { body: dados.body } : {}),
                     ...(dados.sections !== undefined ? { sections: dados.sections ?? undefined } : {}),
-                    ...(dados.theme !== undefined ? { theme: dados.theme ?? undefined } : {}),
+                    /**
+                     * Normalizado por `lerTema` antes de gravar: o banco recebe
+                     * a forma canônica, nunca o corpo da requisição.
+                     */
+                    ...(dados.theme !== undefined
+                        ? { theme: dados.theme === null ? Prisma.DbNull : (temaParaJson(lerTema(dados.theme)) as Prisma.InputJsonValue) }
+                        : {}),
                     ...(dados.isDefault !== undefined ? { isDefault: dados.isDefault } : {}),
                     ...(dados.isActive !== undefined ? { isActive: dados.isActive } : {}),
                 },
