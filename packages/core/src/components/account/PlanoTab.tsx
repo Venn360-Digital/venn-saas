@@ -106,6 +106,17 @@ interface SubscriptionData {
     plan: string
     planName: string
     status: string
+    /**
+     * Em que pé a cobrança está — e é isto, não `status`, que diz se há plano
+     * contratado.
+     *
+     * `plan` guarda o plano escolhido no onboarding desde o primeiro dia da
+     * avaliação, e `status` fica `trialing` até alguém pagar — inclusive depois
+     * de o prazo vencer. Lendo só os dois, a tela marcava o plano escolhido como
+     * "Plano atual" e desabilitava o botão: ninguém conseguia assinar o plano
+     * que escolheu. Ver o campo na rota.
+     */
+    fase?: 'trial' | 'active' | 'readonly' | 'none' | null
     maxAgents: number
     maxMessages: number
     maxWhatsAppNumbers: number
@@ -412,6 +423,38 @@ export function PlanoTab() {
      */
     const cicloDoPlano = cicloDe(subscription?.billingCycle)
 
+    /**
+     * Se o plano em `subscription.plan` é **contratado** ou só **pretendido**.
+     *
+     * Declarado junto de `cicloDoPlano` e pela mesma razão: `handleChangePlan`
+     * o lê, e uma constante depois da função que a usa fica a um passo de ser
+     * lida antes de existir.
+     *
+     * Esta é a linha que destrava a contratação. Em avaliação — correndo ou
+     * vencida — a conta já tem `plan` gravado pelo onboarding, e a tela tratava
+     * isso como plano atual: o cartão do plano escolhido vinha com a plaquinha
+     * "Atual", um ✓ e o botão desabilitado. Quem chegava pela faixa de "Assinar
+     * agora" encontrava morto exatamente o botão que precisava clicar, e a única
+     * saída era trocar de plano ou de ciclo — pagar o que escolheu, não.
+     *
+     * O servidor nunca recusou isso: `temAssinaturaViva` exige
+     * `asaasSubscriptionId` **e** `status === 'active'`, então em avaliação ele
+     * trata a contratação como primeira e cria o checkout recorrente. Era só a
+     * tela desabilitando o que o servidor aceita.
+     *
+     * `fase === 'active'` é o recorte certo, e não `status`: ele mantém
+     * desabilitado o que deve ficar — conta isenta, conta em atraso dentro da
+     * carência (onde contratar de novo criaria uma **segunda** assinatura no
+     * Asaas) e cancelada com período pago correndo, cujo caminho é desfazer o
+     * cancelamento. E libera o que deve liberar: avaliação, avaliação vencida e
+     * conta cortada. A queda para trás em `status` atende a resposta de uma
+     * versão anterior da rota, que não mandava `fase`.
+     */
+    const planoContratado = subscription
+        ? (subscription.fase ?? (subscription.status === 'trialing' ? 'trial' : 'active')) ===
+          'active'
+        : false
+
     useEffect(() => {
         loadSubscription()
     }, [])
@@ -636,7 +679,15 @@ export function PlanoTab() {
         jaConferido = false
     ) => {
         if (!plano) return
-        if (plano === subscription?.plan && ciclo === cicloDoPlano) {
+        /**
+         * "Já é o seu plano" só vale para plano **contratado**.
+         *
+         * Sem `planoContratado`, esta linha era o segundo portão do mesmo
+         * defeito: o cartão em avaliação vinha desabilitado, e quem passasse por
+         * ele — por um clique no corpo do cartão, por uma aba antiga — levava
+         * "Este já é o seu plano atual" para um plano que nunca foi pago.
+         */
+        if (planoContratado && plano === subscription?.plan && ciclo === cicloDoPlano) {
             toast.error('Este já é o seu plano atual')
             return
         }
@@ -962,6 +1013,52 @@ export function PlanoTab() {
             : null
 
     /**
+     * `?assinar=1` abre o diálogo de planos sozinho.
+     *
+     * É onde a faixa de "Assinar agora" cai quando ela **não** consegue levar
+     * direto ao cartão — falta dado de cobrança, a conta não é cobrada, o
+     * gateway recusou. Sem isto, cada um desses desvios despejaria a pessoa numa
+     * aba onde ela teria de achar o botão de novo, que é a queixa que este
+     * trabalho inteiro existe para resolver.
+     *
+     * Roda uma vez por carga: depois disso o diálogo é do usuário, e reabri-lo
+     * a cada render tornaria o X inútil. O parâmetro sai da URL junto, para o
+     * recarregar da página não ressuscitar o diálogo.
+     */
+    const assinarPedido = searchParams.get('assinar') === '1'
+    const assinarJaAbriu = useRef(false)
+    useEffect(() => {
+        if (!assinarPedido || assinarJaAbriu.current) return
+        // Espera a assinatura chegar: sem ela os cartões não têm preço, e o
+        // diálogo abriria vazio por um instante.
+        if (!subscription) return
+        assinarJaAbriu.current = true
+        setShowPlanModal(true)
+        /**
+         * E, quando o desvio foi uma falha, ela é dita.
+         *
+         * A faixa manda `erro=checkout` quando o gateway recusou criar o
+         * pagamento. Abrir o diálogo calado faria a pessoa clicar de novo sem
+         * saber que a primeira tentativa falhou — e a segunda falharia igual.
+         */
+        if (searchParams.get('erro') === 'checkout') {
+            toast.error('Não foi possível abrir o pagamento agora. Tente de novo pelo botão.')
+        }
+        const resto = new URLSearchParams(searchParams.toString())
+        resto.delete('assinar')
+        resto.delete('erro')
+        /**
+         * `tab=plano` é reposto, não preservado por sorte.
+         *
+         * A guia ativa **é** a URL (ver `conta/page.tsx`): limpar a busca sem
+         * ele mandaria a tela de volta ao Perfil no mesmo instante em que o
+         * diálogo de planos abre — sobre a guia errada.
+         */
+        resto.set('tab', 'plano')
+        router.replace(`${pathname}?${resto.toString()}`, { scroll: false })
+    }, [assinarPedido, subscription, pathname, router, searchParams])
+
+    /**
      * A janela do pagamento avisando o que aconteceu.
      *
      * Duas fontes, porque a janela pode acabar de duas formas: ela mesma
@@ -1133,6 +1230,25 @@ export function PlanoTab() {
 
     /** Até quando o acesso vale: o fim do ciclo pago ou o fim da avaliação. */
     const isTrialing = subscription?.status === 'trialing'
+
+    /**
+     * Avaliação **correndo** e avaliação **vencida** são estados diferentes, e
+     * a tela os tratava como um só.
+     *
+     * `status` continua `trialing` depois do prazo — quem vence a avaliação é a
+     * data, derivada em `getBillingState`, não uma gravação. Com `isTrialing`
+     * sozinho, a aba seguia exibindo "Você possui 0 dias de avaliação gratuita"
+     * e, pior, "**não é necessário inserir o cartão de crédito agora**" para uma
+     * conta já em somente leitura — contradizendo a faixa vermelha do topo da
+     * mesma tela, na tela onde a pessoa veio inserir o cartão.
+     *
+     * O recorte sai de `fase`, que é a mesma que decide o portão de escrita:
+     * `readonly` com `status` ainda em `trialing` é exatamente o `trialLapsed`
+     * do servidor — e não a conta cortada por cancelamento ou atraso, que tem
+     * faixa própria logo abaixo.
+     */
+    const emAvaliacao = isTrialing && !planoContratado && subscription?.fase !== 'readonly'
+    const avaliacaoVencida = isTrialing && subscription?.fase === 'readonly'
 
     /**
      * Se dá para comprar adicional agora — as mesmas duas condições que o
@@ -1348,15 +1464,23 @@ export function PlanoTab() {
 
     return (
         <BandLayout>
-            {/* Trial Banner */}
-            {isTrialing && !avisoDispensado && (
+            {/* A AVALIAÇÃO CORRENDO.
+                Dispensável, porque é notícia boa e repetida: o prazo está de
+                pé e nada é cobrado. Quem já leu uma vez não precisa dos 40px
+                de novo em cada visita. */}
+            {emAvaliacao && !avisoDispensado && (
                 <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-primary-subtle/40 px-5 py-4 md:px-6">
                     <div className="flex items-center gap-3">
                         <Gift className="h-6 w-6 text-primary" />
                         <div>
                             <p className="font-medium">Sua assinatura está em período de avaliação.</p>
                             <p className="text-sm text-muted-foreground">
-                                Você possui {trialDaysLeft} dias de avaliação gratuita e {subscription?.credits?.toLocaleString('pt-BR')} créditos de IA para validar o seu agente de atendimento. Não é necessário inserir o cartão de crédito agora, e nada é cobrado até você efetivar a assinatura
+                                Você possui {trialDaysLeft}{' '}
+                                {trialDaysLeft === 1 ? 'dia' : 'dias'} de avaliação gratuita e{' '}
+                                {subscription?.credits?.toLocaleString('pt-BR')} créditos de IA para
+                                validar o seu agente de atendimento. Não é necessário inserir o
+                                cartão de crédito agora, e nada é cobrado até você efetivar a
+                                assinatura
                             </p>
                         </div>
                     </div>
@@ -1368,6 +1492,41 @@ export function PlanoTab() {
                         onClick={() => setAvisoDispensado(true)}
                     >
                         <X className="h-5 w-5" />
+                    </Button>
+                </div>
+            )}
+
+            {/* A AVALIAÇÃO VENCIDA — outra faixa, e **não** dispensável.
+                Era a mesma de cima, porque `status` continua `trialing` depois
+                do prazo: a conta em somente leitura lia "você possui 0 dias" e
+                "não é necessário inserir o cartão de crédito agora" na tela
+                onde ela veio inserir o cartão, contradizendo a faixa vermelha
+                do topo.
+
+                Sem o X de dispensar pela razão oposta à de cima: isto não é
+                notícia, é o que impede a clínica de atender, e some quando for
+                resolvido — não quando for lido. E leva a ação, porque a faixa
+                que dá a má notícia tem de dar a saída junto. */}
+            {avaliacaoVencida && (
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-destructive-subtle/50 px-5 py-4 md:px-6">
+                    <div className="flex items-start gap-3">
+                        <AlertTriangle className="mt-0.5 size-6 shrink-0 text-destructive-subtle-foreground" />
+                        <div>
+                            <p className="font-medium">
+                                A avaliação gratuita terminou
+                                {cobrancaEm ? ` em ${cobrancaEm}` : ''}.
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                                {comArtigo(v, 'Organizacao')} está em somente leitura: as
+                                mensagens continuam chegando e o histórico está inteiro, mas o
+                                agente não responde. Assinar o plano religa o atendimento na hora
+                                em que o pagamento for confirmado.
+                            </p>
+                        </div>
+                    </div>
+                    <Button onClick={() => setShowPlanModal(true)}>
+                        <CreditCard className="size-4" />
+                        Assinar agora
                     </Button>
                 </div>
             )}
@@ -1719,7 +1878,11 @@ export function PlanoTab() {
                     </Button>
                     <Button variant="outline" onClick={() => setShowPlanModal(true)}>
                         <ArrowUpDown className="size-4" />
-                        {isTrialing || !temPlano ? 'Contratar plano' : 'Alterar plano'}
+                        {/* "Assinar plano" e não "Contratar plano" para quem
+                            ainda não paga: é o mesmo verbo da faixa de aviso e
+                            do botão do cartão, e três palavras diferentes para
+                            um gesto só fazem a pessoa procurar o quarto botão. */}
+                        {planoContratado ? 'Alterar plano' : 'Assinar plano'}
                     </Button>
                     <Button variant="outline" onClick={() => setShowFaturasModal(true)}>
                         <Receipt className="size-4" />
@@ -2349,21 +2512,51 @@ export function PlanoTab() {
             <RecordDialog
                 open={showPlanModal}
                 onOpenChange={setShowPlanModal}
-                title="Alterar plano"
-                description="A troca vale a partir do próximo ciclo; o que já foi pago continua valendo."
+                /* O título e a explicação seguem o que o diálogo faz naquela
+                   conta. "Alterar plano" e "a troca vale a partir do próximo
+                   ciclo" só são verdade para quem já paga; para quem está
+                   assinando pela primeira vez não existe ciclo anterior nem
+                   troca, e a frase fazia parecer que a cobrança ficaria para
+                   depois. */
+                title={planoContratado ? 'Alterar plano' : 'Assinar plano'}
+                description={
+                    planoContratado
+                        ? 'A troca vale a partir do próximo ciclo; o que já foi pago continua valendo.'
+                        : 'O cartão é informado na página segura do Asaas, e o atendimento religa quando o pagamento for confirmado.'
+                }
                 size="wide"
             >
                 <div className="col-span-2 flex min-h-full flex-col gap-3">
 
                     {/* O aviso de avaliação em uma linha: a versão longa é a da
                         guia, e repetida aqui empurrava os planos para fora. */}
-                    {isTrialing && (
+                    {emAvaliacao && (
                         <p className="flex items-center gap-2 rounded-lg border border-border bg-muted px-3 py-2 text-[12.5px]">
                             <Gift className="size-4 shrink-0 text-primary" />
                             <span>
-                                Em avaliação: faltam <strong>{trialDaysLeft} dias</strong> e você tem{' '}
+                                Em avaliação: falta
+                                {trialDaysLeft === 1 ? '' : 'm'}{' '}
+                                <strong>
+                                    {trialDaysLeft} {trialDaysLeft === 1 ? 'dia' : 'dias'}
+                                </strong>{' '}
+                                e você tem{' '}
                                 <strong>{subscription?.credits?.toLocaleString('pt-BR')} créditos</strong>. Nada é
                                 cobrado até efetivar a assinatura.
+                            </span>
+                        </p>
+                    )}
+
+                    {/* E a mesma linha, quando o prazo já acabou: "faltam 0
+                        dias / nada é cobrado até efetivar" dentro do diálogo de
+                        contratação dizia à conta parada que não havia pressa. */}
+                    {avaliacaoVencida && (
+                        <p className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive-subtle px-3 py-2 text-[12.5px] text-destructive-subtle-foreground">
+                            <AlertTriangle className="size-4 shrink-0" aria-hidden="true" />
+                            <span>
+                                Avaliação encerrada — o agente não responde até a assinatura ser
+                                confirmada. O{' '}
+                                <strong>{subscription?.planName ?? 'plano'}</strong> é o que você
+                                escolheu no cadastro.
                             </span>
                         </p>
                     )}
@@ -2432,9 +2625,29 @@ export function PlanoTab() {
                              * a aba anual veria o seu plano marcado como atual e
                              * o botão desabilitado — justamente no gesto de
                              * contratar o anual.
+                             *
+                             * E é plano **contratado**: em avaliação o `plan` da
+                             * assinatura é o que a pessoa escolheu no cadastro,
+                             * não o que ela paga. Ver `planoContratado`.
                              */
                             const isCurrent =
-                                subscription?.plan === planKey && cicloEscolhido === cicloDoPlano
+                                planoContratado &&
+                                subscription?.plan === planKey &&
+                                cicloEscolhido === cicloDoPlano
+                            /**
+                             * O plano que ela escolheu no cadastro e ainda não
+                             * pagou.
+                             *
+                             * Ganha plaquinha e verbo próprios porque é o cartão
+                             * para o qual a tela inteira existe naquele momento:
+                             * dizer "Contratar", igual aos outros dois, esconde
+                             * que a decisão já foi tomada uma vez e que este é o
+                             * caminho de seguir com ela.
+                             */
+                            const isEscolhido =
+                                !planoContratado &&
+                                subscription?.plan === planKey &&
+                                cicloEscolhido === cicloDoPlano
                             const isPopular = planKey === 'pro'
                             const preco = plan.precos?.[cicloEscolhido]
                             /** O mensal equivalente é o que se compara entre planos. */
@@ -2462,6 +2675,16 @@ export function PlanoTab() {
                                     {isCurrent && (
                                         <span className="absolute -top-2.5 right-4 rounded-full bg-primary-subtle px-2 py-0.5 text-[10.5px] font-semibold uppercase tracking-wide text-primary-subtle-foreground">
                                             Atual
+                                        </span>
+                                    )}
+                                    {/* "Escolhido" e não "Atual": o plano que ela
+                                        marcou no cadastro e ainda não pagou. A
+                                        plaquinha é a mesma forma com outra
+                                        palavra, porque é a mesma pergunta — qual
+                                        destes três é o meu — com outra resposta. */}
+                                    {isEscolhido && (
+                                        <span className="absolute -top-2.5 right-4 rounded-full bg-primary-subtle px-2 py-0.5 text-[10.5px] font-semibold uppercase tracking-wide text-primary-subtle-foreground">
+                                            Escolhido
                                         </span>
                                     )}
 
@@ -2601,7 +2824,15 @@ export function PlanoTab() {
                                             de oferecer o que já está feito. */}
                                         <Button
                                             className="w-full"
-                                            variant={isPopular && !isCurrent ? 'default' : 'outline'}
+                                            /* O plano escolhido e não pago é o
+                                               destaque do diálogo, mesmo quando
+                                               não é o "mais popular": é o que a
+                                               pessoa veio fazer. */
+                                            variant={
+                                                isEscolhido || (isPopular && !isCurrent)
+                                                    ? 'default'
+                                                    : 'outline'
+                                            }
                                             onClick={(e) => {
                                                 e.stopPropagation()
                                                 setSelectedPlan(planKey)
@@ -2609,12 +2840,26 @@ export function PlanoTab() {
                                             }}
                                             disabled={isCurrent || processing}
                                         >
-                                            {isCurrent ? <Check className="size-4" /> : <ArrowUpDown className="size-4" />}
+                                            {isCurrent ? (
+                                                <Check className="size-4" />
+                                            ) : isEscolhido ? (
+                                                <CreditCard className="size-4" />
+                                            ) : (
+                                                <ArrowUpDown className="size-4" />
+                                            )}
                                             {isCurrent
                                                 ? 'Plano atual'
-                                                : cicloEscolhido === 'annual'
-                                                  ? 'Contratar 12 meses'
-                                                  : 'Contratar'}
+                                                : /* "Assinar" e não "Contratar": é o plano
+                                                     que ela já escolheu, e o verbo diz que
+                                                     este clique conclui aquela escolha em
+                                                     vez de tomar outra. */
+                                                  isEscolhido
+                                                  ? cicloEscolhido === 'annual'
+                                                      ? 'Assinar 12 meses'
+                                                      : 'Assinar agora'
+                                                  : cicloEscolhido === 'annual'
+                                                    ? 'Contratar 12 meses'
+                                                    : 'Contratar'}
                                         </Button>
                                     </div>
                                 </div>

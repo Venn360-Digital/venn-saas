@@ -234,6 +234,8 @@ export async function GET() {
                 planName: null,
                 workspaceName: workspace?.name ?? null,
                 status: 'none',
+                /** Sem linha de assinatura não há plano nem pretendido. */
+                fase: estado.phase,
                 maxAgents: 0,
                 maxMessages: 0,
                 maxWhatsAppNumbers: 0,
@@ -273,6 +275,24 @@ export async function GET() {
             maxWhatsAppNumbers: subscription.maxWhatsAppNumbers,
             trial: TRIAL,
             status: subscription.status,
+            /**
+             * A fase, e não o `status`, é o que decide se há plano **contratado**.
+             *
+             * O `status` sozinho não responde isso e por isso a tela errava: uma
+             * conta em avaliação guarda o plano escolhido no onboarding em
+             * `plan`, e `status` fica `trialing` — inclusive **depois** de o
+             * prazo vencer, porque o vencimento é derivado da data (ver
+             * `getBillingState`). A tela lia só `plan` e marcava aquele cartão
+             * como "Plano atual", desabilitado: o cliente não conseguia assinar
+             * justamente o plano que escolheu.
+             *
+             * `fase` separa as três situações que a palavra "atual" confunde:
+             * `trial` e `readonly` são plano **pretendido** (dá para contratar),
+             * `active` é plano **contratado** (não há o que contratar de novo).
+             * É a mesma fonte que o portão de escrita usa, então tela e servidor
+             * não divergem.
+             */
+            fase: estado.phase,
             maxAgents: subscription.maxAgents,
             maxMessages: subscription.maxMessages,
             credits: subscription.credits,
