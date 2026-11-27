@@ -24,6 +24,7 @@ import {
 } from '@venn/core/lib/plan-limits'
 import { criarCheckoutDePlano, criarCheckoutDeAdicionais } from '@venn/core/lib/asaas/checkout'
 import { cobrarNoCartaoSalvo } from '@venn/core/lib/asaas/cobranca-no-cartao'
+import { cobrarNoPix } from '@venn/core/lib/asaas/cobranca-no-pix'
 import { regimeDaConta } from '@venn/core/lib/asaas/cobranca'
 import { aplicarAdicionais } from '@venn/core/lib/billing/aplicar-adicionais'
 import { AsaasError, asaas } from '@venn/core/lib/asaas/client'
@@ -1365,6 +1366,84 @@ export async function POST(request: NextRequest) {
                                     erro instanceof AsaasError
                                         ? `O cartão foi recusado: ${erro.detalhe}`
                                         : 'Não foi possível cobrar o cartão salvo.',
+                            },
+                            { status: 502 }
+                        )
+                    }
+                }
+
+                /**
+                 * **Pix, dentro do app.** Fase 2, 27/11/2026.
+                 *
+                 * Criamos a cobrança e devolvemos o QR; a tela mostra num
+                 * diálogo e espera. O cliente não sai do domínio, e nada disso
+                 * move escopo de PCI — QR e copia-e-cola não têm dado de
+                 * cartão. É a razão de a Fase 2 ser o Pix e não o cartão (ver
+                 * `PRODUCT.md` §13).
+                 *
+                 * `pago: false` de propósito, e o campo é o mesmo de sempre:
+                 * ele diz "há pagamento a fazer fora desta resposta". No
+                 * checkout hospedado isso virava um `link` para outro domínio;
+                 * aqui vira um `pix` para desenhar aqui. Quem entrega continua
+                 * sendo o webhook.
+                 */
+                if (data.pix === true) {
+                    if (!conta.asaasCustomerId) {
+                        /**
+                         * Sem cliente no gateway não há como criar cobrança Pix
+                         * — `POST /payments` exige `customer`.
+                         *
+                         * Na prática isto não acontece nesta rota: comprar
+                         * adicional exige plano **ativo** (`canBuyAddons`), e
+                         * plano ativo significa que a conta já pagou, o que já
+                         * criou o cliente. Fica como recusa explícita em vez de
+                         * um 500 do gateway.
+                         */
+                        return NextResponse.json(
+                            {
+                                error:
+                                    'Esta conta ainda não está ligada ao gateway. ' +
+                                    'Use o checkout desta vez.',
+                            },
+                            { status: 409 }
+                        )
+                    }
+
+                    try {
+                        const cobranca = await cobrarNoPix({
+                            accountId,
+                            workspaceId: workspaceUser.workspaceId,
+                            plan: planoVigente,
+                            asaasCustomerId: conta.asaasCustomerId,
+                            valor: totalDaCesta,
+                            descricao: resumoDaCesta(
+                                pack ?? null,
+                                unidadesPedidas,
+                                unidadesDepois.max,
+                                treinamentosPedidos
+                            ),
+                            pacote: pack ? { credits: pack.credits, price: pack.price } : null,
+                            unidades: unidadesPedidas,
+                            treinamentos: treinamentosPedidos,
+                        })
+
+                        return NextResponse.json({
+                            success: true,
+                            pago: false,
+                            pix: cobranca,
+                            message:
+                                `Pix de ${formatPrice(totalDaCesta)} gerado. O adicional entra ` +
+                                'assim que o pagamento for confirmado.',
+                            unidades: unidadesDepois,
+                        })
+                    } catch (erro) {
+                        console.error('[BUY_ADDONS] falha ao gerar o Pix', erro)
+                        return NextResponse.json(
+                            {
+                                error:
+                                    erro instanceof AsaasError
+                                        ? `O gateway recusou o Pix: ${erro.detalhe}`
+                                        : 'Não foi possível gerar o Pix agora. Tente de novo em instantes.',
                             },
                             { status: 502 }
                         )
