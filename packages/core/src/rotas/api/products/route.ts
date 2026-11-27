@@ -28,6 +28,23 @@ const productSchema = z.object({
      * minutos. Só faz sentido em `procedure`.
      */
     durationMinutes: z.number().int().min(5).max(480).nullable().optional(),
+    /**
+     * O grupo, agora como registro.
+     *
+     * `group` (texto) continua aceito e gravado: um link guardado com
+     * `?group=Implantes` ainda resolve, e a tela antiga ainda funciona. Quando
+     * vem `groupId`, o nome é copiado para `group` — ver a gravação abaixo.
+     */
+    groupId: z.string().nullable().optional(),
+    /** Unidade de medida: "sessão", "mês", "ml". Texto livre, de propósito. */
+    unit: z.string().max(40).nullable().optional(),
+    /**
+     * Fora do catálogo sem ser apagado.
+     *
+     * Item apagado leva consigo a explicação de propostas antigas; item inativo
+     * desaparece do seletor e continua respondendo pelo que já vendeu.
+     */
+    isActive: z.boolean().default(true),
 })
 
 // GET - List products with pagination and search
@@ -69,6 +86,23 @@ export async function GET(request: NextRequest) {
             where.category = category
         } else if (new URL(request.url).searchParams.get('schedulable') === 'true') {
             where.category = { in: SCHEDULABLE_CATEGORIES }
+        }
+
+        const groupId = searchParams.get('groupId') || ''
+        if (groupId) where.groupId = groupId
+
+        /**
+         * Por omissão, só o ativo.
+         *
+         * A tela de catálogo pede `?inativos=1` para mostrar os dois, e **todo
+         * consumidor que escolhe item** — a agenda, as janelas do profissional,
+         * as ferramentas do agente, o seletor da proposta — quer só o ativo.
+         * Inverter o padrão faria o agente de IA oferecer um procedimento que a
+         * clínica tirou da tabela, que é exatamente o que `isActive` existe
+         * para impedir.
+         */
+        if (searchParams.get('inativos') !== '1') {
+            where.isActive = true
         }
 
         const [products, total] = await Promise.all([
@@ -120,6 +154,25 @@ export async function POST(request: NextRequest) {
         const body = await request.json()
         const validatedData = productSchema.parse(body)
 
+        /**
+         * O grupo informado é da unidade, e o nome dele vai para `group`.
+         *
+         * As duas colunas convivem por uma janela: `group` é o que
+         * `searchText` indexa (coluna GERADA, declarada na migração de busca) e
+         * o que os filtros antigos usam. Gravar só o `groupId` deixaria a busca
+         * por nome do grupo parar de encontrar.
+         */
+        let grupo: { id: string; name: string } | null = null
+        if (validatedData.groupId) {
+            grupo = await prisma.productGroup.findFirst({
+                where: { id: validatedData.groupId, workspaceId: workspaceUser.workspaceId },
+                select: { id: true, name: true },
+            })
+            if (!grupo) {
+                return NextResponse.json({ error: 'Grupo não encontrado' }, { status: 404 })
+            }
+        }
+
         const product = await prisma.productService.create({
             data: {
                 workspaceId: workspaceUser.workspaceId,
@@ -128,7 +181,10 @@ export async function POST(request: NextRequest) {
                 sku: validatedData.sku,
                 category: validatedData.category,
                 price: validatedData.price,
-                group: validatedData.group,
+                group: grupo?.name ?? validatedData.group,
+                groupId: grupo?.id ?? null,
+                unit: validatedData.unit,
+                isActive: validatedData.isActive,
                 // Só o que ocupa agenda guarda duração: produto fica nulo
                 // mesmo que alguém mande um número.
                 durationMinutes: isSchedulable(validatedData.category)

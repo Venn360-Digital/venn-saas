@@ -6,7 +6,7 @@ este documento e a implementação, **o documento está certo e o código é o b
 O sistema visual mora em [`DESIGN.md`](DESIGN.md). Aqui ficam as regras de
 negócio: avaliação, planos, créditos, limites e retenção.
 
-Última revisão: 20 de novembro de 2026.
+Última revisão: 23 de novembro de 2026.
 
 ---
 
@@ -1080,12 +1080,426 @@ era a única do painel, contra o padrão da casa (DESIGN.md: guia é sublinhada)
 
 ## 18. O que ainda não existe
 
-Registrado para não ser esquecido:
+Registrado para não ser esquecido — e revisto em 23/11/2026, porque a versão
+anterior desta seção dizia "não há cobrança" quando o Asaas já estava em quatro
+fases (§13). Uma seção de lacunas que envelhece vira o oposto do que promete.
 
-**Não há cobrança.** Não existe Stripe nem equivalente; `stripeId` e
-`paymentMethod` são colunas vazias. Hoje "ativar plano" grava `status: 'active'`
-sem cobrar nada — ou seja, **"plano ativo" significa "clicou no botão"**, não
-"pagou". Todas as regras acima que dependem de plano ativo funcionam como
-estrutura, mas são contornáveis em dois cliques até existir um gateway.
+**Cobrança: o espelho está provado; o corte, não.** O gateway existe (§13):
+cliente, checkout hospedado, webhook, espelho da cobrança, adicionais e ciclo
+de vida. O que a fase 1 deixou de fora continua de fora: **nenhum inadimplente
+é cortado automaticamente** — `lib/billing/inadimplencia.ts` classifica, e quem
+age é gente. Enquanto for assim, "plano vencido" é um estado que a tela mostra,
+não um que o produto impõe.
 
-É a lacuna mais importante deste documento.
+**Documentos (§19), v2 em homologação desde 23/11/2026:**
+
+- **Responder pelo canal e-mail.** O fio `email` em Conversas registra o que
+  saiu e o que o cliente fez com o link; a caixa de resposta está escondida
+  com o motivo, e a rota recusa (`409`). Conversas enviar e-mail é a próxima
+  etapa desse módulo, não deste.
+- **PDF arquivado — decidido que não.** "Baixar PDF" é a impressão do navegador
+  na página do link, e só lá. Sem Browser Rendering, sem arquivo guardado: o
+  link registra abertura, o arquivo não. Isto substitui o item de §19 que
+  reservava o PDF para uma fase 2.
+- **Template aprovado de WhatsApp (HSM).** Fora da janela de 24 h, nada sai
+  pelo canal oficial — nem proposta, nem saudação de lead, nem follow-up ao
+  cliente. Quando houver um template aprovado, `lib/propostas/enviar.ts` e
+  `lib/formularios/conversa.ts` são os dois lugares onde ele entra.
+- **Arestas da tela de modelos:** uma arte de capa por vez (a especificação
+  falava em três para escolher); seções se reordenam por setas, não por
+  arrastar; a importação lê texto, então tabela de preço em `.xlsx` vira texto
+  e não cartão de investimento; contrato usa as mesmas seções da proposta —
+  não há biblioteca de cláusulas.
+- **Assinatura com certificadora** e **preço por cliente / CPQ** seguem como em
+  §19: fornecedor novo e rodada futura, respectivamente.
+
+**Relatórios (§20):** recorte por responsável e multimoeda existem no código e
+nunca foram vistos funcionando — todo banco de homologação tem um usuário, que
+é `OWNER`, e uma moeda. São lacunas de **prova**, não de implementação.
+
+**Segundo usuário por unidade, em homologação.** É o que falta para provar três
+regras de uma vez: a alçada de aprovação (quem pediu não decide), o recorte do
+atendente em Conversas e em Relatórios, e o rodízio de dono. Não é código; é
+dado.
+
+## 19. Documentos: propostas, orçamentos e contratos
+
+Entregue em 21/11/2026; a **v2** entrou em homologação em 23/11/2026 (ver "A
+v2: o modelo primeiro", abaixo). O desenho saiu da engenharia reversa do Ploomes
+(`docs/ploomes/`), e o patch de dados veio de `docs/ploomes/modulos/01-proposta.md`,
+que já havia sido validado com `prisma migrate diff` contra este schema. Na
+homologação da v1 o Andre concluiu que *"o Ploomes foi muito básico para o que
+precisamos"* — a v2 é o que ele pediu em cima.
+
+### Um ciclo de vida, três nomes
+
+Proposta, orçamento e contrato são o **mesmo** registro com rótulo e modelo
+diferentes — `Proposal.kind`. Três tabelas idênticas teriam triplicado cada
+consulta de relatório sem ganhar uma regra sequer.
+
+### Revisão, não edição
+
+**A proposta que foi ao cliente nunca muda.** Se o desconto cai, nasce a v2 e a
+v1 vira histórico. É o que dá resposta à pergunta "qual versão ele aprovou?",
+insolúvel se o registro for editado no lugar — e é a pergunta que aparece
+exatamente quando mais custa, no dia em que o cliente contesta o valor.
+
+Por consequência: de `reprovada`, `recusada` ou `expirada` **não se volta** para
+rascunho. Nasce uma revisão nova. Revisão enviada recusa edição de item com
+**409**, e a tela oferece "nova versão" em vez do campo.
+
+### O total é calculado no servidor. Sempre
+
+O navegador manda a lista de itens; o servidor devolve a soma. Aceitar o total
+do cliente é aceitar um desconto que ninguém aprovou. A segunda linha de defesa
+é o `CHECK (total = subtotal - discount)` no banco, para quando um caminho de
+código novo esquecer de recalcular.
+
+**Quem arredonda é a linha, não o total.** Quem recebe uma proposta soma as
+linhas na calculadora; arredondar no fim produziria um documento em que as
+linhas impressas não fecham com o total impresso, por um ou dois centavos — o
+tipo de diferença que faz desconfiar do documento inteiro.
+
+Todo dinheiro deste módulo é `Decimal(18,4)`, e isso **diverge de propósito** do
+`Float?` de `Deal.value` e `ProductService.price`. O legado não migra; a
+conversão mora numa fronteira só, comentada, em `lib/propostas/aceite.ts`.
+
+### O documento é um link, não um arquivo
+
+A entrega é a página pública `/p/{token}` com CSS de impressão. **Não há
+geração de PDF, e isto é definitivo**, não fase: "Baixar PDF" é a impressão do
+navegador, **só na página do link** — o editor visualiza e envia, o arquivo é do
+cliente (decisão do Andre, 22/11/2026). A decisão tem três razões: **nenhum dos dois caminhos de e-mail deste
+projeto suporta anexo**; no WhatsApp o provedor busca a URL ele mesmo, e a URL
+assinada do bucket privado vale 600 segundos; e o link **registra abertura**.
+
+"Ele abriu três vezes e não respondeu" é o dado que muda a próxima ligação, e
+quem manda PDF anexo nunca o tem.
+
+### A rota pública: sete requisitos, nenhum opcional
+
+É a única porta sem autenticação do produto.
+
+| | |
+|---|---|
+| Token de 32 bytes de CSPRNG | adivinhável = proposta de outro cliente exposta |
+| `expiresAt` obrigatório, com teto de 90 dias | o teto é o que impede a interface de oferecer "não expira" |
+| Revogável | o vendedor erra o destinatário, e vai errar |
+| **A mesma 404** para inexistente, expirado e revogado | respostas diferentes permitem enumerar tokens |
+| Rate limit por IP **e** por token | só um dos dois eixos não protege |
+| Projeção mínima | sem id interno, sem custo, sem a observação interna do vendedor |
+| Trilha no aceite | nome digitado, IP, user-agent, carimbo e **hash do conteúdo** |
+
+O hash é o que transforma "ele clicou" em "ele aceitou **este** texto": meses
+depois, com o modelo já alterado, ele responde o que exatamente estava na tela.
+
+`scripts/check-proposta-publica.ts` prova os sete, e prova a projeção mínima por
+varredura do próprio fonte — porque o defeito ali é de **adição**: alguém
+acrescenta `notes: true` ao `select` meses depois, nada quebra, e a observação
+interna passa a sair na página do cliente.
+
+### Aceitar move o negócio
+
+O aceite é uma transação com seis passos: a trilha, a revisão vira `aceita`,
+`Deal.value` recebe o total, o negócio anda para a **etapa de ganho** gravando
+`DealStageEntry`, o dono é notificado, e os outros links da proposta são
+revogados.
+
+**Posição não é significado.** A etapa de ganho é a que a organização marcou
+(`isWon`, uma por funil); sem marcar, cai na última — e a homologação de 21/11
+mostrou o preço disso: as etapas padrão terminam em *Retrabalho*. O mesmo vale
+para a **etapa de proposta enviada** (`isProposalSent`): o **envio** move o
+negócio para ela e lhe dá o valor da versão, **só para a frente** — reenviar não
+devolve um negócio em negociação para "proposta enviada". A conversão
+`Decimal → Float` do dinheiro tem **uma** fronteira, `valorParaOFunil`, e aceite
+e envio passam por ela.
+
+Os passos 3 a 5 são o que o Ploomes não faz: lá o aceite é um booleano e o funil
+é outro módulo. Aqui o funil, o canal e o documento estão no mesmo banco.
+
+**Aceitar duas vezes devolve 409 com o carimbo original**, e a tela mostra o
+aceite em vez de um erro — é o duplo clique, e a pessoa conseguiu o que queria.
+A corrida é fechada por `updateMany` com `acceptedAt: null` no `where`: o
+segundo clique atualiza zero linhas e sabe que perdeu.
+
+### WhatsApp só na conversa aberta
+
+Disparo frio está bloqueado por construção neste projeto (`lib/funil/acoes.ts`
+recusa sempre; `lib/marketing/lines.ts` recusa disparo em massa por linha QR).
+O link sai pelo zap **dentro da janela de 24 h** de uma conversa ativa, pelo
+mesmo caminho do atendente digitando — `enqueueOutboundText`, sem fila nova.
+Fora da janela, o botão fica desabilitado **com o motivo na tela**.
+
+### A IA sugere; não compromete
+
+Ela lê o negócio, o contato, as últimas mensagens da conversa e o catálogo
+**ativo**, e devolve itens do catálogo com quantidade. Não inventa item, **não
+escreve preço e não dá desconto** — os três por uma razão só: preço e desconto
+são compromisso comercial, e um modelo que os escolhe compromete a unidade sem
+ninguém ter aprovado. O preço sai do catálogo; o desconto é do vendedor.
+
+É a mesma regra dos passos de funil: o que a máquina escreve nunca promete o que
+não sabemos.
+
+Entrou com ela a primeira saída estruturada do projeto —
+`generateEstruturado` com `response_format: json_schema` e `strict: true`. Até
+aqui todo output estruturado saía por tool calling, cujos argumentos voltam como
+string "nem sempre válida"; num rascunho de proposta isso cairia como lista
+vazia, sem erro nenhum.
+
+### Produtos: o que mudou
+
+`isActive` (fora do catálogo sem ser apagado), `unit` (texto livre), e `group`
+promovido a entidade (`ProductGroup`) — texto livre produzia "Implantes",
+"implante" e "Implantes " como três grupos na mesma unidade. A coluna `group`
+**fica**, preenchida: é o que a coluna GERADA `searchText` indexa.
+
+`price` continua `Float?`. Campo novo nasce `Decimal`; legado não migra.
+
+### O que **não** foi feito, e por quê
+
+- **PDF arquivado — e não vai existir.** Em 21/11 isto estava reservado para
+  uma fase 2 por Browser Rendering; em 22/11 o Andre decidiu o contrário: o PDF
+  é exportação do navegador, só na página do link. O corpo do modelo, que era
+  texto com marcadores, virou **seções tipadas em JSON** na v2 — a razão antiga
+  ("HTML para o Browser Rendering partir dele") deixou de existir junto.
+- **Assinatura com certificadora.** O aceite tem trilha e hash, o que é prova
+  razoável. Validade jurídica plena é fornecedor novo, credencial por unidade e
+  custo por documento.
+- **Alçada de desconto — feita em 22/11.** `em_aprovacao`, `aprovada` e
+  `reprovada` ganharam tela e rota: quem pediu não decide (`403`), reprovar
+  exige motivo, e o motivo vai para quem montou — nunca para o cliente.
+- **Preço por cliente e composição de item (CPQ).** O achado mais valioso do
+  estudo — `Products@Parts` com mínimo e máximo de preço e quantidade — ficou
+  para uma rodada futura.
+- **Envio automático ao cliente.** O follow-up abaixo avisa **o vendedor**;
+  nada sai para o cliente sozinho. Disparo frio está bloqueado por construção, e
+  cobrança automática em nome da clínica seria texto escrito por nós prometendo
+  o que não sabemos.
+- **Relatórios.** Entregue em 21/11/2026 — ver §20. Os ganchos nasceram aqui:
+  aberturas com carimbo, `sharedAt`/`acceptedAt` (time-to-accept),
+  `status`+`version` (taxa de aprovação e revisões até o aceite) e
+  `ProposalItem.productServiceId` — que torna possível o primeiro relatório por
+  produto, impossível até aqui porque `Deal` não tem itens.
+
+### A IA redige o texto, e o resumo não usa IA
+
+O plano previa **três** usos de IA. Dois entraram como previsto e um mudou de
+natureza ao ser escrito:
+
+**Redigir o texto (uso 2).** Quatro pedidos nomeados — escrever a introdução,
+descrever o que será feito, encurtar, deixar mais formal —, não instrução livre.
+Campo livre num documento que vai ao cliente é a porta por onde entra "escreva
+que damos garantia de cinco anos", e o modelo escreveria, porque foi pedido.
+`encurtar` e `formalizar` operam sobre o texto que a **pessoa** escreveu: ali o
+modelo não acrescenta fato nenhum.
+
+O contexto que vai ao modelo **não leva preço**. Dar o valor e pedir que ele não
+o escreva seria confiar numa instrução contra uma tentação que não precisava
+existir; sem o número, não há o que vazar. A quantidade vai, porque "duas
+sessões" é escopo.
+
+**Em contrato, a IA descreve o objeto — não minuta cláusula.** O pedido original
+falava em "contratos de forma inteligente, com auxílio da IA", e o template de
+contrato já diz no corpo que é uma moldura, não uma minuta. As duas coisas
+convivem nesta fronteira: ela redige o escopo; cláusula de rescisão, multa, foro
+ou responsabilidade vem do modelo que a organização aprovou, escrito uma vez.
+Está no prompt e está na tela — não é aviso para nos proteger, é a diferença
+entre economizar meia hora de redação e produzir um documento que ninguém leu.
+
+**O resumo da negociação não usa IA (uso 3).** Virou função pura, e a razão é
+que **todos os fatos já estão no banco, exatos**: quantas versões, se o desconto
+cresceu, há quantos dias foi enviada, quantas vezes o cliente abriu. Um modelo
+que os reescrevesse poderia errar um número de um jeito plausível — "aberta duas
+vezes" quando foram cinco — e num resumo que alguém lê para decidir a próxima
+ligação isso é pior que não ter resumo. Além de custar token por abertura de
+ficha.
+
+A frase aparece no topo da ficha, para quem pega o negócio de outra pessoa. O
+fato que ela mais protege: **o desconto que já cresceu** — sem ele, quem assume
+concede de novo do zero, e o cliente leva duas vezes.
+
+### A proposta sem resposta cobra o vendedor, não o cliente
+
+Rotina diária (`propostas-sem-resposta`): proposta enviada há **3 ou 7 dias**,
+sem aceite, com link válido e negócio aberto, gera uma notificação para o dono
+do negócio.
+
+**O texto muda com as aberturas, e é aqui que o módulo paga o que custou.** Zero
+abertura não é "ele não gostou" — é "ele não abriu", e a ação seguinte é outra:
+confirmar se o link chegou, não renegociar preço. Nenhum CRM que manda PDF anexo
+sabe a diferença.
+
+Dois marcos, não cinco: o terceiro aviso sobre a mesma proposta deixa de ser
+lembrete e passa a ser ruído, e a pessoa aprende a ignorar a sineta — o que custa
+os avisos que importam.
+
+**Não duplica por construção.** `NotificationLog` tem
+`@@unique([workspaceId, kind, scope])`, e o `scope` carrega a proposta e o
+marco; a reivindicação vem antes do aviso, e é devolvida se o aviso falhar — o
+mesmo padrão dos e-mails de cobrança. Nenhuma coluna de "já cobrei".
+
+O plano previa um Cloudflare Workflow dormindo por proposta. Virou cron porque
+**a instância teria de reconferir o estado ao acordar de todo modo** (a proposta
+pode ter sido aceita, revogada ou substituída por uma v2), então ela não evitaria
+a consulta — só adiantaria o agendamento, ao custo de um binding novo nos três
+Workers ou de enfiar o domínio de proposta dentro do motor de funis de
+marketing. A rotina pega carona no gatilho que a expiração já usa: **21 entradas
+na agenda, 15 gatilhos — os mesmos de antes das duas.**
+
+### A proposta está onde o negócio está
+
+A ficha do negócio ganhou um modo **Propostas** (`DealProposals`), entre
+"agendar" e "atividades": estado, valor, versão e **aberturas** de cada
+documento daquele negócio, com um botão que cria um novo já com o negócio
+escolhido.
+
+Sem isso, só se chegava a uma proposta pelo menu — e quem está olhando um
+negócio, decidindo o que fazer com ele, teria de sair, buscar pelo número e
+voltar. O documento nasce do negócio e volta para ele.
+
+O editor de itens **não** veio para o painel: montar proposta é trabalho de tela
+cheia, e caber linhas de quatro campos em 380px custaria a legibilidade da coisa
+mais sensível do módulo, que é o valor. O painel lê e leva.
+
+Negócio fechado não ganha documento novo — o que fechou está explicado pelo que
+já existe —, mas o modo continua acessível: a proposta aceita é a explicação do
+valor que fechou, e é ali que alguém vai procurá-la.
+
+### A v2: o modelo primeiro, o documento depois
+
+Pedido em 22/11/2026, depois da homologação da v1, em quatro eixos: menos
+cliques, documento visível no rascunho, campos do sistema como variáveis, e
+modelos criados por IA ou importados. Cinco fases, todas em `staging` em
+23/11/2026. O que elas fixam como regra:
+
+**O documento é a tela.** Um canvas de **seções tipadas** (capa, sumário,
+carta, destaques, escopo, fases, itens, investimento, garantia, condições,
+aceite, fechamento, texto), com dois modos no mesmo lugar — Editar e
+Visualizar. Nunca HTML colado: não há sanitizador neste projeto, e é decisão.
+O render continua **um e no servidor**; o modo Visualizar pede o HTML pronto a
+uma rota de prévia, e a página pública usa a mesma função e o mesmo CSS. Dois
+CSS fariam o vendedor ver uma coisa e o cliente outra.
+
+**A sintaxe da variável nunca aparece.** *"Esse formato assusta quem é leigo.
+Um erro de digitação e a variável quebra"* (Andre, 22/11). A variável é um
+**objeto atômico** no texto, mostrando o valor real — no modelo, o rótulo entre
+‹›. Entra por botão, por `@` ou por sugestão ("tornar dinâmico"); Backspace
+apaga o objeto inteiro. `{{grupo.campo}}` existe só por dentro, gravado pelo
+editor. Vale para qualquer superfície futura que exponha variáveis, e-mail de
+campanha incluído.
+
+**O envio congela.** Seções e valores das variáveis são gravados na revisão na
+primeira ida ao cliente; reenviar (link novo) não recongela. Mudar o modelo ou
+o telefone do cliente amanhã não muda a proposta que ele tem na mão, e o hash do
+aceite continua correspondendo ao que ele leu. A projeção pública segue mínima:
+dado do cliente chega à página só pelo congelado, gravado por rota autenticada.
+
+**O modelo vem antes.** *"Montar modelos com IA primeiro e depois inserir as
+variáveis. Uma vez o modelo pronto é só preencher."* Quatro passos: descrever
+(ou importar um `.docx`/`.pdf`/`.xlsx` que a organização já usa) → a IA monta
+todas as páginas, e a arte da capa se pedida → marcar o que varia (no
+importado, as sugestões vêm prontas para confirmar; nada é trocado sem a
+pessoa) → ativar. **Modelo novo nasce inativo**: texto não revisado na frente do
+vendedor seria pior que nenhum. E a IA **não promete**: número, prazo, preço,
+garantia e condições saem em branco, garantido em código e não só no prompt —
+prometer é de quem assina.
+
+**A capa é arte, não texto.** Abstrata, na cor do modelo, sem letra nenhuma
+(modelo de imagem erra grafia); título, cliente e data entram por cima como
+dados dinâmicos. Custa créditos e vive no bucket público — pode, porque não
+leva dado de cliente.
+
+**O documento consta em Conversas.** O envio por e-mail que **saiu** vira
+mensagem no fio `email` do contato — um por contato, da equipe e com dono (quem
+enviou). "Abriu" e "aceitou" são mensagens do sistema, **idempotentes**: a
+segunda abertura do mesmo link não gera segunda linha ("abriu três vezes" é a
+contagem, não o fio). A caixa de resposta não existe nesse canal, e a tela diz
+por quê; a rota recusa (`409`). Conversas enviar e-mail é a etapa seguinte, e é
+ali que entra.
+
+**Identidade do modelo fora do HTML.** A cor do modelo e o logotipo da unidade
+pintam a página do link e a prévia, mas ficam fora do HTML renderizado — o hash
+do aceite da v1 continua válido.
+
+O que a v2 deixou de fora está em §18.
+
+## 20. Relatórios
+
+Entregue em 21/11/2026, **sem migração**: o módulo vive inteiro sobre os ganchos
+que o de documentos (§19) deixou no banco.
+
+O estudo do Ploomes não tinha o que copiar aqui — a feature de relatórios é
+literalmente *"endpoints: nenhum"*, com evidência só de marketing. Então isto é
+projeto próprio.
+
+### Três relatórios, e por que estes três
+
+**Propostas** e **Produtos** não existiam, e não por falta de tela: até §19,
+`Deal` não tinha itens e o documento não tinha aberturas. **Funil** existia pela
+metade no painel (há conversão e dias por fase no gráfico); aqui ele responde o
+que o gráfico não responde — *onde* o funil vaza, e quanto dinheiro sai por cada
+etapa.
+
+O relatório de produtos é o primeiro relatório por produto que o produto pode
+ter. O valor do negócio era um campo livre digitado; não havia de onde saber o
+que, dentro dele, foi vendido.
+
+### Três decisões que as contas carregam
+
+**Denominador vazio devolve nada, não zero.** "Não há taxa de aceite" e "a taxa
+de aceite é 0%" são informações opostas: a primeira é uma clínica que ainda não
+mandou proposta, a segunda é uma que mandou e não fechou nenhuma. A tela mostra
+travessão, e o CSV deixa a célula vazia. É a resposta ao aviso do próprio
+estudo — *dashboard construído antes de o histórico acumular mostra zeros* — e a
+resposta certa não é mostrar zeros com elegância.
+
+**A taxa de aceite exclui o que ainda está em jogo.** O denominador é
+`aceitas + recusadas + expiradas`, nunca o total de enviadas. Proposta enviada
+ontem, dentro do prazo, não é derrota — contá-la como tal faria a taxa piorar
+sempre que o vendedor trabalhasse mais.
+
+**Nunca se soma entre moedas.** Todo total agregado é uma lista com uma linha por
+moeda. Somar real com dólar dá um número que não é dinheiro nenhum, e mostrá-lo
+com o símbolo de um dos dois seria pior que não mostrar. Com uma moeda só — o
+caso de quase toda unidade — a lista se lê como um número.
+
+Mais duas, menores e deliberadas: **tempo se lê pela mediana**, porque uma
+proposta aceita em noventa dias arrasta a média para longe de toda experiência
+real; e **a última etapa de cada negócio não entra no tempo de etapa**, porque
+ele ainda está lá e medir "até agora" misturaria tempo decorrido com tempo gasto.
+
+### A forma da tela
+
+Componente de **servidor**, com o recorte na URL — como o painel. Os números
+saem no HTML (sem piscar) e o relatório se compartilha colando o link, que é o
+que um gestor faz com um número que quer mostrar.
+
+Quem vê: dono, administrador e gestor, a mesma régua do painel. **O portão está
+nas três superfícies** — a tela, o JSON e o CSV —, e o recorte de dado
+(`dealScope`) é independente dele: se amanhã o atendente ganhar uma visão
+própria, ela já nasce recortada. Esconder do menu não é autorização, e exportar é
+o jeito mais fácil de contornar uma tela.
+
+A exportação chama **a mesma consulta** da tela. Duas consultas divergiriam, e a
+divergência apareceria como a planilha discordando do número que o gestor viu,
+sem que nenhuma das duas parecesse errada.
+
+### Sobre o CSV
+
+Passa por `escapeCsv`, que neutraliza fórmula: a descrição de um item de
+proposta é texto que alguém digitou, e o alvo desse ataque não é o nosso sistema
+— é o Excel de quem exporta. Leva BOM de UTF-8 (sem ele o Excel do Windows lê
+"Avaliação" como "AvaliaÃ§Ã£o") e número com vírgula decimal, senão a planilha
+em português trata o valor como texto e ele não entra em soma nenhuma.
+
+### O que **não** foi feito
+
+- **Relatório salvo** — pede um editor de consulta. O link na URL já cobre
+  "quero este recorte de novo amanhã".
+- **Agendamento por e-mail** — pede cron por unidade e destinatário
+  configurável.
+- **Gráfico** — os três são números e tabelas. O painel é onde moram os
+  gráficos, e duplicá-los aqui custaria manutenção sem responder nada novo.
+- **`COUNT(*)`** — as linhas do período são contadas em memória. Onde isso
+  deixar de valer, a saída é materializar, não contar.

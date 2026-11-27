@@ -25,7 +25,7 @@ export async function PATCH(
         if (!stage) return NextResponse.json({ error: 'Etapa não encontrada' }, { status: 404 })
 
         const body = await request.json()
-        const { name, color, order, followUpDays, autoSend } = body
+        const { name, color, order, followUpDays, autoSend, isWon, isProposalSent } = body
 
         if (name !== undefined && (typeof name !== 'string' || name.trim().length === 0)) {
             return NextResponse.json({ error: 'Nome é obrigatório' }, { status: 400 })
@@ -48,6 +48,48 @@ export async function PATCH(
             updateData.followUpDays =
                 followUpDays === null || followUpDays === '' ? null : Math.max(0, Number(followUpDays)) || null
         }
+
+        /**
+         * A etapa de ganho: marcar uma **desmarca** a anterior do mesmo funil.
+         *
+         * O índice único parcial da migração recusaria duas marcadas, e o erro
+         * chegaria à tela como "erro interno". Desmarcar antes é o que faz o
+         * gesto ser "esta agora é a de ganho" em vez de "tente, e falhe se já
+         * houver outra" — que é como a pessoa pensa.
+         *
+         * Numa transação com a gravação: sem ela, uma falha no meio deixaria o
+         * funil sem etapa de ganho nenhuma, e o aceite voltaria calado a cair na
+         * última.
+         */
+        if (isWon === true && stage.pipelineId) {
+            const updated = await prisma.$transaction(async (tx) => {
+                await tx.pipelineStage.updateMany({
+                    where: { pipelineId: stage.pipelineId, isWon: true, id: { not: id } },
+                    data: { isWon: false },
+                })
+                return tx.pipelineStage.update({ where: { id }, data: { ...updateData, isWon: true } })
+            })
+            return NextResponse.json(updated)
+        }
+
+        // Desmarcar é livre: funil sem etapa de ganho cai na última, que é o
+        // comportamento de quem nunca marcou.
+        if (isWon === false) updateData.isWon = false
+
+        // A etapa de PROPOSTA ENVIADA: mesma regra da de ganho — marcar uma
+        // desmarca a anterior, na mesma transação.
+        if (isProposalSent === true && stage.pipelineId) {
+            const updated = await prisma.$transaction(async (tx) => {
+                await tx.pipelineStage.updateMany({
+                    where: { pipelineId: stage.pipelineId, isProposalSent: true, id: { not: id } },
+                    data: { isProposalSent: false },
+                })
+                return tx.pipelineStage.update({ where: { id }, data: { ...updateData, isProposalSent: true } })
+            })
+            return NextResponse.json(updated)
+        }
+        // Desmarcar é livre: sem etapa marcada, o envio não move o negócio.
+        if (isProposalSent === false) updateData.isProposalSent = false
 
         const updated = await prisma.pipelineStage.update({
             where: { id },

@@ -143,19 +143,54 @@ const PADRAO_DE_QUEDA: Record<keyof CamposDaMesclagem, string> = {
  * metade de uma base importada de planilha.
  */
 export function aplicarCampos(texto: string, campos: CamposDaMesclagem): string {
+    return substituirMarcadores(texto, campos, PADRAO_DE_QUEDA)
+}
+
+/**
+ * O motor da substituição, com o domínio de marcadores aberto.
+ *
+ * Extraído de `aplicarCampos` em 2026-11-21, quando o módulo de documentos
+ * precisou dos seus próprios marcadores (`{{total}}`, `{{validade}}`,
+ * `{{itens}}` — ver `lib/propostas/variaveis.ts`). Dois domínios, uma
+ * implementação: a regra da pontuação órfã é sutil e foi acertada contra a
+ * prévia de campanha, e uma segunda cópia dela voltaria a errar as mesmas
+ * frases.
+ *
+ * `padroes` faz dois trabalhos: diz **quais** marcadores existem (o que não
+ * está nele fica visível no texto, por desenho) e o que sai quando o valor
+ * falta e o marcador não traz queda escrita.
+ */
+export function substituirMarcadores<C extends object>(
+    texto: string,
+    campos: C,
+    padroes: Record<string, string>
+): string {
+    /**
+     * O acesso por chave precisa deste molde.
+     *
+     * `campos` chega como `interface` (`CamposDaMesclagem`,
+     * `VariaveisDoDocumento`), e interface — ao contrário de `type` — não ganha
+     * assinatura de índice implícita, então `campos[chave]` não compila sem
+     * ele. O genérico existe para que o chamador continue sendo checado contra
+     * o seu próprio tipo em vez de receber um `Record` aberto.
+     */
+    const valores = campos as Record<string, string | null | undefined>
+
     return texto.replace(
         // O espaço ANTES e a pontuação DEPOIS entram na captura: é o que permite
         // engolir a pontuação órfã sem uma segunda passada sobre o texto.
-        /([ \t]*)\{\{\s*(\w+)\s*(?:\|([^}]*))?\}\}([,;:—-]?[ \t]*)/g,
+        // `[\w.]+`, e não `\w+`: desde 22/11/2026 o documento usa marcador em
+        // grupo (`cliente.nome`). Campo de campanha é palavra só, então nada
+        // muda para ele — e o verificador prova a equivalência.
+        /([ \t]*)\{\{\s*([\w.]+)\s*(?:\|([^}]*))?\}\}([,;:—-]?[ \t]*)/g,
         (inteiro, antes: string, chave: string, queda: string | undefined, depois: string) => {
-            if (!(chave in PADRAO_DE_QUEDA)) return inteiro
+            if (!(chave in padroes)) return inteiro
 
-            const nome = chave as keyof CamposDaMesclagem
-            const valor = campos[nome]
+            const valor = valores[chave]
             const resolvido =
                 valor && valor.trim().length > 0
                     ? valor.trim()
-                    : (queda ?? PADRAO_DE_QUEDA[nome]).trim()
+                    : (queda ?? padroes[chave]).trim()
 
             // Resolveu em algo: o texto segue inteiro, pontuação inclusa.
             if (resolvido.length > 0) return antes + resolvido + depois
