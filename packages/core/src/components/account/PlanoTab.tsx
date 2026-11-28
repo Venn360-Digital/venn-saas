@@ -30,6 +30,7 @@ import {
     Loader2,
     Minus,
     Plus,
+    QrCode,
     Receipt,
     RotateCcw,
     X
@@ -38,6 +39,7 @@ import { toast } from 'sonner'
 import { BILLING_UPDATED } from '../layout/AppSidebar'
 import { CancelarAssinaturaCard } from './CancelarAssinaturaCard'
 import { DadosDeCobrancaDialog } from './DadosDeCobrancaDialog'
+import { DialogoDoPix, type DadosDoPix } from './DialogoDoPix'
 import { useVocab } from '../../hooks/useVocab'
 import { comArtigo } from '../../lib/concordancia'
 import { nomeDaJanelaDePagamento, tipoDaMensagemDePagamento } from '../../lib/pagamento-janela'
@@ -384,6 +386,19 @@ export function PlanoTab() {
      */
     const [confirmandoCompra, setConfirmandoCompra] = useState(false)
     const [cartaoDaCompra, setCartaoDaCompra] = useState<string | null>(null)
+    /**
+     * Pagar por Pix **aqui dentro** — Fase 2, 27/11/2026.
+     *
+     * Booleano ao lado de `cartaoDaCompra` e não um terceiro valor nele: as duas
+     * perguntas são independentes. `cartaoDaCompra` diz *qual cartão salvo*, e
+     * isto diz *se é Pix*. Enfiar `'pix'` na mesma variável de token faria todo
+     * lugar que a lê para buscar um cartão ter de saber que existe um valor que
+     * não é token.
+     */
+    const [pagarComPix, setPagarComPix] = useState(false)
+    /** O Pix gerado, enquanto o diálogo dele estiver aberto. */
+    const [pixEmAberto, setPixEmAberto] = useState<DadosDoPix | null>(null)
+    const [valorDoPixCentavos, setValorDoPixCentavos] = useState(0)
     const [unidadesLista, setUnidadesLista] = useState<UnidadeDaConta[]>([])
     const [comprandoAdicionais, setComprandoAdicionais] = useState<{
         adicionais: number
@@ -816,7 +831,70 @@ export function PlanoTab() {
      * Conta isenta e cesta abaixo do mínimo do gateway continuam entrando na
      * hora, sem janela: nos dois casos não há nada a cobrar.
      */
-    const handleBuyAddons = async (comCartao?: string) => {
+    const handleBuyAddons = async (comCartao?: string, comPix = false) => {
+        /**
+         * **Pix: nem janela, nem página deles.** Fase 2, 27/11/2026.
+         *
+         * O servidor cria a cobrança e devolve o QR; o diálogo abre em cima
+         * desta tela e espera. Não há `window.open` aqui pela mesma razão do
+         * cartão salvo logo abaixo — não há endereço para onde mandar ninguém.
+         */
+        if (comPix) {
+            setProcessing(true)
+            try {
+                const res = await fetch('/api/account/subscription', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'buy-addons',
+                        credits: pacoteEscolhido ?? undefined,
+                        units: unidadesEscolhidas,
+                        trainings: treinamentosEscolhidos,
+                        pix: true,
+                    }),
+                })
+                const data = await res.json()
+
+                if (res.ok && data.pix) {
+                    /**
+                     * O modal da cesta fecha e o do Pix abre. Dois diálogos
+                     * empilhados deixariam o de trás capturando o foco do
+                     * leitor de tela, e o QR é a única coisa que importa agora.
+                     */
+                    setShowCreditsModal(false)
+                    const gerado = data.pix as DadosDoPix
+                    setValorDoPixCentavos(gerado.valorCentavos)
+                    setPixEmAberto(gerado)
+                } else if (res.ok) {
+                    /**
+                     * Conta isenta ou antes da data de cobrança: o servidor
+                     * entregou sem cobrar e não há Pix para mostrar.
+                     */
+                    toast.success(data.message)
+                    setShowCreditsModal(false)
+                    await loadSubscription()
+                    window.dispatchEvent(new Event(BILLING_UPDATED))
+                } else if (data.faltaDocumento && subscription?.cobranca?.souMaster) {
+                    toast.error(data.error, {
+                        action: {
+                            label: 'Preencher',
+                            onClick: () => {
+                                setIntencao({ tipo: 'adicionais' })
+                                setShowCobrancaModal(true)
+                            },
+                        },
+                    })
+                } else {
+                    toast.error(data.error || 'Não foi possível gerar o Pix')
+                }
+            } catch {
+                toast.error('Não foi possível gerar o Pix')
+            } finally {
+                setProcessing(false)
+            }
+            return
+        }
+
         /**
          * Pagando no cartão salvo não há janela: a cobrança acontece no
          * servidor e volta pronta. Abrir uma janela em branco aqui deixaria um
@@ -2045,7 +2123,7 @@ export function PlanoTab() {
                 submitting={processing}
                 onSubmit={() => {
                     setConfirmandoCompra(false)
-                    void handleBuyAddons(cartaoDaCompra ?? undefined)
+                    void handleBuyAddons(cartaoDaCompra ?? undefined, pagarComPix)
                 }}
             >
                 <div className="col-span-2 space-y-4">
@@ -2118,31 +2196,107 @@ export function PlanoTab() {
                                         </label>
                                     ))}
 
-                                    {/* A outra forma é uma opção da mesma lista,
-                                        e não um link perdido: as duas respondem
-                                        a mesma pergunta. */}
+                                    {/* PIX E "OUTRO CARTÃO" DEIXARAM DE SER A
+                                        MESMA OPÇÃO — Fase 2, 27/11/2026.
+
+                                        Eram uma linha só, "Pix ou outro cartão
+                                        · abre a página de pagamento do Asaas",
+                                        porque os dois saíam do domínio. Agora o
+                                        Pix fica aqui dentro e o cartão novo não,
+                                        e isso é diferença que o cliente sente:
+                                        juntá-las faria quem queria Pix ser
+                                        mandado para fora sem motivo.
+
+                                        A ordem é a do destino: o que resolve
+                                        aqui vem antes do que leva para fora. */}
                                     <label className="flex cursor-pointer items-center gap-3 px-4 py-3 hover:bg-accent">
                                         <input
                                             type="radio"
                                             name="cartao-da-compra"
                                             className="accent-primary"
-                                            checked={cartaoDaCompra === null}
-                                            onChange={() => setCartaoDaCompra(null)}
+                                            checked={cartaoDaCompra === null && pagarComPix}
+                                            onChange={() => {
+                                                setCartaoDaCompra(null)
+                                                setPagarComPix(true)
+                                            }}
+                                        />
+                                        <QrCode className="size-4 text-muted-foreground" />
+                                        <span className="text-sm">
+                                            Pix
+                                            <span className="block text-xs text-muted-foreground">
+                                                o QR Code aparece aqui, sem sair do sistema
+                                            </span>
+                                        </span>
+                                    </label>
+
+                                    <label className="flex cursor-pointer items-center gap-3 px-4 py-3 hover:bg-accent">
+                                        <input
+                                            type="radio"
+                                            name="cartao-da-compra"
+                                            className="accent-primary"
+                                            checked={cartaoDaCompra === null && !pagarComPix}
+                                            onChange={() => {
+                                                setCartaoDaCompra(null)
+                                                setPagarComPix(false)
+                                            }}
                                         />
                                         <Plus className="size-4 text-muted-foreground" />
                                         <span className="text-sm">
-                                            Pix ou outro cartão
+                                            Outro cartão
                                             <span className="block text-xs text-muted-foreground">
-                                                abre a página de pagamento do Asaas
+                                                abre a página segura do Asaas — o cartão não
+                                                passa por aqui
                                             </span>
                                         </span>
                                     </label>
                                 </div>
                             ) : (
-                                <p className="mt-1 text-xs text-muted-foreground">
-                                    Você escolhe Pix ou cartão na página do Asaas. O cartão usado
-                                    fica guardado, e a próxima compra passa a ser de um clique.
-                                </p>
+                                /* SEM CARTÃO SALVO a escolha continua existindo,
+                                   e isso mudou na Fase 2. O texto dizia "você
+                                   escolhe Pix ou cartão na página do Asaas" —
+                                   verdadeiro quando os dois saíam do domínio, e
+                                   falso agora que o Pix resolve aqui. */
+                                <div className="mt-2 divide-y divide-border overflow-hidden rounded-lg border border-border">
+                                    <label className="flex cursor-pointer items-center gap-3 px-4 py-3 hover:bg-accent">
+                                        <input
+                                            type="radio"
+                                            name="cartao-da-compra"
+                                            className="accent-primary"
+                                            checked={pagarComPix}
+                                            onChange={() => {
+                                                setCartaoDaCompra(null)
+                                                setPagarComPix(true)
+                                            }}
+                                        />
+                                        <QrCode className="size-4 text-muted-foreground" />
+                                        <span className="text-sm">
+                                            Pix
+                                            <span className="block text-xs text-muted-foreground">
+                                                o QR Code aparece aqui, sem sair do sistema
+                                            </span>
+                                        </span>
+                                    </label>
+                                    <label className="flex cursor-pointer items-center gap-3 px-4 py-3 hover:bg-accent">
+                                        <input
+                                            type="radio"
+                                            name="cartao-da-compra"
+                                            className="accent-primary"
+                                            checked={!pagarComPix}
+                                            onChange={() => {
+                                                setCartaoDaCompra(null)
+                                                setPagarComPix(false)
+                                            }}
+                                        />
+                                        <CreditCard className="size-4 text-muted-foreground" />
+                                        <span className="text-sm">
+                                            Cartão
+                                            <span className="block text-xs text-muted-foreground">
+                                                na página segura do Asaas. O cartão usado fica
+                                                guardado, e a próxima compra é de um clique.
+                                            </span>
+                                        </span>
+                                    </label>
+                                </div>
                             )}
                         </div>
                     )}
@@ -3129,6 +3283,32 @@ export function PlanoTab() {
                     } else if (retomar?.tipo === 'adicionais') {
                         await handleBuyAddons()
                     }
+                }}
+            />
+
+            {/* O PIX, dentro do app — Fase 2.
+                Montado aqui e não dentro do modal da cesta: eles se substituem,
+                não se empilham. Ver `DialogoDoPix`. */}
+            <DialogoDoPix
+                pix={pixEmAberto}
+                valorCentavos={valorDoPixCentavos}
+                aberto={pixEmAberto !== null}
+                onOpenChange={(aberto) => {
+                    if (!aberto) setPixEmAberto(null)
+                }}
+                onEntregue={() => {
+                    /**
+                     * O adicional já está na conta — quem diz isso é `appliedAt`,
+                     * gravado pelo webhook. Aqui só se relê o que mudou.
+                     *
+                     * O diálogo **não** se fecha sozinho: quem acabou de pagar
+                     * tem direito de ver a confirmação e fechar quando quiser.
+                     */
+                    setPacoteEscolhido(null)
+                    setUnidadesEscolhidas(0)
+                    setTreinamentosEscolhidos(0)
+                    void loadSubscription()
+                    window.dispatchEvent(new Event(BILLING_UPDATED))
                 }}
             />
 

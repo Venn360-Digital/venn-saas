@@ -216,6 +216,26 @@ export const ROTINAS: Rotina[] = [
     { task: 'ia-credencial', brt: '9 6 * * *' },
 
     /**
+     * A sonda de credencial do Asaas. Uma vez por dia, 06h14 BRT.
+     *
+     * Mesma forma e mesma razão da sonda de IA acima — e uma razão a mais, que
+     * a de IA não tem: **a chave do Asaas morre de não ser usada.** Eles a
+     * desabilitam aos 3 meses de inatividade e a expiram em definitivo aos 6,
+     * sem reativação. Então esta linha não é só vigilância; a chamada diária é o
+     * que reinicia aquele relógio.
+     *
+     * Por isso ela vale **inclusive em homologação**, que é justamente o
+     * ambiente que fica ocioso: ninguém contrata plano em staging por semanas, e
+     * sem a sonda a chave de lá morreria sozinha entre uma homologação e a
+     * próxima.
+     *
+     * Cinco minutos depois da de IA, e não no mesmo minuto: as duas mandam
+     * e-mail no pior caso, e dois alertas no mesmo segundo chegam como um só na
+     * caixa de quem lê.
+     */
+    { task: 'asaas-credencial', brt: '14 6 * * *' },
+
+    /**
      * Dispara as campanhas agendadas cuja hora chegou (ver
      * `broadcast-dispatch.ts`). De dez em dez minutos, na janela da clínica:
      *

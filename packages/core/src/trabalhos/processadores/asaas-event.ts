@@ -14,6 +14,8 @@ import { aplicarAdicionais } from '../../lib/billing/aplicar-adicionais'
 import { cicloDe, isPlanId, valorDaFatura } from '../../lib/plan-limits'
 import { fimDaCarencia } from '../../lib/billing/inadimplencia'
 import { sendBillingEmail } from '../../lib/email/billing'
+import { avisarSuporte } from '../../lib/asaas/alerta'
+import { alertaDaChave, eventoDeChave, type ChaveNoEvento } from '../../lib/asaas/chave-de-api'
 import { createLogger } from '../registro'
 import type { AsaasEventJob } from '../../lib/queue/definitions'
 
@@ -119,6 +121,11 @@ export async function processAsaasEvent(payload: AsaasEventJob): Promise<void> {
             await tratarCheckout(
                 linha.event,
                 linha.payload as { checkout?: CheckoutDoAsaas }
+            )
+        } else if (eventoDeChave(linha.event)) {
+            await tratarChaveDeApi(
+                linha.event,
+                linha.payload as { accessToken?: ChaveNoEvento }
             )
         } else {
             log.info(`evento ${linha.event} sem tratamento nesta fase; apenas registrado`)
@@ -1032,5 +1039,39 @@ async function tratarCheckout(
         }
     } catch (erro) {
         log.error(`falha ao vincular conta ${tentativa.accountId} ao Asaas: ${String(erro)}`)
+    }
+}
+
+/**
+ * Os eventos de chave de API: o log sempre, o e-mail só quando acorda alguém.
+ *
+ * A decisão de **quem acorda** é de `lib/asaas/chave-de-api.ts`, pura e
+ * conferível sem webhook. Aqui fica só o efeito.
+ *
+ * **O e-mail falhando não derruba o evento.** Esta função é chamada de dentro do
+ * `try` de `processAsaasEvent`, que relança para o BullMQ retentar — e
+ * retentar um evento de chave porque a caixa de saída estava fora significa
+ * reprocessar o mesmo aviso oito vezes. O evento já está gravado, que é a parte
+ * que importa; o alerta que não saiu fica no log com o motivo.
+ */
+async function tratarChaveDeApi(
+    event: string,
+    payload: { accessToken?: ChaveNoEvento }
+): Promise<void> {
+    const chave = payload.accessToken ?? {}
+    const alerta = alertaDaChave(event, chave)
+
+    if (!alerta) {
+        log.info(`${event} da chave ${chave.name ?? chave.id ?? '(sem nome)'}; apenas registrado`)
+        return
+    }
+
+    log.error(`${event}: ${alerta.assunto}`)
+
+    try {
+        await avisarSuporte(alerta)
+        log.warn(`suporte avisado: ${alerta.assunto}`)
+    } catch (erro) {
+        log.error(`não consegui avisar "${alerta.assunto}": ${String(erro)}`)
     }
 }
