@@ -34,6 +34,7 @@
         "lint:workspace": "node scripts/lint-workspace.mjs",
         "lint:fuso": "node scripts/lint-fuso.mjs",
         "check:cofre": "tsx --conditions=react-server scripts/check-cofre.ts",
+        "check:asaas": "tsx --conditions=react-server scripts/check-asaas.ts",
         "check:neon": "tsx --conditions=react-server scripts/check-neon.ts",
         "check:storage": "tsx --conditions=react-server scripts/check-storage.ts",
         "check:auth": "tsx --conditions=react-server scripts/check-auth.ts",

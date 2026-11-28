@@ -37,6 +37,23 @@ export interface AlertaDoAsaas {
 const DESTINO = process.env.ALERT_EMAIL ?? 'suporte@venn360.com'
 
 /**
+ * A regra do nome do Worker, **em função pura**.
+ *
+ * Separada de `nomeDoWorker()` pela mesma razão que a decisão da sonda é
+ * separada do `fetch`: `APP()` memoiza na primeira chamada — de propósito, e o
+ * comentário dele explica por quê —, então um teste que mexesse em
+ * `process.env` depois disso não mudaria nada e passaria a provar o oposto do
+ * que pretendia. Foi o que aconteceu ao escrever `check:asaas`.
+ *
+ * Com a regra aqui, ela se confere sem ambiente, que é o que um portão pode
+ * rodar.
+ */
+export function sufixoDoWorker(slug: string, env: string): string {
+    const base = slug || 'app'
+    return env === 'production' ? base : `${base}-stg`
+}
+
+/**
  * O nome do Worker, que é o que falta no comando do `wrangler secret put`.
  *
  * Em homologação ele leva o sufixo `-stg`, e um e-mail que mandasse
@@ -45,8 +62,7 @@ const DESTINO = process.env.ALERT_EMAIL ?? 'suporte@venn360.com'
  * nome é derivado e não escrito à mão em cada texto.
  */
 export function nomeDoWorker(): string {
-    const slug = APP().slug || 'app'
-    return APP().env === 'production' ? slug : `${slug}-stg`
+    return sufixoDoWorker(APP().slug, APP().env)
 }
 
 /** O que o produto perde enquanto a credencial não responde. */
